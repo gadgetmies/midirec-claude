@@ -70,15 +70,20 @@ Region dividers SHALL use `var(--mr-line-2)` 1px hairlines.
 - **THEN** the `background-color` of Titlebar, Sidebar, Inspector, and Statusbar SHALL match the computed value of `--mr-bg-panel`
 - **AND** divider borders between regions SHALL match the computed value of `--mr-line-2` at 1px width
 
-### Requirement: Slice 0 ships zero functionality
+### Requirement: Empty regions ship empty until their slices populate them
 
-The shell in Slice 0 SHALL contain no transport buttons, no ruler ticks, no notes, no real CC lane bars, no inspector tabs, no statusbar meters. Each region MAY contain a faint placeholder label (in `var(--mr-text-3)` or dimmer) solely to make geometry visible during development.
+Regions of the shell that have not yet been claimed by an implementation slice SHALL contain no transport buttons, no ruler ticks, no notes, no real CC lane bars, no inspector tabs, no statusbar meters. Each such empty region MAY contain a faint placeholder label (in `var(--mr-text-3)` or dimmer) solely to make geometry visible during development. As of this change, the **Titlebar** is populated by the `transport-titlebar` capability and is no longer subject to this rule. The remaining empty regions are: Sidebar, Toolstrip, Ruler, Stage, CC Lanes (slots), Inspector, Statusbar.
 
-#### Scenario: No interactive controls in the shell
+#### Scenario: Empty regions contain no functional controls
 
 - **WHEN** the app is rendered
-- **THEN** the DOM SHALL NOT contain `<button>` or `<input>` elements as direct functional controls within any region
-- **AND** any text content inside a region SHALL be a non-interactive placeholder string
+- **THEN** the Sidebar, Toolstrip, Ruler, Stage, CC Lane slots, Inspector, and Statusbar regions SHALL NOT contain `<button>` or `<input>` elements as direct functional controls
+- **AND** any text content inside those regions SHALL be a non-interactive placeholder string
+
+#### Scenario: Titlebar may contain functional controls
+
+- **WHEN** the app is rendered
+- **THEN** the Titlebar region MAY contain `<button>` elements (transport buttons, quantize toggle, etc.) per the `transport-titlebar` capability
 
 ### Requirement: Screenshot 01 visual parity
 
