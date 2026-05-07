@@ -1,0 +1,176 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   MIDI Recorder — Design System Tokens (v1)
+   Dark-mode-first, single-source-of-truth CSS variables.
+   Drop this in App.css (or a new tokens.css imported at the top of App.css).
+   All component CSS should reference --mr-* vars; never hard-code colors.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root, [data-mr-theme="console"] {
+  /* ── Surfaces (dark, slightly cool) ─────────────────────────────────── */
+  --mr-bg-app:        #0a0b0d;   /* page / behind everything */
+  --mr-bg-panel:      #111316;   /* sidebar, transport, inspector */
+  --mr-bg-panel-2:    #16191d;   /* nested rows, list items */
+  --mr-bg-input:      #0d0f12;   /* form fields, dropdowns */
+  --mr-bg-timeline:   #0c0d0f;   /* canvas behind notes */
+  --mr-bg-lane-odd:   #0e1013;   /* alternating piano-roll rows */
+  --mr-bg-lane-even:  #0a0b0d;
+  --mr-bg-overlay:    rgba(8, 9, 11, 0.72);  /* dialog scrim */
+
+  /* ── Borders / dividers (hairline) ──────────────────────────────────── */
+  --mr-line-1:        rgba(255,255,255,0.06);  /* subtle internal */
+  --mr-line-2:        rgba(255,255,255,0.10);  /* panel borders */
+  --mr-line-3:        rgba(255,255,255,0.18);  /* input borders */
+  --mr-line-strong:   rgba(255,255,255,0.32);  /* focus, selected */
+
+  /* ── Text ───────────────────────────────────────────────────────────── */
+  --mr-text-1:        #eef0f3;   /* primary */
+  --mr-text-2:        #b8bcc4;   /* secondary, labels */
+  --mr-text-3:        #7a818c;   /* tertiary, hints */
+  --mr-text-4:        #4a505a;   /* disabled, placeholders */
+  --mr-text-on-accent: #0a0b0d;  /* on solid accent fills */
+
+  /* ── Functional accents (each tied to a domain) ─────────────────────── */
+  --mr-accent:        oklch(72% 0.16 145);   /* primary action — green */
+  --mr-accent-hover:  oklch(78% 0.16 145);
+  --mr-accent-soft:   oklch(72% 0.16 145 / 0.15);
+
+  --mr-rec:           oklch(64% 0.22 25);    /* record / destructive — red */
+  --mr-rec-hover:     oklch(70% 0.22 25);
+  --mr-rec-soft:      oklch(64% 0.22 25 / 0.18);
+  --mr-rec-glow:      oklch(64% 0.22 25 / 0.45);
+
+  --mr-play:          oklch(76% 0.16 145);   /* play state — same hue family */
+  --mr-cue:           oklch(80% 0.14 90);    /* cue / locator — amber */
+  --mr-mute:          oklch(60% 0.04 260);   /* mute — desaturated */
+  --mr-solo:          oklch(82% 0.14 90);    /* solo — yellow */
+
+  --mr-note:          oklch(68% 0.14 240);   /* MIDI notes — blue */
+  --mr-note-sel:      oklch(82% 0.14 240);
+  --mr-cc:            oklch(70% 0.14 310);   /* CC lanes — magenta */
+  --mr-cc-sel:        oklch(82% 0.14 310);
+  --mr-pitch:         oklch(72% 0.14 200);   /* pitch bend — teal */
+  --mr-aftertouch:    oklch(74% 0.12 30);    /* aftertouch — coral */
+
+  --mr-info:          oklch(74% 0.10 230);
+  --mr-warn:          oklch(80% 0.14 80);
+  --mr-error:         oklch(64% 0.22 25);
+  --mr-ok:            oklch(72% 0.16 145);
+
+  /* ── Type scale ─────────────────────────────────────────────────────── */
+  --mr-font-ui:       "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mr-font-mono:     "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --mr-fs-10:         10px;     /* meta, micro labels */
+  --mr-fs-11:         11px;     /* default panel text */
+  --mr-fs-12:         12px;     /* body */
+  --mr-fs-13:         13px;     /* emphasized body */
+  --mr-fs-14:         14px;     /* headings */
+  --mr-fs-16:         16px;     /* section headings */
+  --mr-fs-20:         20px;     /* timecode */
+  --mr-fs-28:         28px;     /* big timecode */
+
+  --mr-lh-tight:      1.15;
+  --mr-lh-body:       1.45;
+
+  --mr-fw-regular:    400;
+  --mr-fw-medium:     500;
+  --mr-fw-semibold:   600;
+
+  --mr-tracking-cap:  0.08em;   /* uppercase eyebrow tracking */
+
+  /* ── Spacing scale (4px base) ───────────────────────────────────────── */
+  --mr-sp-0:   0px;
+  --mr-sp-1:   2px;
+  --mr-sp-2:   4px;
+  --mr-sp-3:   6px;
+  --mr-sp-4:   8px;
+  --mr-sp-5:   12px;
+  --mr-sp-6:   16px;
+  --mr-sp-7:   20px;
+  --mr-sp-8:   24px;
+  --mr-sp-9:   32px;
+  --mr-sp-10:  48px;
+
+  /* ── Radii (sharp; this is a tool) ──────────────────────────────────── */
+  --mr-r-0:   0px;
+  --mr-r-1:   2px;   /* default — buttons, chips, note blocks */
+  --mr-r-2:   4px;   /* inputs, panels */
+  --mr-r-3:   6px;   /* cards, dialogs */
+  --mr-r-pill: 999px;
+
+  /* ── Borders ────────────────────────────────────────────────────────── */
+  --mr-bw-hair: 0.5px;
+  --mr-bw-1:    1px;
+  --mr-bw-2:    2px;
+
+  /* ── Shadows (restrained — dark UI, glow > drop) ────────────────────── */
+  --mr-shadow-sm:  0 1px 0 rgba(0,0,0,0.4);
+  --mr-shadow-md:  0 6px 16px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3);
+  --mr-shadow-lg:  0 24px 48px rgba(0,0,0,0.55), 0 8px 16px rgba(0,0,0,0.4);
+  --mr-shadow-inset: inset 0 1px 0 rgba(255,255,255,0.04);
+  --mr-glow-rec:   0 0 0 1px var(--mr-rec), 0 0 12px var(--mr-rec-glow);
+  --mr-glow-focus: 0 0 0 2px oklch(72% 0.16 var(--mr-accent-h, 145) / 0.4);
+
+  /* ── Sizing ─────────────────────────────────────────────────────────── */
+  --mr-h-control:    24px;   /* compact button / input */
+  --mr-h-control-md: 28px;   /* default button */
+  --mr-h-control-lg: 36px;   /* transport buttons */
+  --mr-h-row:        22px;   /* device list row */
+  --mr-h-toolbar:    44px;   /* transport bar */
+  --mr-w-sidebar:    280px;
+  --mr-w-inspector:  320px;
+  --mr-h-cc-lane:    72px;
+  --mr-h-ruler:      28px;
+  --mr-h-track-hdr:  24px;
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  --mr-dur-fast:    100ms;
+  --mr-dur-base:    160ms;
+  --mr-dur-slow:    240ms;
+  --mr-ease:        cubic-bezier(.2, .7, .3, 1);
+
+  /* ── Z-index ────────────────────────────────────────────────────────── */
+  --mr-z-base:      1;
+  --mr-z-sticky:    10;
+  --mr-z-overlay:   100;
+  --mr-z-dialog:    200;
+  --mr-z-toast:     300;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Density — toggleable. Power user "compact" tightens controls + spacing.
+   Apply data-mr-density="compact|comfortable" on the app root.
+   ────────────────────────────────────────────────────────────────────── */
+[data-mr-density="compact"] {
+  --mr-h-control:     22px;
+  --mr-h-control-md:  24px;
+  --mr-h-control-lg:  32px;
+  --mr-h-row:         20px;
+  --mr-h-toolbar:     40px;
+  --mr-h-cc-lane:     56px;
+  --mr-sp-5:          10px;
+  --mr-sp-6:          12px;
+  --mr-fs-12:         11px;
+  --mr-fs-13:         12px;
+}
+
+[data-mr-density="comfortable"] {
+  --mr-h-control:     28px;
+  --mr-h-control-md:  32px;
+  --mr-h-control-lg:  40px;
+  --mr-h-row:         26px;
+  --mr-h-toolbar:     52px;
+  --mr-h-cc-lane:     88px;
+  --mr-sp-5:          14px;
+  --mr-sp-6:          20px;
+  --mr-fs-12:         13px;
+  --mr-fs-13:         14px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Interaction state mixins (compose with any control)
+   ────────────────────────────────────────────────────────────────────── */
+.mr-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--mr-glow-focus);
+}

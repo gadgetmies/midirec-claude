@@ -1,0 +1,9 @@
+import { AppShell } from './components/shell/AppShell';
+
+export function App() {
+  return (
+    <div className="mr-app" data-mr-theme="console">
+      <AppShell />
+    </div>
+  );
+}

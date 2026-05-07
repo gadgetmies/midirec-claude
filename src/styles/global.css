@@ -1,0 +1,28 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--mr-bg-app);
+  color: var(--mr-text-1);
+  font-family: var(--mr-font-ui);
+  font-size: var(--mr-fs-12);
+  line-height: var(--mr-lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mr-mono {
+  font-family: var(--mr-font-mono);
+  font-variant-numeric: tabular-nums;
+}

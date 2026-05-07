@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>MIDI Recorder · redesign</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="tokens.css"/>
+  <link rel="stylesheet" href="app.css"/>
+  <style>
+    /* Canvas page chrome only — does not affect artboard interiors. */
+    html, body { height: 100%; }
+    body { font-family: var(--mr-font-ui); background:#0e0f12; }
+
+    /* Notes section — text descriptions inside artboards */
+    .mr-spec {
+      background: var(--mr-bg-panel);
+      color: var(--mr-text-2);
+      border: 1px solid var(--mr-line-2);
+      border-radius: var(--mr-r-2);
+      padding: 16px 18px;
+      font-size: 12px;
+      line-height: 1.55;
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: var(--mr-font-ui);
+    }
+    .mr-spec h4 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mr-text-3); font-weight: 600; }
+    .mr-spec ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+    .mr-spec code { font-family: var(--mr-font-mono); font-size: 11px; color: var(--mr-text-1); }
+    .mr-spec b { color: var(--mr-text-1); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="dj.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="ds-page.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accentHue": 145,
+      "density": "balanced",
+      "lanesMode": "piano"
+    }/*EDITMODE-END*/;
+
+    function ImplementationPlan() {
+      return (
+        <div className="mr-spec">
+          <h4>Implementation plan · file map</h4>
+          <p style={{margin:0}}>Drop tokens.css, then refactor in 5 reviewable slices.</p>
+          <ul>
+            <li><b>Slice 1 · tokens</b> — add <code>tokens.css</code>, import at top of <code>App.css</code>. No visual changes yet.</li>
+            <li><b>Slice 2 · transport bar</b> — refactor <code>TransportControls.tsx</code> + its CSS to use <code>--mr-*</code>. Verify play/pause/rec wiring.</li>
+            <li><b>Slice 3 · sidebar panels</b> — <code>DeviceList</code>, <code>RecordFilter</code>, <code>RoutingPanel</code> share <code>.mr-panel</code> shell.</li>
+            <li><b>Slice 4 · timeline chrome</b> — <code>TimelineCanvas</code> ruler/keys/lanes adopt tokens. Note color = <code>--mr-note</code>; CC = <code>--mr-cc</code>.</li>
+            <li><b>Slice 5 · inspector + dialogs</b> — <code>Inspector</code>, <code>ExportDialog</code>, <code>Toast</code>. Final lint/build pass.</li>
+          </ul>
+          <h4 style={{marginTop:6}}>Accessibility checks</h4>
+          <ul>
+            <li>Text-1/bg-app contrast 14.6:1 (AAA). Text-2/bg-panel 7.8:1 (AAA).</li>
+            <li>Note blocks readable against lane bg via outline + velocity; never color-only.</li>
+            <li>Focus ring is a 2px accent halo, persistent on keyboard nav.</li>
+            <li>Hit targets ≥ 24px (compact) / 32px (comfortable). Transport ≥ 36px.</li>
+          </ul>
+        </div>
+      );
+    }
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      // Apply accent hue globally via custom prop
+      useEffect(() => {
+        const root = document.documentElement;
+        root.style.setProperty('--mr-accent',       `oklch(72% 0.16 ${t.accentHue})`);
+        root.style.setProperty('--mr-accent-hover', `oklch(78% 0.16 ${t.accentHue})`);
+        root.style.setProperty('--mr-accent-soft', `oklch(72% 0.16 ${t.accentHue} / 0.16)`);
+        root.style.setProperty('--mr-play',         `oklch(76% 0.16 ${t.accentHue})`);
+        root.style.setProperty('--mr-ok',           `oklch(72% 0.16 ${t.accentHue})`);
+      }, [t.accentHue]);
+
+      const APP_W = 1440;
+      const APP_H = 820;
+
+      return (
+        <DesignCanvas>
+          <DCSection id="ds" title="01 · Design system" subtitle="Tokens · type · components">
+            <DCArtboard id="ds-page" label="Tokens & components" width={1440} height={1080}>
+              <DSPage width={1440}/>
+            </DCArtboard>
+            <DCArtboard id="impl" label="Implementation plan" width={400} height={520}>
+              <div style={{padding:20, background:'var(--mr-bg-app)', height:'100%'}} data-mr-theme="console">
+                <ImplementationPlan/>
+              </div>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="dirs" title="02 · App shell" subtitle="Console direction.">
+            <DCArtboard id="dir-a" label="Console — sharp, jewel-toned, console UI" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="play" lanesMode={t.lanesMode}/>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="states" title="03 · State variations" subtitle="Direction A applied to common app states.">
+            <DCArtboard id="rec" label="Recording · armed + capturing" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="rec" showToast={false}/>
+            </DCArtboard>
+            <DCArtboard id="play" label="Playing · selection in inspector + toast" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="play" showToast={true}/>
+            </DCArtboard>
+            <DCArtboard id="marquee" label="Marquee selection · multi-note edit" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="stop"
+                marquee={{t0: 3.4, t1: 9.6, p0: 56, p1: 68}} multiSelectInspector={true}/>
+            </DCArtboard>
+            <DCArtboard id="dialog" label="Export dialog open" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="stop" showDialog={true}/>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="dj" title="04 · DJ Action mode" subtitle="Left-rail labels become user-mapped DJ actions. Each MIDI note triggers Cue / Loop / Hot Cue / FX / Transport. Toggle via the Lanes switch in the toolstrip.">
+            <DCArtboard id="dj-overview" label="Action lanes — overview" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="play" lanesMode="actions" selectedPitch={57}/>
+            </DCArtboard>
+            <DCArtboard id="dj-edit" label="Mapping note editor open" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="stop" lanesMode="actions" selectedPitch={56} showMapEditor={true}/>
+            </DCArtboard>
+            <DCArtboard id="dj-rec" label="Recording controller performance" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="rec" lanesMode="actions" selectedPitch={49}/>
+            </DCArtboard>
+            <DCArtboard id="dj-pressure" label="Pad pressure / aftertouch — note + inspector editor" width={APP_W} height={APP_H}>
+              <AppShell width={APP_W} height={APP_H} theme="console" density={t.density} accentH={t.accentHue} state="stop" lanesMode="actions" selectedPitch={56}/>
+            </DCArtboard>
+          </DCSection>
+
+          <TweaksPanel>
+            <TweakSection label="Accent"/>
+            <TweakSlider label="Hue" value={t.accentHue} min={0} max={360} step={5} unit="°"
+                         onChange={(v) => setTweak('accentHue', v)} />
+            <div style={{display:'flex', gap:6, marginTop:-2}}>
+              {[145, 200, 25, 270, 90].map(h => (
+                <button key={h}
+                  onClick={() => setTweak('accentHue', h)}
+                  style={{
+                    width: 28, height: 22, borderRadius: 6,
+                    border: t.accentHue === h ? '1.5px solid #29261b' : '0.5px solid rgba(0,0,0,0.15)',
+                    background: `oklch(72% 0.16 ${h})`,
+                    cursor: 'pointer', padding: 0,
+                  }}/>
+              ))}
+            </div>
+            <TweakSection label="Lanes mode"/>
+            <TweakRadio label="Left rail" value={t.lanesMode}
+                        options={['piano','actions']}
+                        onChange={(v) => setTweak('lanesMode', v)}/>
+            <TweakSection label="Density"/>
+            <TweakRadio label="Density" value={t.density}
+                        options={['compact','balanced','comfortable']}
+                        onChange={(v) => setTweak('density', v)}/>
+          </TweaksPanel>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+.mr-app {
+  height: 100%;
+  background: var(--mr-bg-app);
+}
+
+.mr-shell {
+  display: grid;
+  grid-template-rows: var(--mr-h-toolbar) 1fr auto;
+  height: 100%;
+  width: 100%;
+}
+
+.mr-titlebar {
+  display: flex;
+  align-items: center;
+  height: var(--mr-h-toolbar);
+  background: var(--mr-bg-panel);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-body {
+  display: grid;
+  grid-template-columns: var(--mr-w-sidebar) 1fr var(--mr-w-inspector);
+  min-height: 0;
+}
+
+.mr-sidebar {
+  background: var(--mr-bg-panel);
+  border-right: var(--mr-bw-1) solid var(--mr-line-2);
+  overflow: hidden;
+}
+
+.mr-inspector {
+  background: var(--mr-bg-panel);
+  border-left: var(--mr-bw-1) solid var(--mr-line-2);
+  overflow: hidden;
+}
+
+.mr-center {
+  display: grid;
+  grid-template-rows:
+    var(--mr-h-toolbar)
+    var(--mr-h-ruler)
+    1fr
+    auto;
+  min-height: 0;
+  background: var(--mr-bg-app);
+}
+
+.mr-toolstrip {
+  display: flex;
+  align-items: center;
+  height: var(--mr-h-toolbar);
+  background: var(--mr-bg-panel-2);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-ruler {
+  display: flex;
+  align-items: center;
+  height: var(--mr-h-ruler);
+  background: var(--mr-bg-panel);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-stage {
+  position: relative;
+  background: var(--mr-bg-timeline);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mr-cc-lanes {
+  display: flex;
+  flex-direction: column;
+  background: var(--mr-bg-panel);
+  border-top: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-cc-slot {
+  height: var(--mr-h-cc-lane);
+  border-top: var(--mr-bw-1) solid var(--mr-line-1);
+  display: flex;
+  align-items: center;
+}
+
+.mr-cc-slot:first-child {
+  border-top: none;
+}
+
+.mr-statusbar {
+  display: flex;
+  align-items: center;
+  height: var(--mr-h-row);
+  background: var(--mr-bg-panel);
+  border-top: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-stub {
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  padding: var(--mr-sp-3);
+  text-transform: uppercase;
+  letter-spacing: var(--mr-tracking-cap);
+}
