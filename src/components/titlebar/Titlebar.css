@@ -1,0 +1,301 @@
+/* Ported from design_handoff_midi_recorder/prototype/app.css lines ~37–215.
+   The prototype's .mr-transport background is a hex-literal gradient
+   (linear-gradient(180deg, #14171b 0%, #0f1114 100%)). We substitute a flat
+   var(--mr-bg-panel) until a token for the gradient is added upstream. */
+
+.mr-transport {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-5);
+  height: 100%;
+  padding: 0 var(--mr-sp-5);
+  background: var(--mr-bg-panel);
+  position: relative;
+}
+
+.mr-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-4);
+  padding-right: var(--mr-sp-5);
+  border-right: var(--mr-bw-1) solid var(--mr-line-1);
+  height: 100%;
+  min-width: 132px;
+}
+
+.mr-brand__mark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--mr-r-1);
+  background: linear-gradient(135deg, var(--mr-accent) 0%, var(--mr-info) 100%);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mr-brand__mark::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.55) 0 1px,
+    transparent 1px 3px
+  );
+  border-radius: 1px;
+}
+
+.mr-brand__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1;
+}
+
+.mr-brand__name {
+  font-size: var(--mr-fs-12);
+  font-weight: var(--mr-fw-semibold);
+  letter-spacing: 0.02em;
+}
+
+.mr-brand__ver {
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+}
+
+.mr-tgroup {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-1);
+  padding: 0 var(--mr-sp-3);
+  border-right: var(--mr-bw-1) solid var(--mr-line-1);
+  height: 100%;
+}
+
+.mr-tgroup:last-of-type {
+  border-right: 0;
+}
+
+.mr-tbtn {
+  appearance: none;
+  border: var(--mr-bw-1) solid transparent;
+  background: transparent;
+  color: var(--mr-text-2);
+  width: var(--mr-h-control-lg);
+  height: var(--mr-h-control-lg);
+  border-radius: var(--mr-r-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  transition:
+    background var(--mr-dur-fast) var(--mr-ease),
+    color var(--mr-dur-fast) var(--mr-ease),
+    box-shadow var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-tbtn:hover {
+  background: var(--mr-bg-panel-2);
+  color: var(--mr-text-1);
+}
+
+.mr-tbtn:active {
+  background: var(--mr-bg-input);
+}
+
+.mr-tbtn[data-on='true'] {
+  background: var(--mr-accent-soft);
+  color: var(--mr-accent);
+}
+
+.mr-tbtn[data-rec='true'] {
+  color: var(--mr-rec);
+}
+
+.mr-tbtn[data-rec='true'][data-on='true'] {
+  background: var(--mr-rec-soft);
+  color: var(--mr-rec);
+  box-shadow: var(--mr-glow-rec);
+  animation: mrPulse 1.4s ease-in-out infinite;
+}
+
+.mr-tbtn:disabled {
+  cursor: default;
+}
+
+.mr-tbtn svg {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes mrPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--mr-rec),
+      0 0 12px var(--mr-rec-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--mr-rec),
+      0 0 22px var(--mr-rec-glow);
+  }
+}
+
+.mr-timecode {
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mr-sp-1);
+  padding: 0 var(--mr-sp-5);
+  height: 100%;
+  border-right: var(--mr-bw-1) solid var(--mr-line-1);
+}
+
+.mr-timecode__big {
+  font-size: var(--mr-fs-20);
+  font-weight: var(--mr-fw-medium);
+  color: var(--mr-text-1);
+  letter-spacing: 0.02em;
+  align-self: center;
+}
+
+.mr-timecode__ms {
+  color: var(--mr-text-3);
+}
+
+.mr-timecode[data-recording='true'] .mr-timecode__big,
+.mr-timecode[data-recording='true'] .mr-timecode__ms {
+  color: var(--mr-rec);
+}
+
+.mr-meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-3);
+  height: 100%;
+  padding: 0 var(--mr-sp-3);
+  border-right: var(--mr-bw-1) solid var(--mr-line-1);
+}
+
+.mr-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+}
+
+.mr-meta__lbl {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: var(--mr-tracking-cap);
+  color: var(--mr-text-3);
+  line-height: 1;
+}
+
+.mr-meta__val {
+  font-size: var(--mr-fs-13);
+  color: var(--mr-text-1);
+  line-height: 1;
+}
+
+.mr-spacer {
+  flex: 1;
+}
+
+.mr-quant {
+  gap: var(--mr-sp-3);
+  align-items: center;
+}
+
+.mr-quant__lbl {
+  font-size: 9px;
+  color: var(--mr-text-3);
+  text-transform: uppercase;
+  letter-spacing: var(--mr-tracking-cap);
+}
+
+.mr-quant__power {
+  width: 18px;
+  height: 18px;
+}
+
+.mr-quant__power svg {
+  width: 12px;
+  height: 12px;
+}
+
+.mr-quant__value {
+  width: auto;
+  height: 22px;
+  padding: 0 var(--mr-sp-4);
+  font-size: var(--mr-fs-11);
+  font-weight: var(--mr-fw-semibold);
+  gap: var(--mr-sp-2);
+}
+
+.mr-quant__value[data-dim='true'] {
+  opacity: 0.55;
+}
+
+.mr-quant__value svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0.55;
+}
+
+.mr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mr-sp-3);
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-2);
+  padding: 0 var(--mr-sp-3);
+}
+
+.mr-status__label {
+  font-size: var(--mr-fs-11);
+}
+
+.mr-status__sep {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+}
+
+/* LED — prototype uses oklch literals for the play-state glow.
+   We substitute with var(--mr-accent-soft) to keep the no-oklch rule.
+   Slight visual dimming versus the design source is accepted. */
+.mr-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mr-text-4);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.mr-led[data-state='rec'] {
+  background: var(--mr-rec);
+  box-shadow: 0 0 6px var(--mr-rec-glow);
+  animation: mrLed 1.2s ease-in-out infinite;
+}
+
+.mr-led[data-state='play'] {
+  background: var(--mr-play);
+  box-shadow: 0 0 6px var(--mr-accent-soft);
+}
+
+.mr-led[data-state='midi'] {
+  background: var(--mr-cue);
+}
+
+@keyframes mrLed {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

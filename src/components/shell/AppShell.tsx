@@ -1,10 +1,12 @@
+import { Titlebar } from '../titlebar/Titlebar';
+import { ToastViewport } from '../toast/Toast';
 import './AppShell.css';
 
 export function AppShell() {
   return (
     <div className="mr-shell">
       <header className="mr-titlebar">
-        <span className="mr-stub">Titlebar</span>
+        <Titlebar />
       </header>
       <div className="mr-body">
         <aside className="mr-sidebar">
@@ -39,6 +41,7 @@ export function AppShell() {
       <footer className="mr-statusbar">
         <span className="mr-stub">Statusbar</span>
       </footer>
+      <ToastViewport />
     </div>
   );
 }

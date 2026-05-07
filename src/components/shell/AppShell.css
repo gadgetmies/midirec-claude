@@ -8,11 +8,10 @@
   grid-template-rows: var(--mr-h-toolbar) 1fr auto;
   height: 100%;
   width: 100%;
+  position: relative;
 }
 
 .mr-titlebar {
-  display: flex;
-  align-items: center;
   height: var(--mr-h-toolbar);
   background: var(--mr-bg-panel);
   border-bottom: var(--mr-bw-1) solid var(--mr-line-2);

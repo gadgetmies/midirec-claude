@@ -1,0 +1,60 @@
+.mr-toast-viewport {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--mr-z-toast);
+}
+
+.mr-toast {
+  position: absolute;
+  bottom: var(--mr-sp-6);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--mr-bg-panel);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  border-radius: var(--mr-r-2);
+  padding: var(--mr-sp-4) var(--mr-sp-6);
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-5);
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-1);
+  box-shadow: var(--mr-shadow-lg);
+  pointer-events: auto;
+}
+
+/* Dot glow: prototype uses oklch(... / 0.5). We substitute with the corresponding
+   accent-soft / info / warn tokens — same hue family at lower alpha, no hex/oklch
+   literals here. Slight visual dimming versus the design source is accepted; if a
+   glow token is added upstream, swap directly. */
+.mr-toast__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mr-ok);
+  box-shadow: 0 0 6px var(--mr-accent-soft);
+  flex-shrink: 0;
+}
+
+.mr-toast__dot[data-kind='info'] {
+  background: var(--mr-info);
+  box-shadow: 0 0 6px var(--mr-line-strong);
+}
+
+.mr-toast__dot[data-kind='warn'] {
+  background: var(--mr-warn);
+  box-shadow: 0 0 6px var(--mr-line-strong);
+}
+
+.mr-toast__msg {
+  white-space: nowrap;
+}
+
+.mr-toast__hint {
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  border-radius: var(--mr-r-1);
+  padding: 1px var(--mr-sp-2);
+  margin-left: var(--mr-sp-3);
+}
