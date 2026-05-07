@@ -12,6 +12,12 @@ body,
   height: 100%;
 }
 
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--mr-bg-app);
   color: var(--mr-text-1);
