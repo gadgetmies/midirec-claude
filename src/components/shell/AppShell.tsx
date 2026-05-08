@@ -1,5 +1,5 @@
 import { useStage } from '../../hooks/useStage';
-import { PianoRoll } from '../piano-roll/PianoRoll';
+import { MultiTrackStage } from '../tracks/MultiTrackStage';
 import { Ruler } from '../ruler/Ruler';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
@@ -7,6 +7,13 @@ import './AppShell.css';
 
 export function AppShell() {
   const stage = useStage();
+
+  const viewProps = {
+    lo: stage.lo,
+    hi: stage.hi,
+    totalT: stage.totalT,
+    playheadT: stage.playheadT,
+  };
 
   return (
     <div className="mr-shell">
@@ -23,14 +30,15 @@ export function AppShell() {
           </div>
           <Ruler totalT={stage.totalT} />
           <div className="mr-stage">
-            <PianoRoll
-              notes={stage.notes}
-              lo={stage.lo}
-              hi={stage.hi}
-              totalT={stage.totalT}
-              playheadT={stage.playheadT}
+            <MultiTrackStage
+              tracks={stage.tracks}
+              viewProps={viewProps}
+              selectedTrackId={stage.selectedTrackId}
               marquee={stage.marquee}
               selectedIdx={stage.selectedIdx}
+              onToggleOpen={stage.toggleTrackOpen}
+              onToggleMuted={stage.toggleTrackMuted}
+              onToggleSoloed={stage.toggleTrackSoloed}
             />
           </div>
           <div className="mr-cc-lanes">

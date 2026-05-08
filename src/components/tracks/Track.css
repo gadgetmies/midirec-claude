@@ -1,0 +1,106 @@
+/* Ported from design_handoff_midi_recorder/prototype/app.css lines ~736-812 */
+
+/* Mute fades + grayscales the row's body. */
+[data-muted="true"] .mr-track__roll,
+[data-muted="true"] .mr-track__collapsed {
+  opacity: 0.32;
+  filter: grayscale(0.7);
+}
+
+/* When solo is active anywhere in the stage, non-soloed rows go semi-dim. */
+[data-soloing="true"] [data-soloed="false"] .mr-track__roll,
+[data-soloing="true"] [data-soloed="false"] .mr-track__collapsed {
+  opacity: 0.45;
+}
+
+.mr-track {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--mr-line-2);
+}
+
+.mr-track:last-of-type {
+  border-bottom: 0;
+}
+
+.mr-track__hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  padding: 0 10px 0 8px;
+  background: var(--mr-bg-panel-2);
+  border-bottom: 1px solid var(--mr-line-1);
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mr-track__hdr:hover {
+  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+}
+
+.mr-track__chev {
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mr-text-3);
+  transition: transform 0.12s;
+  font-size: 9px;
+}
+
+[data-track-open="false"] .mr-track__chev {
+  transform: rotate(-90deg);
+}
+
+.mr-track__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px color-mix(in oklab, currentColor 50%, transparent);
+}
+
+.mr-track__name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mr-text-1);
+}
+
+.mr-track__sub {
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  color: var(--mr-text-3);
+}
+
+.mr-track__spacer {
+  flex: 1;
+}
+
+.mr-track__roll {
+  position: relative;
+  overflow: hidden;
+}
+
+.mr-track__collapsed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 18px;
+  background: var(--mr-bg-app);
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  color: var(--mr-text-3);
+}
+
+.mr-track__minimap {
+  flex: 1;
+  height: 6px;
+  position: relative;
+  background: var(--mr-bg-panel-2);
+  border-radius: 1px;
+  overflow: hidden;
+}

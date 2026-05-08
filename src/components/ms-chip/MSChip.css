@@ -1,0 +1,44 @@
+/* Ported from design_handoff_midi_recorder/prototype/app.css lines ~706-735 */
+
+.mr-ms {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.mr-ms__btn {
+  width: 16px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: transparent;
+  color: var(--mr-text-3);
+  border: 1px solid var(--mr-line-2);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+  padding: 0;
+}
+
+.mr-ms__btn:hover {
+  color: var(--mr-text-2);
+  border-color: var(--mr-line-3);
+}
+
+.mr-ms__btn[data-on="true"][data-kind="m"] {
+  background: color-mix(in oklab, var(--mr-mute) 25%, transparent);
+  color: var(--mr-mute);
+  border-color: color-mix(in oklab, var(--mr-mute) 50%, transparent);
+}
+
+.mr-ms__btn[data-on="true"][data-kind="s"] {
+  background: color-mix(in oklab, var(--mr-solo) 28%, transparent);
+  color: var(--mr-solo);
+  border-color: var(--mr-solo);
+  box-shadow: 0 0 5px color-mix(in oklab, var(--mr-solo) 40%, transparent);
+}
