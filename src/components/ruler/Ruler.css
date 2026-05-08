@@ -1,7 +1,11 @@
 /* Ported from design_handoff_midi_recorder/prototype/app.css lines ~466-490 */
 
 .mr-ruler {
-  position: relative;
+  /* Sticky-top inside .mr-timeline so the ruler stays visible at the top
+     of the visible scroll area regardless of vertical scroll offset. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
   height: var(--mr-h-ruler);
   background: var(--mr-bg-panel);
   border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
@@ -9,7 +13,18 @@
   font-size: var(--mr-fs-10);
   color: var(--mr-text-3);
   flex-shrink: 0;
-  overflow: hidden;
+}
+
+/* The keys-spacer masks the area above the keys column at every horizontal
+   scroll offset so beat ticks don't bleed into the keys area visually. */
+.mr-ruler__keys-spacer {
+  position: sticky;
+  left: 0;
+  top: 0;
+  width: 56px;
+  height: 100%;
+  background: var(--mr-bg-panel);
+  z-index: 3;
 }
 
 .mr-ruler__tick {

@@ -1,20 +1,36 @@
 /* Ported from design_handoff_midi_recorder/prototype/app.css lines 695-701,
-   737-747, 863-902. The .mr-cc-lanes block-level rule lives in
-   components/shell/AppShell.css since the block element is shared with the
-   shell layout. */
+   737-747, 863-902. */
+
+/* The CC Lanes block sits at the bottom of the .mr-timeline scroller and
+   sticks to the bottom of the visible scroll area so it stays pinned even
+   when the multi-track stack scrolls vertically. */
+.mr-cc-lanes {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--mr-bg-panel);
+  border-top: var(--mr-bw-1) solid var(--mr-line-2);
+}
 
 .mr-cc-lane {
   height: var(--mr-h-cc-lane);
   border-bottom: var(--mr-bw-1) solid var(--mr-line-1);
   position: relative;
   display: flex;
+  align-items: stretch;
 }
 
 .mr-cc-lane:last-child {
   border-bottom: 0;
 }
 
+/* Sticky-left header strip with name + CC label. */
 .mr-cc-lane__hdr {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   width: 56px;
   flex-shrink: 0;
   border-right: var(--mr-bw-1) solid var(--mr-line-2);
@@ -40,7 +56,10 @@
 }
 
 .mr-cc-lane__plot {
-  flex: 1;
+  /* Width is set inline from totalT * pxPerBeat so the plot has an
+     intrinsic max-content width that aligns with the multi-track stack
+     above. flex-shrink: 0 prevents it from collapsing under flex layout. */
+  flex-shrink: 0;
   position: relative;
   background:
     linear-gradient(180deg,
@@ -51,11 +70,16 @@
       transparent calc(50% + 0.5px));
 }
 
+/* Sticky-right M/S chip wrapper, vertically centered, padded so the chips
+   sit ~8px in from the visible right edge of .mr-timeline. */
 .mr-cc-lane__ms {
-  position: absolute;
-  top: 6px;
-  right: 8px;
+  position: sticky;
+  right: 0;
   z-index: 1;
+  flex-shrink: 0;
+  align-self: center;
+  padding: 0 8px;
+  background: var(--mr-bg-panel);
 }
 
 .mr-cc-lane__readout {

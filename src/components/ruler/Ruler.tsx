@@ -32,6 +32,7 @@ export function Ruler({ totalT = 16, pxPerBeat = DEFAULT_PX_PER_BEAT }: RulerPro
   }
   return (
     <div className="mr-ruler" style={{ width }}>
+      <div className="mr-ruler__keys-spacer" />
       {els}
     </div>
   );

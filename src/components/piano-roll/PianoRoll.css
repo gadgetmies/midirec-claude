@@ -3,15 +3,21 @@
 .mr-roll {
   flex: 1;
   position: relative;
-  overflow: hidden;
   display: flex;
 }
 
+/* Keys column sticks to the visible left edge of .mr-timeline so it stays
+   visible at every horizontal scroll offset. The sticky here requires no
+   `overflow: hidden` ancestor between .mr-keys and .mr-timeline — that's
+   why .mr-roll, .mr-roll__lanes, and .mr-track__roll all dropped their
+   own overflow clipping (the outer .mr-timeline does the clipping). */
 .mr-keys {
   width: 56px;
   background: var(--mr-bg-panel-2);
   border-right: var(--mr-bw-1) solid var(--mr-line-2);
-  position: relative;
+  position: sticky;
+  left: 0;
+  z-index: 2;
   flex-shrink: 0;
 }
 
@@ -35,7 +41,6 @@
 .mr-roll__lanes {
   flex: 1;
   position: relative;
-  overflow: hidden;
 }
 
 .mr-lane {

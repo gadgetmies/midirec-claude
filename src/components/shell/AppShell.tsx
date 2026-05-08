@@ -4,6 +4,7 @@ import { CCLanesBlock } from '../cc-lanes/CCLanesBlock';
 import { Ruler } from '../ruler/Ruler';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
+import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
 import './AppShell.css';
 
 export function AppShell() {
@@ -29,25 +30,30 @@ export function AppShell() {
           <div className="mr-toolstrip">
             <span className="mr-stub">Toolstrip</span>
           </div>
-          <Ruler totalT={stage.totalT} />
-          <div className="mr-stage">
-            <MultiTrackStage
-              tracks={stage.tracks}
-              viewProps={viewProps}
-              selectedTrackId={stage.selectedTrackId}
-              marquee={stage.marquee}
-              selectedIdx={stage.selectedIdx}
-              onToggleOpen={stage.toggleTrackOpen}
-              onToggleMuted={stage.toggleTrackMuted}
-              onToggleSoloed={stage.toggleTrackSoloed}
-            />
+          <div className="mr-timeline">
+            <div
+              className="mr-timeline__inner"
+              style={{ width: KEYS_COLUMN_WIDTH + stage.totalT * DEFAULT_PX_PER_BEAT }}
+            >
+              <Ruler totalT={stage.totalT} />
+              <MultiTrackStage
+                tracks={stage.tracks}
+                viewProps={viewProps}
+                selectedTrackId={stage.selectedTrackId}
+                marquee={stage.marquee}
+                selectedIdx={stage.selectedIdx}
+                onToggleOpen={stage.toggleTrackOpen}
+                onToggleMuted={stage.toggleTrackMuted}
+                onToggleSoloed={stage.toggleTrackSoloed}
+              />
+              <CCLanesBlock
+                lanes={stage.ccLanes}
+                totalT={stage.totalT}
+                onToggleMuted={stage.toggleCCLaneMuted}
+                onToggleSoloed={stage.toggleCCLaneSoloed}
+              />
+            </div>
           </div>
-          <CCLanesBlock
-            lanes={stage.ccLanes}
-            totalT={stage.totalT}
-            onToggleMuted={stage.toggleCCLaneMuted}
-            onToggleSoloed={stage.toggleCCLaneSoloed}
-          />
         </main>
         <aside className="mr-inspector">
           <span className="mr-stub">Inspector</span>

@@ -1,11 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { MSChip } from '../ms-chip/MSChip';
+import { DEFAULT_PX_PER_BEAT } from '../piano-roll/PianoRoll';
 import type { CCLane as CCLaneType } from '../../hooks/useCCLanes';
 
 interface CCLaneProps {
   lane: CCLaneType;
   viewT0?: number;
   totalT: number;
+  pxPerBeat?: number;
   onToggleMuted?: () => void;
   onToggleSoloed?: () => void;
   paint?: number[];
@@ -47,29 +49,13 @@ export function CCLane({
   lane,
   viewT0 = 0,
   totalT,
+  pxPerBeat = DEFAULT_PX_PER_BEAT,
   onToggleMuted,
   onToggleSoloed,
 }: CCLaneProps) {
-  const plotRef = useRef<HTMLDivElement>(null);
-  const [plotW, setPlotW] = useState(0);
   const [hover, setHover] = useState<{ idx: number; v: number } | null>(null);
 
-  useLayoutEffect(() => {
-    const el = plotRef.current;
-    if (!el) return;
-    setPlotW(el.clientWidth);
-  }, []);
-
-  useEffect(() => {
-    const el = plotRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w != null) setPlotW(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const plotW = totalT * pxPerBeat;
 
   const bars = useMemo(
     () => resampleBars(lane.points, viewT0, totalT),
@@ -93,13 +79,13 @@ export function CCLane({
         <span className="mr-cc-lane__cc">CC {lane.cc}</span>
       </div>
       <div
-        ref={plotRef}
         className="mr-cc-lane__plot"
+        style={{ width: plotW }}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
       >
         {plotW > 0 && (
-          <svg width="100%" height="72" preserveAspectRatio="none" viewBox={`0 0 ${plotW} 72`}>
+          <svg width={plotW} height="72" preserveAspectRatio="none" viewBox={`0 0 ${plotW} 72`}>
             {bars.map((b, i) => {
               const h = b.v * TRACK_H;
               const x = i * cellW + (cellW - BAR_W) / 2;

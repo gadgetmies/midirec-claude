@@ -48,30 +48,43 @@
 
 .mr-center {
   display: grid;
-  /* Without explicit minmax(0, 1fr), the implicit grid column auto-sizes
-     to max-content — which is the PianoRoll's intrinsic width
-     (KEYS_COLUMN_WIDTH + totalT * pxPerBeat = 1464px at default zoom).
-     That auto-expanded column makes .mr-stage wider than its body cell,
-     pushing absolute-positioned M/S chips on track headers past the
-     inspector boundary. minmax(0, 1fr) forces the column to fit its
-     parent's allocated width. See deviation #7 in
-     design/deviations-from-prototype.md for the same pattern in .mr-shell
-     and .mr-body. */
+  /* See deviation #7 in design/deviations-from-prototype.md for why
+     minmax(0, 1fr) is required (the implicit grid column would otherwise
+     auto-size to max-content, expanding past the body cell). */
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows:
     var(--mr-h-toolbar)
-    var(--mr-h-ruler)
-    1fr
-    auto;
+    1fr;
   min-height: 0;
   min-width: 0;
-  /* The PianoRoll and Ruler render at a fixed pixel zoom (constant
-     pxPerBeat × rowHeight) and may be wider than the viewport's center
-     column. overflow: hidden clips that fixed-size content at the column
-     boundary so it can't bleed into the inspector. Horizontal scrolling
-     to access the clipped portion is a future slice. */
   overflow: hidden;
   background: var(--mr-bg-app);
+}
+
+/* The shared timeline scroller: one overflow-x: auto element holds the
+   Ruler, the multi-track stack, and the CC lanes block. A single
+   horizontal scrollbar moves every timeline together. Sticky-pinned
+   labels and chips stay visible at the visible edges. */
+.mr-timeline {
+  overflow-x: auto;
+  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--mr-bg-timeline);
+  position: relative;
+}
+
+/* Inner wrapper with explicit width = KEYS_COLUMN_WIDTH + totalT * pxPerBeat
+   (set inline). This is what makes block descendants (Ruler, multi-track
+   stack, CC lanes block, individual track headers, individual CC lane rows)
+   span the full intrinsic timeline width, so position: sticky right has room
+   to operate at high horizontal scroll offsets. Without this wrapper, block
+   children would default to the timeline's visible width and sticky-right
+   would land at the parent's right edge instead of the visible right edge. */
+.mr-timeline__inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .mr-toolstrip {
@@ -83,21 +96,7 @@
 }
 
 /* .mr-ruler styles live in components/ruler/Ruler.css */
-
-.mr-stage {
-  position: relative;
-  background: var(--mr-bg-timeline);
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.mr-cc-lanes {
-  display: flex;
-  flex-direction: column;
-  background: var(--mr-bg-panel);
-  border-top: var(--mr-bw-1) solid var(--mr-line-2);
-}
+/* .mr-cc-lanes styles live in components/cc-lanes/CCLane.css */
 
 .mr-statusbar {
   display: flex;

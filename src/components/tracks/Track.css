@@ -1,5 +1,15 @@
 /* Ported from design_handoff_midi_recorder/prototype/app.css lines ~736-812 */
 
+.mr-multi-track-stage {
+  /* Grow to fill remaining vertical space inside .mr-timeline__inner so the
+     CC lanes block stays at the bottom of the timeline area when the
+     multi-track content is short. flex-shrink: 0 prevents the content from
+     being compressed when there are many tracks. */
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Mute fades + grayscales the row's body. */
 [data-muted="true"] .mr-track__roll,
 [data-muted="true"] .mr-track__collapsed {
@@ -26,9 +36,7 @@
 .mr-track__hdr {
   display: flex;
   align-items: center;
-  gap: 8px;
   height: 22px;
-  padding: 0 10px 0 8px;
   background: var(--mr-bg-panel-2);
   border-bottom: 1px solid var(--mr-line-1);
   flex-shrink: 0;
@@ -38,6 +46,39 @@
 
 .mr-track__hdr:hover {
   background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+}
+
+/* Sticky-left label zone (chev + swatch + name + sub) stays visible at the
+   visible left edge of .mr-timeline at every horizontal scroll offset.
+   The panel-2 background matches the header so it masks anything beneath. */
+.mr-track__hdr-left {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 8px;
+  background: var(--mr-bg-panel-2);
+  flex-shrink: 0;
+}
+
+/* Sticky-right controls zone (MSChip cluster) stays visible at the visible
+   right edge of .mr-timeline. */
+.mr-track__hdr-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 8px;
+  background: var(--mr-bg-panel-2);
+  flex-shrink: 0;
+}
+
+.mr-track__hdr-spacer {
+  flex: 1;
+  min-width: 0;
 }
 
 .mr-track__chev {
@@ -75,13 +116,12 @@
   color: var(--mr-text-3);
 }
 
-.mr-track__spacer {
-  flex: 1;
-}
-
 .mr-track__roll {
   position: relative;
-  overflow: hidden;
+  /* Horizontal clipping is owned by the outer .mr-timeline scroller. The
+     PianoRoll inside extends to the timeline's intrinsic width; the
+     sticky-left .mr-keys can only stick if no intermediate ancestor
+     carries `overflow: hidden`. */
 }
 
 .mr-track__collapsed {

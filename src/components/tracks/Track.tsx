@@ -50,22 +50,26 @@ export function Track({
       data-soloed={track.soloed ? 'true' : 'false'}
     >
       <div className="mr-track__hdr" onClick={headerClick}>
-        <span className="mr-track__chev">▾</span>
-        <span
-          className="mr-track__swatch"
-          style={{ background: track.color, color: track.color }}
-        />
-        <span className="mr-track__name">{track.name}</span>
-        <span className="mr-track__sub">
-          {track.channel} · {track.notes.length} notes
-        </span>
-        <div className="mr-track__spacer" />
-        <MSChip
-          muted={track.muted}
-          soloed={track.soloed}
-          onMute={onToggleMuted}
-          onSolo={onToggleSoloed}
-        />
+        <div className="mr-track__hdr-left">
+          <span className="mr-track__chev">▾</span>
+          <span
+            className="mr-track__swatch"
+            style={{ background: track.color, color: track.color }}
+          />
+          <span className="mr-track__name">{track.name}</span>
+          <span className="mr-track__sub">
+            {track.channel} · {track.notes.length} notes
+          </span>
+        </div>
+        <div className="mr-track__hdr-spacer" />
+        <div className="mr-track__hdr-right">
+          <MSChip
+            muted={track.muted}
+            soloed={track.soloed}
+            onMute={onToggleMuted}
+            onSolo={onToggleSoloed}
+          />
+        </div>
       </div>
       {track.open ? (
         <div className="mr-track__roll">

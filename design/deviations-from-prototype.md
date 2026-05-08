@@ -114,19 +114,19 @@ The prototype's `Stage` computes a single `stageSoloing = anySolo || anyDJSolo |
 
 **Status**: deviation — pragmatic for Slice 4, revisit at Slice 7.
 
-## 9. M/S chips on the right edge of each CC lane row
+## 9. M/S chips on the right edge of each CC lane row (now sticky-right)
 
-**What changed**: The MSChip wrapper (`.mr-cc-lane__ms`) is absolute-positioned at `top: 6px; right: 8px` over the lane row, layered above the SVG plot. The 56px left header strip (`.mr-cc-lane__hdr`) holds only the lane name and CC label.
+**What changed**: The MSChip wrapper (`.mr-cc-lane__ms`) is rendered as a flex-sibling of `.mr-cc-lane__plot`, with `position: sticky; right: 0; z-index: 1; align-self: center`. The 56px left header strip (`.mr-cc-lane__hdr`) holds only the lane name and CC label and is `position: sticky; left: 0; z-index: 2`.
 
 The prototype's `CCLane` (`prototype/components.jsx` lines 497–504) nests `<MSChip>` inside the 56px left header alongside the lane name, so the M/S controls sit at the upper-right of the small left strip rather than the upper-right of the full lane row.
 
-**Why**: Design owner request — the M/S chips should mirror the multi-track header convention (chips at the row's far-right end), not float in a 56px corner that's visually disconnected from the lane's identity. Right-edge placement also reads as a per-row affordance of the lane plot rather than a property of the label area.
+**Why**: Design owner request — the M/S chips should mirror the multi-track header convention (chips at the row's far-right end), not float in a 56px corner that's visually disconnected from the lane's identity. Right-edge placement also reads as a per-row affordance of the lane plot rather than a property of the label area. Sticky-right (instead of absolute) is required by the `synchronized-timeline-scroll` capability so the chip stays at the visible right edge of the timeline scroll container at every horizontal scroll offset, not at the natural right edge of the lane row (which would be off-screen at high scroll offsets).
 
 **Where**:
 - JSX: `src/components/cc-lanes/CCLane.tsx` — `<div className="mr-cc-lane__ms">` is a sibling of `.mr-cc-lane__plot`, after it in DOM order.
-- CSS: `src/components/cc-lanes/CCLane.css` — `.mr-cc-lane__ms { position: absolute; top: 6px; right: 8px; z-index: 1 }` with the `.mr-cc-lane` parent providing `position: relative`.
+- CSS: `src/components/cc-lanes/CCLane.css` — `.mr-cc-lane__ms { position: sticky; right: 0; flex-shrink: 0; align-self: center; z-index: 1 }`.
 
-**Recommendation**: Back-port to `prototype/components.jsx` and `prototype/app.css` — move `<MSChip>` out of `.mr-cc-lane__hdr` and absolute-position it on the lane row.
+**Recommendation**: Back-port to `prototype/components.jsx` and `prototype/app.css` — move `<MSChip>` out of `.mr-cc-lane__hdr` and place it on the lane row with right-edge alignment. (Sticky positioning is a codebase-side detail tied to scroll architecture; the prototype's design canvas doesn't need sticky because it doesn't scroll.)
 
 **Status**: deviation — design owner direction; awaiting back-port.
 
