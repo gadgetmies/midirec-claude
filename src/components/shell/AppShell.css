@@ -5,10 +5,16 @@
 
 .mr-shell {
   display: grid;
+  /* Explicit minmax(0, 1fr) column — without this, the implicit grid column
+     is `auto`, which expands to fit the titlebar's max-content (a long
+     transport bar). That auto-expanded column then sizes .mr-body, pushing
+     the inspector column past the viewport edge when the window is narrow. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--mr-h-toolbar) 1fr auto;
   height: 100%;
   width: 100%;
   position: relative;
+  overflow: hidden;
 }
 
 .mr-titlebar {
@@ -19,8 +25,13 @@
 
 .mr-body {
   display: grid;
-  grid-template-columns: var(--mr-w-sidebar) 1fr var(--mr-w-inspector);
+  /* minmax(0, 1fr) — the explicit 0 minimum prevents the center column from
+     using its content's min-content width as a floor, which would push the
+     inspector column past the viewport edge when the window narrows. */
+  grid-template-columns: var(--mr-w-sidebar) minmax(0, 1fr) var(--mr-w-inspector);
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .mr-sidebar {
@@ -43,6 +54,13 @@
     1fr
     auto;
   min-height: 0;
+  min-width: 0;
+  /* The PianoRoll and Ruler render at a fixed pixel zoom (constant
+     pxPerBeat × rowHeight) and may be wider than the viewport's center
+     column. overflow: hidden clips that fixed-size content at the column
+     boundary so it can't bleed into the inspector. Horizontal scrolling
+     to access the clipped portion is a future slice. */
+  overflow: hidden;
   background: var(--mr-bg-app);
 }
 
@@ -54,18 +72,13 @@
   border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
 }
 
-.mr-ruler {
-  display: flex;
-  align-items: center;
-  height: var(--mr-h-ruler);
-  background: var(--mr-bg-panel);
-  border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
-}
+/* .mr-ruler styles live in components/ruler/Ruler.css */
 
 .mr-stage {
   position: relative;
   background: var(--mr-bg-timeline);
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 

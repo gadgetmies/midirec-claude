@@ -1,8 +1,13 @@
+import { useStage } from '../../hooks/useStage';
+import { PianoRoll } from '../piano-roll/PianoRoll';
+import { Ruler } from '../ruler/Ruler';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
 import './AppShell.css';
 
 export function AppShell() {
+  const stage = useStage();
+
   return (
     <div className="mr-shell">
       <header className="mr-titlebar">
@@ -16,11 +21,17 @@ export function AppShell() {
           <div className="mr-toolstrip">
             <span className="mr-stub">Toolstrip</span>
           </div>
-          <div className="mr-ruler">
-            <span className="mr-stub">Ruler</span>
-          </div>
+          <Ruler totalT={stage.totalT} />
           <div className="mr-stage">
-            <span className="mr-stub">Stage</span>
+            <PianoRoll
+              notes={stage.notes}
+              lo={stage.lo}
+              hi={stage.hi}
+              totalT={stage.totalT}
+              playheadT={stage.playheadT}
+              marquee={stage.marquee}
+              selectedIdx={stage.selectedIdx}
+            />
           </div>
           <div className="mr-cc-lanes">
             <div className="mr-cc-slot">

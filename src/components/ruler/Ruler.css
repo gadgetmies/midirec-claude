@@ -1,0 +1,32 @@
+/* Ported from design_handoff_midi_recorder/prototype/app.css lines ~466-490 */
+
+.mr-ruler {
+  position: relative;
+  height: var(--mr-h-ruler);
+  background: var(--mr-bg-panel);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mr-ruler__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--mr-line-1);
+}
+
+.mr-ruler__tick--major {
+  background: var(--mr-line-2);
+}
+
+.mr-ruler__lbl {
+  position: absolute;
+  top: 6px;
+  transform: translateX(4px);
+  color: var(--mr-text-3);
+}

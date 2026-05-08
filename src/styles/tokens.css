@@ -46,7 +46,12 @@
   --mr-solo:          oklch(82% 0.14 90);    /* solo — yellow */
 
   --mr-note:          oklch(68% 0.14 240);   /* MIDI notes — blue */
-  --mr-note-sel:      oklch(82% 0.14 240);
+  /* Local deviation from upstream prototype/tokens.css, which sets this to
+     oklch(82% 0.14 240) — a light blue. README §Design Tokens describes
+     --mr-note-sel as "selected note (warm orange-red)" and screenshot 04
+     renders it as such; the upstream value contradicts both. Picking a warm
+     orange-red here so selection reads correctly against default-blue notes. */
+  --mr-note-sel:      oklch(72% 0.18 30);
   --mr-cc:            oklch(70% 0.14 310);   /* CC lanes — magenta */
   --mr-cc-sel:        oklch(82% 0.14 310);
   --mr-pitch:         oklch(72% 0.14 200);   /* pitch bend — teal */
