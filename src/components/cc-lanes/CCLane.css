@@ -1,0 +1,78 @@
+/* Ported from design_handoff_midi_recorder/prototype/app.css lines 695-701,
+   737-747, 863-902. The .mr-cc-lanes block-level rule lives in
+   components/shell/AppShell.css since the block element is shared with the
+   shell layout. */
+
+.mr-cc-lane {
+  height: var(--mr-h-cc-lane);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-1);
+  position: relative;
+  display: flex;
+}
+
+.mr-cc-lane:last-child {
+  border-bottom: 0;
+}
+
+.mr-cc-lane__hdr {
+  width: 56px;
+  flex-shrink: 0;
+  border-right: var(--mr-bw-1) solid var(--mr-line-2);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--mr-bg-panel-2);
+}
+
+.mr-cc-lane__hdr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.mr-cc-lane__name {
+  font-size: 9px;
+  font-weight: var(--mr-fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mr-text-2);
+}
+
+.mr-cc-lane__cc {
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  color: var(--mr-text-3);
+}
+
+.mr-cc-lane__plot {
+  flex: 1;
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      transparent 0,
+      transparent calc(50% - 0.5px),
+      rgba(255, 255, 255, 0.04) calc(50% - 0.5px),
+      rgba(255, 255, 255, 0.04) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px));
+}
+
+.mr-cc-lane__readout {
+  position: absolute;
+  top: 4px;
+  font-family: var(--mr-font-mono);
+  font-size: 10px;
+  color: var(--mr-text-2);
+  pointer-events: none;
+  transform: translateX(4px);
+}
+
+.mr-cc-lanes [data-muted="true"] .mr-cc-lane__plot {
+  opacity: 0.32;
+  filter: grayscale(0.7);
+}
+
+.mr-cc-lanes[data-soloing="true"] [data-soloed="false"] .mr-cc-lane__plot {
+  opacity: 0.45;
+}

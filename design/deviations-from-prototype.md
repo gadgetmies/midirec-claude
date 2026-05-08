@@ -97,6 +97,23 @@ The prototype's `app.css` `.mr-app` uses plain `1fr` columns and no `overflow: h
 
 **Status**: improvement — codebase is more robust.
 
+## 8. CC lane solo composition — lane-scoped, not stage-wide
+
+**What changed**: The `data-soloing` flag on `.mr-cc-lanes` is derived from `lanes.some(l => l.soloed)` — only CC-lane solos. CC-lane solos do NOT dim non-soloed track rows in the multi-track stack above; track-row solos do NOT dim non-soloed CC lanes below. The two solo groups are independent.
+
+The prototype's `Stage` computes a single `stageSoloing = anySolo || anyDJSolo || anyCCSolo` flag set on the stage wrapper, so a CC-lane solo dims everything (tracks too) and vice versa.
+
+**Why**: Our shell architecturally separates `.mr-stage` (multi-track stack) from `.mr-cc-lanes` (CC block) — they're sibling grid rows in `.mr-center`, not nested. Sharing `data-soloing` would require lifting it to a common ancestor (e.g., `.mr-center`) and broadening every solo-composition CSS selector across two capability stylesheets. Keeping the solo groups independent keeps the `tracks` and `cc-lanes` capabilities self-contained for Slice 4. Switching to stage-wide later (probably with Slice 7's DJ units) is a one-file refactor.
+
+**Where**:
+- `src/components/cc-lanes/CCLanesBlock.tsx` — `data-soloing` derived from `lanes` only.
+- `src/components/cc-lanes/CCLane.css` — `[data-soloing="true"] [data-soloed="false"] .mr-cc-lane__plot` selector scoped to within `.mr-cc-lanes`.
+- `src/components/tracks/MultiTrackStage.tsx` — `data-soloing` derived from `tracks` only (existing).
+
+**Recommendation**: Defer until Slice 7 lands. Once DJ units (`.mr-unit__rows`) need to participate in solo composition too, lift `data-soloing` to a shared wrapper around the stage and CC block, and rewrite the three composition rules (`.mr-track__roll`, `.mr-cc-lane__plot`, `.mr-unit__rows`) to share that ancestor.
+
+**Status**: deviation — pragmatic for Slice 4, revisit at Slice 7.
+
 ---
 
 ## Summary table
@@ -110,3 +127,4 @@ The prototype's `app.css` `.mr-app` uses plain `1fr` columns and no `overflow: h
 | 5 | Fixed-zoom rendering | confirm | confirmed |
 | 6 | Ruler `5.1` label removed | back-port | deviation, small fix |
 | 7 | AppShell `minmax(0, 1fr)` + `overflow: hidden` | back-port | improvement |
+| 8 | CC-lane solo scope is lane-only | revisit at Slice 7 | deviation |

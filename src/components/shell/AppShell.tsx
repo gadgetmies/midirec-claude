@@ -1,5 +1,6 @@
 import { useStage } from '../../hooks/useStage';
 import { MultiTrackStage } from '../tracks/MultiTrackStage';
+import { CCLanesBlock } from '../cc-lanes/CCLanesBlock';
 import { Ruler } from '../ruler/Ruler';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
@@ -41,17 +42,12 @@ export function AppShell() {
               onToggleSoloed={stage.toggleTrackSoloed}
             />
           </div>
-          <div className="mr-cc-lanes">
-            <div className="mr-cc-slot">
-              <span className="mr-stub">CC Lane 1</span>
-            </div>
-            <div className="mr-cc-slot">
-              <span className="mr-stub">CC Lane 2</span>
-            </div>
-            <div className="mr-cc-slot">
-              <span className="mr-stub">CC Lane 3</span>
-            </div>
-          </div>
+          <CCLanesBlock
+            lanes={stage.ccLanes}
+            totalT={stage.totalT}
+            onToggleMuted={stage.toggleCCLaneMuted}
+            onToggleSoloed={stage.toggleCCLaneSoloed}
+          />
         </main>
         <aside className="mr-inspector">
           <span className="mr-stub">Inspector</span>

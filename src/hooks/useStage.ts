@@ -2,9 +2,11 @@ import { useMemo } from 'react';
 import type { Marquee } from '../components/piano-roll/notes';
 import { useTransport } from './useTransport';
 import { useTracks, type Track } from './useTracks';
+import { useCCLanes, type CCLane } from './useCCLanes';
 
 export interface StageState {
   tracks: Track[];
+  ccLanes: CCLane[];
   selectedTrackId: string | null;
   lo: number;
   hi: number;
@@ -15,6 +17,8 @@ export interface StageState {
   toggleTrackOpen: (id: string) => void;
   toggleTrackMuted: (id: string) => void;
   toggleTrackSoloed: (id: string) => void;
+  toggleCCLaneMuted: (id: string) => void;
+  toggleCCLaneSoloed: (id: string) => void;
 }
 
 const TOTAL_T = 16;
@@ -24,6 +28,7 @@ const HI = 76;
 export function useStage(): StageState {
   const { timecodeMs, bpm } = useTransport();
   const { tracks, toggleTrackOpen, toggleTrackMuted, toggleTrackSoloed } = useTracks();
+  const { lanes: ccLanes, toggleCCLaneMuted, toggleCCLaneSoloed } = useCCLanes(TOTAL_T);
 
   const demoMarquee = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -43,6 +48,7 @@ export function useStage(): StageState {
 
   return {
     tracks,
+    ccLanes,
     selectedTrackId,
     lo: LO,
     hi: HI,
@@ -53,5 +59,7 @@ export function useStage(): StageState {
     toggleTrackOpen,
     toggleTrackMuted,
     toggleTrackSoloed,
+    toggleCCLaneMuted,
+    toggleCCLaneSoloed,
   };
 }

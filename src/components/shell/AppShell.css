@@ -89,17 +89,6 @@
   border-top: var(--mr-bw-1) solid var(--mr-line-2);
 }
 
-.mr-cc-slot {
-  height: var(--mr-h-cc-lane);
-  border-top: var(--mr-bw-1) solid var(--mr-line-1);
-  display: flex;
-  align-items: center;
-}
-
-.mr-cc-slot:first-child {
-  border-top: none;
-}
-
 .mr-statusbar {
   display: flex;
   align-items: center;
