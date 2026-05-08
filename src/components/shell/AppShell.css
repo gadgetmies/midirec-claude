@@ -48,6 +48,16 @@
 
 .mr-center {
   display: grid;
+  /* Without explicit minmax(0, 1fr), the implicit grid column auto-sizes
+     to max-content — which is the PianoRoll's intrinsic width
+     (KEYS_COLUMN_WIDTH + totalT * pxPerBeat = 1464px at default zoom).
+     That auto-expanded column makes .mr-stage wider than its body cell,
+     pushing absolute-positioned M/S chips on track headers past the
+     inspector boundary. minmax(0, 1fr) forces the column to fit its
+     parent's allocated width. See deviation #7 in
+     design/deviations-from-prototype.md for the same pattern in .mr-shell
+     and .mr-body. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows:
     var(--mr-h-toolbar)
     var(--mr-h-ruler)

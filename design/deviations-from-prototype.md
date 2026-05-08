@@ -85,11 +85,11 @@ The prototype's renderer takes `width` and `height` props and resizes responsive
 
 ## 7. AppShell layout — explicit grid `minmax(0, 1fr)` and `overflow: hidden`
 
-**What changed**: `.mr-shell` has `grid-template-columns: minmax(0, 1fr)` plus `overflow: hidden`. `.mr-body` has `grid-template-columns: var(--mr-w-sidebar) minmax(0, 1fr) var(--mr-w-inspector)` (explicit `minmax(0, ...)` for shrinkability) plus `overflow: hidden`. `.mr-center` has `min-width: 0` plus `overflow: hidden`. `.mr-stage` has `min-width: 0`.
+**What changed**: `.mr-shell` has `grid-template-columns: minmax(0, 1fr)` plus `overflow: hidden`. `.mr-body` has `grid-template-columns: var(--mr-w-sidebar) minmax(0, 1fr) var(--mr-w-inspector)` (explicit `minmax(0, ...)` for shrinkability) plus `overflow: hidden`. `.mr-center` (a grid that defines `grid-template-rows` but no template columns) has `grid-template-columns: minmax(0, 1fr)` plus `min-width: 0` plus `overflow: hidden`. `.mr-stage` has `min-width: 0`.
 
 The prototype's `app.css` `.mr-app` uses plain `1fr` columns and no `overflow: hidden` on these containers.
 
-**Why**: With plain `1fr`, the column's implicit `min-width: auto` resolves to its content's min-content width, which is large (the titlebar's transport bar is several hundred pixels of intrinsic min-content). That auto-expanded column then sizes the body grid, pushing fixed-pixel columns past the viewport edge when the window narrows. Explicit `minmax(0, 1fr)` lets the `1fr` actually shrink to 0. `overflow: hidden` on the cascade containers (shell/body/center) contains the fixed-zoom renderer at the column boundary regardless of any one-frame resize-observer lag.
+**Why**: With plain `1fr` (or no `grid-template-columns` at all, which defaults to an auto-sized implicit column), the column's `min-width: auto` resolves to its content's min-content width. For `.mr-shell` and `.mr-body` that's the titlebar's transport bar (several hundred pixels). For `.mr-center` that's the PianoRoll's intrinsic width (`KEYS_COLUMN_WIDTH + totalT * pxPerBeat ≈ 1464px` at default zoom) — making `.mr-stage` wider than its allocated body-grid cell and pushing absolute-positioned children past the inspector boundary (e.g., M/S chips on track headers via `.mr-track__hdr`'s `flex: 1` spacer + `MSChip` at the row-end). Explicit `minmax(0, 1fr)` lets the `1fr` actually shrink to 0. `overflow: hidden` on the cascade containers (shell/body/center) contains the fixed-zoom renderer at the column boundary regardless of any one-frame resize-observer lag.
 
 **Where**: `src/components/shell/AppShell.css`.
 
