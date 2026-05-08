@@ -74,25 +74,34 @@ The block SHALL replace the Slice-0 placeholder `.mr-cc-slot` divs entirely. The
 - **WHEN** `<CCLanesBlock lanes={[cc1, cc2, cc3]} ... />` is rendered with all three `soloed: false`
 - **THEN** the rendered `.mr-cc-lanes` element SHALL NOT have a `data-soloing` attribute (or SHALL have `data-soloing` set to `undefined`)
 
-### Requirement: CCLane renders a 56px header strip
+### Requirement: CCLane renders a 56px header strip with right-aligned M/S chips
 
-The `CCLane` component SHALL render a `<div className="mr-cc-lane" data-muted={lane.muted} data-soloed={lane.soloed}>` containing two children: `.mr-cc-lane__hdr` (the 56px-wide left strip) and `.mr-cc-lane__plot` (the SVG plot fills the remaining width).
+The `CCLane` component SHALL render a `<div className="mr-cc-lane" data-muted={lane.muted} data-soloed={lane.soloed}>` containing three children: `.mr-cc-lane__hdr` (the 56px-wide left strip with the lane name and CC label), `.mr-cc-lane__plot` (the SVG plot fills the remaining width), and `.mr-cc-lane__ms` (the M/S chip cluster, absolute-positioned in the upper-right corner of the lane).
 
-The header SHALL contain:
+The left header strip (`.mr-cc-lane__hdr`) SHALL contain:
 
-- A top row with `display: flex; justify-content: space-between` containing:
-  - `<span className="mr-cc-lane__name">{lane.name}</span>` rendering the uppercase 9px lane name in `var(--mr-text-2)`.
-  - `<MSChip muted={lane.muted} soloed={lane.soloed} onMute={...} onSolo={...} />` (reused from the `tracks` capability without modification).
-- A bottom row containing `<span className="mr-cc-lane__cc">CC {lane.cc}</span>` rendering the CC label in 9px monospace `var(--mr-text-3)`. The literal text "CC " is hard-coded; the variable portion is `lane.cc`.
+- `<span className="mr-cc-lane__name">{lane.name}</span>` rendering the uppercase 9px lane name in `var(--mr-text-2)`.
+- `<span className="mr-cc-lane__cc">CC {lane.cc}</span>` rendering the CC label in 9px monospace `var(--mr-text-3)`. The literal text "CC " is hard-coded; the variable portion is `lane.cc`.
 
 The header strip's computed width SHALL equal `56px` and its background SHALL be `var(--mr-bg-panel-2)`.
+
+The M/S chip wrapper (`.mr-cc-lane__ms`) SHALL contain `<MSChip muted={lane.muted} soloed={lane.soloed} onMute={...} onSolo={...} />` (reused from the `tracks` capability without modification) and SHALL be positioned `absolute; top: 6px; right: 8px` relative to `.mr-cc-lane`. This places the M/S controls on the right edge of the lane row, mirroring the multi-track header convention where M/S chips appear at the row's far-right end. The M/S wrapper layers above the SVG plot via `z-index: 1` so the chips remain clickable over the bar plot.
+
+This is a deliberate deviation from `prototype/components.jsx` lines 497–504, where MSChip is nested inside the 56px left header. The codebase places M/S on the right per the design owner's convention; recorded in `design/deviations-from-prototype.md` (entry: "M/S chips on right edge of CC lane").
 
 #### Scenario: Header structure for a representative lane
 
 - **WHEN** `<CCLane lane={{ id:"cc2", name:"Pitch Bend", cc:"PB", ... }} />` is rendered
 - **THEN** the rendered DOM SHALL contain `.mr-cc-lane__hdr > .mr-cc-lane__name` with text `"Pitch Bend"`
 - **AND** SHALL contain `.mr-cc-lane__hdr > .mr-cc-lane__cc` with text `"CC PB"`
-- **AND** SHALL contain `.mr-cc-lane__hdr > .mr-ms` (the MSChip root)
+- **AND** SHALL contain `.mr-cc-lane > .mr-cc-lane__ms > .mr-ms` (the M/S wrapper outside the left header)
+- **AND** the rendered `.mr-cc-lane__hdr` SHALL NOT contain the `.mr-ms` element
+
+#### Scenario: M/S chips position to the right of the lane
+
+- **WHEN** a `CCLane` is rendered at any plot width
+- **THEN** the computed style of `.mr-cc-lane__ms` SHALL include `position: absolute; right: 8px; top: 6px`
+- **AND** the M/S chips SHALL render visually on the right edge of the lane row, NOT inside the 56px left header strip
 
 #### Scenario: Header data attributes mirror lane state
 

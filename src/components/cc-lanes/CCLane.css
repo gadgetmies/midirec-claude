@@ -25,13 +25,6 @@
   background: var(--mr-bg-panel-2);
 }
 
-.mr-cc-lane__hdr-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-}
-
 .mr-cc-lane__name {
   font-size: 9px;
   font-weight: var(--mr-fw-semibold);
@@ -56,6 +49,13 @@
       rgba(255, 255, 255, 0.04) calc(50% - 0.5px),
       rgba(255, 255, 255, 0.04) calc(50% + 0.5px),
       transparent calc(50% + 0.5px));
+}
+
+.mr-cc-lane__ms {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 1;
 }
 
 .mr-cc-lane__readout {

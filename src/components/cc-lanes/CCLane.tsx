@@ -89,10 +89,7 @@ export function CCLane({
   return (
     <div className="mr-cc-lane" data-muted={lane.muted ? 'true' : 'false'} data-soloed={lane.soloed ? 'true' : 'false'}>
       <div className="mr-cc-lane__hdr">
-        <div className="mr-cc-lane__hdr-row">
-          <span className="mr-cc-lane__name">{lane.name}</span>
-          <MSChip muted={lane.muted} soloed={lane.soloed} onMute={onToggleMuted} onSolo={onToggleSoloed} />
-        </div>
+        <span className="mr-cc-lane__name">{lane.name}</span>
         <span className="mr-cc-lane__cc">CC {lane.cc}</span>
       </div>
       <div
@@ -168,6 +165,9 @@ export function CCLane({
             {Math.round(hover.v * 127)}
           </span>
         )}
+      </div>
+      <div className="mr-cc-lane__ms">
+        <MSChip muted={lane.muted} soloed={lane.soloed} onMute={onToggleMuted} onSolo={onToggleSoloed} />
       </div>
     </div>
   );
