@@ -76,18 +76,24 @@ The block SHALL replace the Slice-0 placeholder `.mr-cc-slot` divs entirely. The
 
 ### Requirement: CCLane renders a 56px header strip with right-aligned M/S chips
 
-The `CCLane` component SHALL render a `<div className="mr-cc-lane" data-muted={lane.muted} data-soloed={lane.soloed}>` containing three children: `.mr-cc-lane__hdr` (the 56px-wide left strip with the lane name and CC label), `.mr-cc-lane__plot` (the SVG plot fills the remaining width), and `.mr-cc-lane__ms` (the M/S chip cluster, absolute-positioned in the upper-right corner of the lane).
+The `CCLane` component SHALL render a `<div className="mr-cc-lane" data-muted={lane.muted} data-soloed={lane.soloed}>` containing three children, in this order: `.mr-cc-lane__hdr` (the 56px-wide left strip with the lane name and CC label), `.mr-cc-lane__plot` (the SVG plot at intrinsic timeline width), and `.mr-cc-lane__ms` (the M/S chip wrapper).
 
-The left header strip (`.mr-cc-lane__hdr`) SHALL contain:
+`.mr-cc-lane` SHALL be `display: flex; align-items: stretch` so its three children lay out horizontally and consume the row's intrinsic width.
+
+The left header strip (`.mr-cc-lane__hdr`) SHALL be `position: sticky; left: 0; z-index: 2; flex-shrink: 0` and SHALL contain:
 
 - `<span className="mr-cc-lane__name">{lane.name}</span>` rendering the uppercase 9px lane name in `var(--mr-text-2)`.
 - `<span className="mr-cc-lane__cc">CC {lane.cc}</span>` rendering the CC label in 9px monospace `var(--mr-text-3)`. The literal text "CC " is hard-coded; the variable portion is `lane.cc`.
 
-The header strip's computed width SHALL equal `56px` and its background SHALL be `var(--mr-bg-panel-2)`.
+The header strip's computed width SHALL equal `56px` and its background SHALL be `var(--mr-bg-panel-2)` so it visually masks the plot beneath it at any horizontal scroll offset of `.mr-timeline`.
 
-The M/S chip wrapper (`.mr-cc-lane__ms`) SHALL contain `<MSChip muted={lane.muted} soloed={lane.soloed} onMute={...} onSolo={...} />` (reused from the `tracks` capability without modification) and SHALL be positioned `absolute; top: 6px; right: 8px` relative to `.mr-cc-lane`. This places the M/S controls on the right edge of the lane row, mirroring the multi-track header convention where M/S chips appear at the row's far-right end. The M/S wrapper layers above the SVG plot via `z-index: 1` so the chips remain clickable over the bar plot.
+The M/S chip wrapper (`.mr-cc-lane__ms`) SHALL contain `<MSChip muted={lane.muted} soloed={lane.soloed} onMute={...} onSolo={...} />` (reused from the `tracks` capability without modification). It SHALL be `position: sticky; right: 0; flex-shrink: 0; z-index: 1; align-self: center` (or equivalent vertical-centering) and SHALL be padded such that its visual right edge sits 8px from `.mr-timeline`'s visible right edge regardless of scroll offset.
 
-This is a deliberate deviation from `prototype/components.jsx` lines 497–504, where MSChip is nested inside the 56px left header. The codebase places M/S on the right per the design owner's convention; recorded in `design/deviations-from-prototype.md` (entry: "M/S chips on right edge of CC lane").
+The middle `.mr-cc-lane__plot` SHALL have an explicit width of `totalT * pxPerBeat` (matching the multi-track stack's intrinsic width) and `flex-shrink: 0`, so the lane row participates in the timeline's horizontal scroll alongside the multi-track stack.
+
+This layout uses `position: sticky` rather than `position: absolute` so the M/S chip stays visible at the right edge of the visible scroll area, not at the natural right edge of the lane row (which would be off-screen at high horizontal scroll offsets).
+
+The placement of `<MSChip>` outside the 56px left header is a deliberate deviation from `prototype/components.jsx` lines 497–504, recorded in `design/deviations-from-prototype.md` (entry #9: "M/S chips on right edge of CC lane").
 
 #### Scenario: Header structure for a representative lane
 
@@ -97,11 +103,17 @@ This is a deliberate deviation from `prototype/components.jsx` lines 497–504, 
 - **AND** SHALL contain `.mr-cc-lane > .mr-cc-lane__ms > .mr-ms` (the M/S wrapper outside the left header)
 - **AND** the rendered `.mr-cc-lane__hdr` SHALL NOT contain the `.mr-ms` element
 
-#### Scenario: M/S chips position to the right of the lane
+#### Scenario: Header sticks to the visible left edge
 
-- **WHEN** a `CCLane` is rendered at any plot width
-- **THEN** the computed style of `.mr-cc-lane__ms` SHALL include `position: absolute; right: 8px; top: 6px`
-- **AND** the M/S chips SHALL render visually on the right edge of the lane row, NOT inside the 56px left header strip
+- **WHEN** the user horizontally scrolls `.mr-timeline` so that the natural left edge of the lane would scroll out the visible left
+- **THEN** `.mr-cc-lane__hdr`'s computed `position` SHALL be `sticky` with `left` resolving to `0`
+- **AND** the lane name and CC label SHALL stay visible at the left edge of the visible scroll area at every scroll offset
+
+#### Scenario: M/S chips stick to the visible right edge
+
+- **WHEN** the user horizontally scrolls `.mr-timeline` so that the natural right edge of the lane would scroll out the visible right
+- **THEN** `.mr-cc-lane__ms`'s computed `position` SHALL be `sticky` with `right` resolving to `0`
+- **AND** the M/S chip cluster SHALL stay clickable at the right edge of the visible scroll area at every scroll offset
 
 #### Scenario: Header data attributes mirror lane state
 
