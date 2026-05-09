@@ -1,16 +1,16 @@
 import { type MouseEvent } from 'react';
 import { MSChip } from '../ms-chip/MSChip';
 import { Track, type TrackViewProps } from '../tracks/Track';
-import { CCLane } from '../cc-lanes/CCLane';
-import { AddCCLaneRow } from './AddCCLaneRow';
+import { ParamLane } from '../param-lanes/ParamLane';
+import { AddParamLaneRow } from './AddParamLaneRow';
 import type { Marquee } from '../piano-roll/notes';
 import {
   isChannelAudible,
   isLaneAudible,
   isRollAudible,
   laneKeyOf,
-  type CCLane as CCLaneType,
-  type CCLaneKind,
+  type ParamLane as ParamLaneType,
+  type ParamLaneKind,
   type Channel,
   type ChannelId,
   type PianoRollTrack,
@@ -20,8 +20,8 @@ import './ChannelGroup.css';
 interface ChannelGroupProps {
   channel: Channel;
   roll: PianoRollTrack | undefined;
-  lanes: CCLaneType[];
-  state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: CCLaneType[] };
+  lanes: ParamLaneType[];
+  state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLaneType[] };
   viewProps: TrackViewProps;
   isSelected: boolean;
   marquee: Marquee | null;
@@ -33,10 +33,10 @@ interface ChannelGroupProps {
   onToggleRollCollapsed: () => void;
   onToggleRollMuted: () => void;
   onToggleRollSoloed: () => void;
-  onToggleLaneCollapsed: (kind: CCLaneKind, cc?: number) => void;
-  onToggleLaneMuted: (kind: CCLaneKind, cc?: number) => void;
-  onToggleLaneSoloed: (kind: CCLaneKind, cc?: number) => void;
-  onAddCCLane: (channelId: ChannelId, kind: CCLaneKind, cc?: number) => void;
+  onToggleLaneCollapsed: (kind: ParamLaneKind, cc?: number) => void;
+  onToggleLaneMuted: (kind: ParamLaneKind, cc?: number) => void;
+  onToggleLaneSoloed: (kind: ParamLaneKind, cc?: number) => void;
+  onAddParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
 }
 
 export function ChannelGroup({
@@ -58,7 +58,7 @@ export function ChannelGroup({
   onToggleLaneCollapsed,
   onToggleLaneMuted,
   onToggleLaneSoloed,
-  onAddCCLane,
+  onAddParamLane,
 }: ChannelGroupProps) {
   const headerClick = (event: MouseEvent<HTMLDivElement>) => {
     event.stopPropagation();
@@ -114,7 +114,7 @@ export function ChannelGroup({
             />
           )}
           {lanes.map((lane) => (
-            <CCLane
+            <ParamLane
               key={laneKeyOf(lane)}
               lane={lane}
               totalT={totalT}
@@ -126,10 +126,10 @@ export function ChannelGroup({
               onToggleSoloed={() => onToggleLaneSoloed(lane.kind, lane.cc)}
             />
           ))}
-          <AddCCLaneRow
+          <AddParamLaneRow
             channelId={channel.id}
             existingLanes={lanes}
-            onAdd={(kind, cc) => onAddCCLane(channel.id, kind, cc)}
+            onAdd={(kind, cc) => onAddParamLane(channel.id, kind, cc)}
           />
         </>
       )}

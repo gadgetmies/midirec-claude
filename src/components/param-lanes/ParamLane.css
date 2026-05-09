@@ -4,14 +4,14 @@
    sticky-left keys-spacer so the plot's left edge aligns with the piano
    roll's notes-area above. */
 
-.mr-cc-lane {
+.mr-param-lane {
   display: flex;
   flex-direction: column;
   border-bottom: var(--mr-bw-1) solid var(--mr-line-1);
   position: relative;
 }
 
-.mr-cc-lane:last-child {
+.mr-param-lane:last-child {
   border-bottom: 0;
 }
 
@@ -19,7 +19,7 @@
    the playhead. Mirrors the .mr-track__collapsed pattern used by collapsed
    piano-roll tracks: sticky-left keys-spacer + fixed-width minimap so the
    minimap's left edge aligns with the expanded plot above. */
-.mr-cc-lane__collapsed {
+.mr-param-lane__collapsed {
   display: flex;
   align-items: stretch;
   height: 18px;
@@ -27,7 +27,7 @@
   position: relative;
 }
 
-.mr-cc-lane__minimap {
+.mr-param-lane__minimap {
   flex-shrink: 0;
   align-self: center;
   height: 6px;
@@ -40,7 +40,7 @@
 
 /* ── Header row ─────────────────────────────────────────────────────────── */
 
-.mr-cc-lane__hdr {
+.mr-param-lane__hdr {
   display: flex;
   align-items: center;
   height: 22px;
@@ -49,13 +49,18 @@
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  /* See the matching note on .mr-track__hdr — lift the whole header to z=1
+     so its bg covers the playhead diamond that overflows 3px above the
+     .mr-param-lane__plot's top edge. */
+  position: relative;
+  z-index: 1;
 }
 
-.mr-cc-lane__hdr:hover {
+.mr-param-lane__hdr:hover {
   background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
 }
 
-.mr-cc-lane__hdr-left {
+.mr-param-lane__hdr-left {
   position: sticky;
   left: 0;
   z-index: 1;
@@ -67,12 +72,12 @@
   flex-shrink: 0;
 }
 
-.mr-cc-lane__hdr-spacer {
+.mr-param-lane__hdr-spacer {
   flex: 1;
   min-width: 0;
 }
 
-.mr-cc-lane__hdr-right {
+.mr-param-lane__hdr-right {
   position: sticky;
   right: 0;
   z-index: 1;
@@ -83,7 +88,7 @@
   background: var(--mr-bg-panel-2);
 }
 
-.mr-cc-lane__chev {
+.mr-param-lane__chev {
   width: 10px;
   height: 10px;
   display: inline-flex;
@@ -95,11 +100,11 @@
   flex-shrink: 0;
 }
 
-.mr-cc-lane[data-collapsed="true"] .mr-cc-lane__chev {
+.mr-param-lane[data-collapsed="true"] .mr-param-lane__chev {
   transform: rotate(-90deg);
 }
 
-.mr-cc-lane__name {
+.mr-param-lane__name {
   font-size: 10px;
   font-weight: var(--mr-fw-semibold);
   text-transform: uppercase;
@@ -108,7 +113,7 @@
   white-space: nowrap;
 }
 
-.mr-cc-lane__cc {
+.mr-param-lane__cc {
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-3);
@@ -117,16 +122,16 @@
 
 /* ── Body row (keys-spacer + plot) ──────────────────────────────────────── */
 
-.mr-cc-lane__body {
+.mr-param-lane__body {
   display: flex;
   align-items: stretch;
-  height: var(--mr-h-cc-lane);
+  height: var(--mr-h-param-lane);
   position: relative;
 }
 
 /* 56px sticky-left strip that visually continues the piano-roll keys column
    into the CC band so the plot's left edge aligns with the notes area. */
-.mr-cc-lane__keys-spacer {
+.mr-param-lane__keys-spacer {
   position: sticky;
   left: 0;
   z-index: 2;
@@ -136,12 +141,17 @@
   border-right: var(--mr-bw-1) solid var(--mr-line-2);
 }
 
-.mr-cc-lane__plot {
+.mr-param-lane__plot {
   /* Width is set inline from totalT * pxPerBeat so the plot has an
      intrinsic max-content width that aligns with the multi-track stack
-     above. flex-shrink: 0 prevents it from collapsing under flex layout. */
+     above. flex-shrink: 0 prevents it from collapsing under flex layout.
+     z-index: 0 caps the playhead's z=5 inside this stacking context so
+     the diamond cap (which overflows 3px above the plot into the lane
+     header area) renders below the sibling .mr-param-lane__keys-spacer
+     (z=2) and the .mr-param-lane__hdr sticky zones (z=1). */
   flex-shrink: 0;
   position: relative;
+  z-index: 0;
   background:
     linear-gradient(180deg,
       transparent 0,
@@ -151,11 +161,11 @@
       transparent calc(50% + 0.5px));
 }
 
-.mr-cc-lane__plot svg {
+.mr-param-lane__plot svg {
   display: block;
 }
 
-.mr-cc-lane__readout {
+.mr-param-lane__readout {
   position: absolute;
   top: 4px;
   font-family: var(--mr-font-mono);
@@ -165,12 +175,12 @@
   transform: translateX(4px);
 }
 
-[data-muted="true"] .mr-cc-lane__plot,
-[data-muted="true"] .mr-cc-lane__collapsed {
+[data-muted="true"] .mr-param-lane__plot,
+[data-muted="true"] .mr-param-lane__collapsed {
   opacity: 0.32;
   filter: grayscale(0.7);
 }
 
 /* The session-global solo dim selector
-   (`.mr-timeline[data-soloing="true"] [data-audible="false"] .mr-cc-lane__plot`)
+   (`.mr-timeline[data-soloing="true"] [data-audible="false"] .mr-param-lane__plot`)
    lives in the channels capability stylesheet. */

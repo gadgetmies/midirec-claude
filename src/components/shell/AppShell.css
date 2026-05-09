@@ -102,7 +102,7 @@
 
 /* .mr-ruler styles live in components/ruler/Ruler.css */
 /* .mr-channel styles live in components/channels/ChannelGroup.css */
-/* .mr-cc-lane styles live in components/cc-lanes/CCLane.css */
+/* .mr-param-lane styles live in components/param-lanes/ParamLane.css */
 
 .mr-statusbar {
   display: flex;

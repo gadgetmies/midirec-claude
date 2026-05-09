@@ -62,7 +62,7 @@ export function AppShell() {
                     onToggleLaneCollapsed={(kind, cc) => stage.toggleLaneCollapsed(channel.id, kind, cc)}
                     onToggleLaneMuted={(kind, cc) => stage.toggleLaneMuted(channel.id, kind, cc)}
                     onToggleLaneSoloed={(kind, cc) => stage.toggleLaneSoloed(channel.id, kind, cc)}
-                    onAddCCLane={stage.addCCLane}
+                    onAddParamLane={stage.addParamLane}
                   />
                 );
               })}

@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { STANDARD_CCS, type CCLane, type CCLaneKind, type ChannelId } from '../../hooks/useChannels';
+import { STANDARD_CCS, type ParamLane, type ParamLaneKind, type ChannelId } from '../../hooks/useChannels';
 
-interface AddCCLanePopoverProps {
+interface AddParamLanePopoverProps {
   channelId: ChannelId;
-  existingLanes: CCLane[];
-  onAdd: (kind: CCLaneKind, cc?: number) => void;
+  existingLanes: ParamLane[];
+  onAdd: (kind: ParamLaneKind, cc?: number) => void;
   onClose: () => void;
 }
 
-function laneExists(existing: CCLane[], kind: CCLaneKind, cc?: number): boolean {
+function laneExists(existing: ParamLane[], kind: ParamLaneKind, cc?: number): boolean {
   return existing.some((l) => l.kind === kind && l.cc === cc);
 }
 
-export function AddCCLanePopover({ existingLanes, onAdd, onClose }: AddCCLanePopoverProps) {
+export function AddParamLanePopover({ existingLanes, onAdd, onClose }: AddParamLanePopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [customCC, setCustomCC] = useState('');
 
@@ -40,14 +40,14 @@ export function AddCCLanePopover({ existingLanes, onAdd, onClose }: AddCCLanePop
   };
 
   return (
-    <div ref={popoverRef} className="mr-cc-lanes__popover" role="menu">
+    <div ref={popoverRef} className="mr-param-lanes__popover" role="menu">
       {STANDARD_CCS.map((entry) => {
         const disabled = laneExists(existingLanes, 'cc', entry.cc);
         return (
           <button
             key={entry.cc}
             type="button"
-            className="mr-cc-lanes__popover-row"
+            className="mr-param-lanes__popover-row"
             data-disabled={disabled ? 'true' : undefined}
             onClick={() => {
               if (disabled) return;
@@ -58,15 +58,15 @@ export function AddCCLanePopover({ existingLanes, onAdd, onClose }: AddCCLanePop
           </button>
         );
       })}
-      <div className="mr-cc-lanes__popover-divider" />
-      {(['pb', 'at', 'vel'] as const).map((kind) => {
-        const label = kind === 'pb' ? 'Pitch Bend' : kind === 'at' ? 'Aftertouch' : 'Note Velocity';
+      <div className="mr-param-lanes__popover-divider" />
+      {(['pb', 'at'] as const).map((kind) => {
+        const label = kind === 'pb' ? 'Pitch Bend' : 'Aftertouch';
         const disabled = laneExists(existingLanes, kind);
         return (
           <button
             key={kind}
             type="button"
-            className="mr-cc-lanes__popover-row"
+            className="mr-param-lanes__popover-row"
             data-disabled={disabled ? 'true' : undefined}
             onClick={() => {
               if (disabled) return;
@@ -77,8 +77,8 @@ export function AddCCLanePopover({ existingLanes, onAdd, onClose }: AddCCLanePop
           </button>
         );
       })}
-      <div className="mr-cc-lanes__popover-divider" />
-      <div className="mr-cc-lanes__popover-custom">
+      <div className="mr-param-lanes__popover-divider" />
+      <div className="mr-param-lanes__popover-custom">
         <label htmlFor="mr-add-cc-custom">Custom CC#</label>
         <input
           id="mr-add-cc-custom"

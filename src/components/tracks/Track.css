@@ -10,11 +10,16 @@
 /* The session-global solo dim (`.mr-timeline[data-soloing="true"]
    [data-audible="false"]`) lives in the channels capability stylesheet. */
 
-/* Scope the marquee's z-index inside .mr-track__roll so it can't paint over
-   the ruler (z-3) or the channel header sticky band. */
+/* Scope the marquee/notes/playhead/badge z-indices inside .mr-track__roll
+   so they can't paint over the ruler (z=3 in the parent stack), or the
+   sticky-left/right zones of the track and channel headers (z=1). The
+   roll itself sits at z=0 in the parent stack, so any z=1 sibling (header
+   sticky content, CC keys-spacer at z=2) draws over the roll's contents
+   — including the playhead's diamond cap that overflows 3px above the
+   roll's top edge into the header area. */
 .mr-track__roll {
   position: relative;
-  z-index: 1;
+  z-index: 0;
 }
 
 .mr-track {
@@ -36,6 +41,13 @@
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  /* Lift the entire header to z=1 in its stacking context so its bg-panel-2
+     fill (in the spacer area) covers the playhead's diamond cap, which
+     overflows 3px above the .mr-track__roll's top edge into the bottom of
+     the header. The sticky-zoned hdr-left/hdr-right children's z=1 then
+     resolves locally inside the header's stacking context. */
+  position: relative;
+  z-index: 1;
 }
 
 .mr-track__hdr:hover {
@@ -123,7 +135,7 @@
 }
 
 /* 56px sticky-left strip continuing the piano-roll keys column so the
-   minimap's left edge aligns with .mr-roll__lanes / .mr-cc-lane__plot above. */
+   minimap's left edge aligns with .mr-roll__lanes / .mr-param-lane__plot above. */
 .mr-track__keys-spacer {
   position: sticky;
   left: 0;

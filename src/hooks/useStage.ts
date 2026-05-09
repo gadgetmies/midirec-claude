@@ -8,14 +8,14 @@ import {
   type Channel,
   type ChannelId,
   type PianoRollTrack,
-  type CCLane,
-  type CCLaneKind,
+  type ParamLane,
+  type ParamLaneKind,
 } from './useChannels';
 
 export interface StageState {
   channels: Channel[];
   rolls: PianoRollTrack[];
-  lanes: CCLane[];
+  lanes: ParamLane[];
   visibleChannels: Channel[];
   selectedChannelId: ChannelId | null;
   lo: number;
@@ -31,10 +31,10 @@ export interface StageState {
   toggleRollCollapsed: (id: ChannelId) => void;
   toggleRollMuted: (id: ChannelId) => void;
   toggleRollSoloed: (id: ChannelId) => void;
-  toggleLaneCollapsed: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
-  toggleLaneMuted: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
-  toggleLaneSoloed: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
-  addCCLane: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
+  toggleLaneCollapsed: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  toggleLaneMuted: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  toggleLaneSoloed: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  addParamLane: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
 }
 
 const TOTAL_T = 16;
@@ -89,6 +89,6 @@ export function useStage(): StageState {
     toggleLaneCollapsed: channels.toggleLaneCollapsed,
     toggleLaneMuted: channels.toggleLaneMuted,
     toggleLaneSoloed: channels.toggleLaneSoloed,
-    addCCLane: channels.addCCLane,
+    addParamLane: channels.addParamLane,
   };
 }

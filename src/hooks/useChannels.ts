@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useReducer } from 'react';
-import { ccModWheel, ccPitchBend, ccVelocity, type CCPoint } from '../components/cc-lanes/ccPoints';
+import { ccModWheel, ccPitchBend, type CCPoint } from '../components/param-lanes/ccPoints';
 import { makeNotes, type Note } from '../components/piano-roll/notes';
 
 export type { CCPoint };
 
 export type ChannelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
 
-export type CCLaneKind = 'cc' | 'pb' | 'at' | 'vel';
+export type ParamLaneKind = 'cc' | 'pb' | 'at';
 
 export interface Channel {
   id: ChannelId;
@@ -25,9 +25,9 @@ export interface PianoRollTrack {
   collapsed: boolean;
 }
 
-export interface CCLane {
+export interface ParamLane {
   channelId: ChannelId;
-  kind: CCLaneKind;
+  kind: ParamLaneKind;
   cc?: number;
   name: string;
   color: string;
@@ -38,9 +38,9 @@ export interface CCLane {
 }
 
 /* ── Standard MIDI CC name table ──────────────────────────────────────────
-   Used by both addCCLane's name derivation and the AddCCLanePopover picker.
-   Numbers come from the General MIDI CC list; kept short on purpose — users
-   can type a custom CC# in the popover for anything not listed. */
+   Used by both addParamLane's name derivation and the AddParamLanePopover
+   picker. Numbers come from the General MIDI CC list; kept short on purpose
+   — users can type a custom CC# in the popover for anything not listed. */
 export interface StandardCCEntry {
   cc: number;
   name: string;
@@ -58,7 +58,7 @@ export const STANDARD_CCS: readonly StandardCCEntry[] = [
 
 const STANDARD_CC_BY_NUMBER = new Map(STANDARD_CCS.map((e) => [e.cc, e.name]));
 
-export function laneDefaultName(kind: CCLaneKind, cc?: number): string {
+export function laneDefaultName(kind: ParamLaneKind, cc?: number): string {
   switch (kind) {
     case 'cc':
       return cc !== undefined ? STANDARD_CC_BY_NUMBER.get(cc) ?? `CC ${cc}` : 'CC';
@@ -66,12 +66,10 @@ export function laneDefaultName(kind: CCLaneKind, cc?: number): string {
       return 'Pitch Bend';
     case 'at':
       return 'Aftertouch';
-    case 'vel':
-      return 'Note Velocity';
   }
 }
 
-export function laneCCLabel(lane: CCLane): string {
+export function laneCCLabel(lane: ParamLane): string {
   switch (lane.kind) {
     case 'cc':
       return `CC ${lane.cc}`;
@@ -79,16 +77,14 @@ export function laneCCLabel(lane: CCLane): string {
       return 'PB';
     case 'at':
       return 'AT';
-    case 'vel':
-      return 'VEL';
   }
 }
 
-export function laneKey(channelId: ChannelId, kind: CCLaneKind, cc?: number): string {
+export function laneKey(channelId: ChannelId, kind: ParamLaneKind, cc?: number): string {
   return `${channelId}.${kind}.${cc ?? ''}`;
 }
 
-export function laneKeyOf(lane: CCLane): string {
+export function laneKeyOf(lane: ParamLane): string {
   return laneKey(lane.channelId, lane.kind, lane.cc);
 }
 
@@ -97,7 +93,7 @@ export function laneKeyOf(lane: CCLane): string {
 interface State {
   channels: Channel[];
   rolls: PianoRollTrack[];
-  lanes: CCLane[];
+  lanes: ParamLane[];
 }
 
 type Action =
@@ -107,10 +103,10 @@ type Action =
   | { type: 'roll/toggleCollapsed'; channelId: ChannelId }
   | { type: 'roll/toggleMuted'; channelId: ChannelId }
   | { type: 'roll/toggleSoloed'; channelId: ChannelId }
-  | { type: 'lane/toggleCollapsed'; channelId: ChannelId; kind: CCLaneKind; cc?: number }
-  | { type: 'lane/toggleMuted'; channelId: ChannelId; kind: CCLaneKind; cc?: number }
-  | { type: 'lane/toggleSoloed'; channelId: ChannelId; kind: CCLaneKind; cc?: number }
-  | { type: 'lane/add'; channelId: ChannelId; kind: CCLaneKind; cc?: number; totalT: number };
+  | { type: 'lane/toggleCollapsed'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
+  | { type: 'lane/toggleMuted'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
+  | { type: 'lane/toggleSoloed'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
+  | { type: 'lane/add'; channelId: ChannelId; kind: ParamLaneKind; cc?: number; totalT: number };
 
 function flipChannelField(state: State, channelId: ChannelId, field: keyof Pick<Channel, 'collapsed' | 'muted' | 'soloed'>): State {
   const idx = state.channels.findIndex((c) => c.id === channelId);
@@ -128,7 +124,7 @@ function flipRollField(state: State, channelId: ChannelId, field: keyof Pick<Pia
   return { ...state, rolls };
 }
 
-function flipLaneField(state: State, channelId: ChannelId, kind: CCLaneKind, cc: number | undefined, field: keyof Pick<CCLane, 'collapsed' | 'muted' | 'soloed'>): State {
+function flipLaneField(state: State, channelId: ChannelId, kind: ParamLaneKind, cc: number | undefined, field: keyof Pick<ParamLane, 'collapsed' | 'muted' | 'soloed'>): State {
   const idx = state.lanes.findIndex((l) => l.channelId === channelId && l.kind === kind && l.cc === cc);
   if (idx < 0) return state;
   const lanes = state.lanes.slice();
@@ -150,7 +146,7 @@ function reducer(state: State, action: Action): State {
     case 'lane/add': {
       const exists = state.lanes.some((l) => l.channelId === action.channelId && l.kind === action.kind && l.cc === action.cc);
       if (exists) return state;
-      const newLane: CCLane = {
+      const newLane: ParamLane = {
         channelId: action.channelId,
         kind: action.kind,
         ...(action.kind === 'cc' && action.cc !== undefined ? { cc: action.cc } : {}),
@@ -168,12 +164,11 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-function laneDefaultColor(kind: CCLaneKind): string {
+function laneDefaultColor(kind: ParamLaneKind): string {
   switch (kind) {
     case 'cc':  return 'var(--mr-cc)';
     case 'pb':  return 'var(--mr-pitch)';
     case 'at':  return 'var(--mr-aftertouch)';
-    case 'vel': return 'var(--mr-aftertouch)';
   }
 }
 
@@ -188,7 +183,7 @@ function seed(totalT: number): State {
     { channelId: 1, notes: makeNotes(22, 7),  muted: false, soloed: false, collapsed: false },
     { channelId: 2, notes: makeNotes(16, 11), muted: false, soloed: false, collapsed: false },
   ];
-  const lanes: CCLane[] = [
+  const lanes: ParamLane[] = [
     {
       channelId: 1, kind: 'cc', cc: 1,
       name: 'Mod Wheel', color: 'var(--mr-cc)',
@@ -201,19 +196,13 @@ function seed(totalT: number): State {
       points: ccPitchBend(totalT),
       muted: false, soloed: false, collapsed: false,
     },
-    {
-      channelId: 1, kind: 'vel',
-      name: 'Note Velocity', color: 'var(--mr-aftertouch)',
-      points: ccVelocity(totalT),
-      muted: true, soloed: false, collapsed: false,
-    },
   ];
   return { channels, rolls, lanes };
 }
 
 /* ── Audibility & solo predicates ───────────────────────────────────────── */
 
-export function anySoloed(state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: CCLane[] }): boolean {
+export function anySoloed(state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
   return (
     state.channels.some((c) => c.soloed) ||
     state.rolls.some((r) => r.soloed) ||
@@ -222,13 +211,13 @@ export function anySoloed(state: { channels: Channel[]; rolls: PianoRollTrack[];
 }
 
 /** True iff (channel.soloed) OR (no solo anywhere). */
-export function isChannelAudible(channel: Channel, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: CCLane[] }): boolean {
+export function isChannelAudible(channel: Channel, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
   if (!anySoloed(state)) return true;
   return channel.soloed;
 }
 
 /** True iff (roll.soloed) OR (parent channel.soloed) OR (no solo anywhere). */
-export function isRollAudible(roll: PianoRollTrack, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: CCLane[] }): boolean {
+export function isRollAudible(roll: PianoRollTrack, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
   if (!anySoloed(state)) return true;
   if (roll.soloed) return true;
   const channel = state.channels.find((c) => c.id === roll.channelId);
@@ -236,15 +225,15 @@ export function isRollAudible(roll: PianoRollTrack, state: { channels: Channel[]
 }
 
 /** True iff (lane.soloed) OR (parent channel.soloed) OR (no solo anywhere). */
-export function isLaneAudible(lane: CCLane, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: CCLane[] }): boolean {
+export function isLaneAudible(lane: ParamLane, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
   if (!anySoloed(state)) return true;
   if (lane.soloed) return true;
   const channel = state.channels.find((c) => c.id === lane.channelId);
   return !!channel?.soloed;
 }
 
-/** True iff a channel has any visible content (notes or non-empty CC plots). */
-export function channelHasContent(channel: Channel, rolls: PianoRollTrack[], lanes: CCLane[]): boolean {
+/** True iff a channel has any visible content (notes or non-empty param plots). */
+export function channelHasContent(channel: Channel, rolls: PianoRollTrack[], lanes: ParamLane[]): boolean {
   const roll = rolls.find((r) => r.channelId === channel.id);
   if (roll && roll.notes.length > 0) return true;
   return lanes.some((l) => l.channelId === channel.id && l.points.length > 0);
@@ -255,17 +244,17 @@ export function channelHasContent(channel: Channel, rolls: PianoRollTrack[], lan
 export interface UseChannelsReturn {
   channels: Channel[];
   rolls: PianoRollTrack[];
-  lanes: CCLane[];
+  lanes: ParamLane[];
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
   toggleRollCollapsed: (channelId: ChannelId) => void;
   toggleRollMuted: (channelId: ChannelId) => void;
   toggleRollSoloed: (channelId: ChannelId) => void;
-  toggleLaneCollapsed: (channelId: ChannelId, kind: CCLaneKind, cc?: number) => void;
-  toggleLaneMuted: (channelId: ChannelId, kind: CCLaneKind, cc?: number) => void;
-  toggleLaneSoloed: (channelId: ChannelId, kind: CCLaneKind, cc?: number) => void;
-  addCCLane: (channelId: ChannelId, kind: CCLaneKind, cc?: number) => void;
+  toggleLaneCollapsed: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  toggleLaneMuted: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  toggleLaneSoloed: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  addParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
 }
 
 export function useChannels(totalT: number): UseChannelsReturn {
@@ -285,6 +274,6 @@ export function useChannels(totalT: number): UseChannelsReturn {
     toggleLaneCollapsed:    useCallback((id, kind, cc) => dispatch({ type: 'lane/toggleCollapsed', channelId: id, kind, cc }), []),
     toggleLaneMuted:        useCallback((id, kind, cc) => dispatch({ type: 'lane/toggleMuted',     channelId: id, kind, cc }), []),
     toggleLaneSoloed:       useCallback((id, kind, cc) => dispatch({ type: 'lane/toggleSoloed',    channelId: id, kind, cc }), []),
-    addCCLane:              useCallback((id, kind, cc) => dispatch({ type: 'lane/add', channelId: id, kind, cc, totalT }), [totalT]),
+    addParamLane:           useCallback((id, kind, cc) => dispatch({ type: 'lane/add', channelId: id, kind, cc, totalT }), [totalT]),
   };
 }

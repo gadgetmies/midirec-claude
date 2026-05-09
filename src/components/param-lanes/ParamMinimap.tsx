@@ -1,6 +1,6 @@
 import type { CCPoint } from '../../hooks/useChannels';
 
-interface CCMinimapProps {
+interface ParamMinimapProps {
   points: CCPoint[];
   color: string;
   viewT0?: number;
@@ -8,12 +8,12 @@ interface CCMinimapProps {
   pxPerBeat?: number;
 }
 
-export function CCMinimap({ points, color, viewT0 = 0, totalT = 16, pxPerBeat = 88 }: CCMinimapProps) {
+export function ParamMinimap({ points, color, viewT0 = 0, totalT = 16, pxPerBeat = 88 }: ParamMinimapProps) {
   const viewT1 = viewT0 + totalT;
   const visible = points.filter((p) => p.t >= viewT0 && p.t < viewT1);
   const plotW = totalT * pxPerBeat;
   return (
-    <div className="mr-cc-lane__minimap" style={{ width: plotW }}>
+    <div className="mr-param-lane__minimap" style={{ width: plotW }}>
       {visible.map((p, i) => {
         const left = (p.t - viewT0) * pxPerBeat;
         return (

@@ -110,9 +110,9 @@ The prototype's `Stage` keeps tracks and CC lanes as separate sibling regions �
 **Why**: CCs in MIDI are channel-scoped (status byte `0xBn`). Treating channels as the organizational unit makes the data model honest, lets us colocate a channel's roll with its CCs, and gives a sensible home for channel-level M/S. Inlined CCs replace the prototype's sticky-bottom band — the synchronized horizontal scroll axis is preserved, but vertical scroll moves the whole stack as one continuous list.
 
 **Where**:
-- Hook: `src/hooks/useChannels.ts` (replaces `useTracks` + `useCCLanes`).
-- Components: `src/components/channels/ChannelGroup.tsx`, `AddCCLaneRow.tsx`, `AddCCLanePopover.tsx`.
-- Updated leaves: `src/components/tracks/Track.tsx` (now takes `roll: PianoRollTrack` and `channel: Channel`), `src/components/cc-lanes/CCLane.tsx` (kind-aware label, chevron + collapsed support).
+- Hook: `src/hooks/useChannels.ts` (replaces the previous `useTracks` + `useCCLanes`).
+- Components: `src/components/channels/ChannelGroup.tsx`, `AddParamLaneRow.tsx`, `AddParamLanePopover.tsx`.
+- Updated leaves: `src/components/tracks/Track.tsx` (now takes `roll: PianoRollTrack` and `channel: Channel`), `src/components/param-lanes/ParamLane.tsx` (kind-aware label, chevron + collapsed support).
 - CSS: `.mr-channel`, `.mr-channel__hdr*` in `src/components/channels/ChannelGroup.css`. Session-global solo dim selector `.mr-timeline[data-soloing="true"] [data-audible="false"] ...` lives in the same file.
 
 **Recommendation**: This is a structural deviation that the prototype design canvas doesn't yet model. Worth back-porting to the prototype as a refresh once the design owner reviews — the prototype's flat tracks+CCs sibling structure is a less-honest-to-MIDI shape.
@@ -121,17 +121,17 @@ The prototype's `Stage` keeps tracks and CC lanes as separate sibling regions �
 
 ## 9. M/S chips on the right edge of each CC lane row (now sticky-right)
 
-**What changed**: The MSChip wrapper (`.mr-cc-lane__ms`) is rendered as a flex-sibling of `.mr-cc-lane__plot`, with `position: sticky; right: 0; z-index: 1; align-self: center`. The 56px left header strip (`.mr-cc-lane__hdr`) holds only the lane name and CC label and is `position: sticky; left: 0; z-index: 2`.
+**What changed**: The MSChip wrapper (`.mr-param-lane__ms`) is rendered as a flex-sibling of `.mr-param-lane__plot`, with `position: sticky; right: 0; z-index: 1; align-self: center`. The 56px left header strip (`.mr-param-lane__hdr`) holds only the lane name and CC label and is `position: sticky; left: 0; z-index: 2`.
 
 The prototype's `CCLane` (`prototype/components.jsx` lines 497–504) nests `<MSChip>` inside the 56px left header alongside the lane name, so the M/S controls sit at the upper-right of the small left strip rather than the upper-right of the full lane row.
 
 **Why**: Design owner request — the M/S chips should mirror the multi-track header convention (chips at the row's far-right end), not float in a 56px corner that's visually disconnected from the lane's identity. Right-edge placement also reads as a per-row affordance of the lane plot rather than a property of the label area. Sticky-right (instead of absolute) is required by the `synchronized-timeline-scroll` capability so the chip stays at the visible right edge of the timeline scroll container at every horizontal scroll offset, not at the natural right edge of the lane row (which would be off-screen at high scroll offsets).
 
 **Where**:
-- JSX: `src/components/cc-lanes/CCLane.tsx` — `<div className="mr-cc-lane__ms">` is a sibling of `.mr-cc-lane__plot`, after it in DOM order.
-- CSS: `src/components/cc-lanes/CCLane.css` — `.mr-cc-lane__ms { position: sticky; right: 0; flex-shrink: 0; align-self: center; z-index: 1 }`.
+- JSX: `src/components/param-lanes/ParamLane.tsx` — `<div className="mr-param-lane__ms">` is a sibling of `.mr-param-lane__plot`, after it in DOM order.
+- CSS: `src/components/param-lanes/ParamLane.css` — `.mr-param-lane__ms { position: sticky; right: 0; flex-shrink: 0; align-self: center; z-index: 1 }`.
 
-**Recommendation**: Back-port to `prototype/components.jsx` and `prototype/app.css` — move `<MSChip>` out of `.mr-cc-lane__hdr` and place it on the lane row with right-edge alignment. (Sticky positioning is a codebase-side detail tied to scroll architecture; the prototype's design canvas doesn't need sticky because it doesn't scroll.)
+**Recommendation**: Back-port to `prototype/components.jsx` and `prototype/app.css` — move `<MSChip>` out of `.mr-param-lane__hdr` and place it on the lane row with right-edge alignment. (Sticky positioning is a codebase-side detail tied to scroll architecture; the prototype's design canvas doesn't need sticky because it doesn't scroll.)
 
 **Status**: deviation — design owner direction; awaiting back-port.
 

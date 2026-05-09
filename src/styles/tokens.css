@@ -125,7 +125,7 @@
   --mr-h-toolbar:    44px;   /* transport bar */
   --mr-w-sidebar:    280px;
   --mr-w-inspector:  320px;
-  --mr-h-cc-lane:    72px;
+  --mr-h-param-lane:    72px;
   --mr-h-ruler:      28px;
   --mr-h-track-hdr:  24px;
 
@@ -153,7 +153,7 @@
   --mr-h-control-lg:  32px;
   --mr-h-row:         20px;
   --mr-h-toolbar:     40px;
-  --mr-h-cc-lane:     56px;
+  --mr-h-param-lane:     56px;
   --mr-sp-5:          10px;
   --mr-sp-6:          12px;
   --mr-fs-12:         11px;
@@ -166,7 +166,7 @@
   --mr-h-control-lg:  40px;
   --mr-h-row:         26px;
   --mr-h-toolbar:     52px;
-  --mr-h-cc-lane:     88px;
+  --mr-h-param-lane:     88px;
   --mr-sp-5:          14px;
   --mr-sp-6:          20px;
   --mr-fs-12:         13px;

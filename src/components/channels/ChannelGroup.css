@@ -17,6 +17,12 @@
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  /* z=1 stacking context for the same reason as the track and lane headers:
+     the spacer's bg fill needs to render above the rolls' / lanes' z=0
+     stacking contexts so any playhead diamond overflowing into the header
+     area is covered. */
+  position: relative;
+  z-index: 1;
 }
 
 .mr-channel__hdr:hover {
@@ -91,15 +97,15 @@
 }
 
 /* Session-global solo dim. Lives here (channels capability) rather than in
-   tracks/ or cc-lanes/ since the predicate is owned by the channels layer.
+   tracks/ or param-lanes/ since the predicate is owned by the channels layer.
    The selector intentionally scopes data-audible to the immediate row
-   (.mr-track or .mr-cc-lane) rather than any ancestor — otherwise a soloed
+   (.mr-track or .mr-param-lane) rather than any ancestor — otherwise a soloed
    lane inside a non-soloed (i.e. data-audible="false") channel would dim,
    even though the lane itself is the audible target. */
 .mr-timeline[data-soloing="true"] .mr-track[data-audible="false"] .mr-track__roll,
 .mr-timeline[data-soloing="true"] .mr-track[data-audible="false"] .mr-track__collapsed,
-.mr-timeline[data-soloing="true"] .mr-cc-lane[data-audible="false"] .mr-cc-lane__plot,
-.mr-timeline[data-soloing="true"] .mr-cc-lane[data-audible="false"] .mr-cc-lane__collapsed {
+.mr-timeline[data-soloing="true"] .mr-param-lane[data-audible="false"] .mr-param-lane__plot,
+.mr-timeline[data-soloing="true"] .mr-param-lane[data-audible="false"] .mr-param-lane__collapsed {
   opacity: 0.45;
 }
 
@@ -113,12 +119,12 @@
 /* The playhead diamond cap is for the expanded views (piano roll + CC plot).
    In collapsed minimaps, drop the diamond and keep only the vertical line. */
 .mr-track__collapsed .mr-playhead::before,
-.mr-cc-lane__collapsed .mr-playhead::before {
+.mr-param-lane__collapsed .mr-playhead::before {
   display: none;
 }
 
-/* The [+ Add CC] affordance row. */
-.mr-cc-lanes__add {
+/* The [+ Add Lane] affordance row. */
+.mr-param-lanes__add {
   display: flex;
   align-items: center;
   height: var(--mr-h-row);
@@ -131,7 +137,7 @@
   width: max-content;
 }
 
-.mr-cc-lanes__add-btn {
+.mr-param-lanes__add-btn {
   appearance: none;
   background: transparent;
   border: 1px dashed var(--mr-line-2);
@@ -144,14 +150,14 @@
   transition: color 0.08s, border-color 0.08s, background 0.08s;
 }
 
-.mr-cc-lanes__add-btn:hover {
+.mr-param-lanes__add-btn:hover {
   color: var(--mr-text-2);
   border-color: var(--mr-line-3);
   background: color-mix(in oklab, var(--mr-bg-panel) 80%, var(--mr-text-1) 4%);
 }
 
-/* Popover anchored to the [+ Add CC] button. */
-.mr-cc-lanes__popover {
+/* Popover anchored to the [+ Add Lane] button. */
+.mr-param-lanes__popover {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -167,7 +173,7 @@
   gap: 2px;
 }
 
-.mr-cc-lanes__popover-row {
+.mr-param-lanes__popover-row {
   appearance: none;
   background: transparent;
   border: 0;
@@ -180,37 +186,37 @@
   cursor: pointer;
 }
 
-.mr-cc-lanes__popover-row:hover,
-.mr-cc-lanes__popover-row:focus {
+.mr-param-lanes__popover-row:hover,
+.mr-param-lanes__popover-row:focus {
   background: color-mix(in oklab, var(--mr-bg-panel) 70%, var(--mr-text-1) 8%);
   color: var(--mr-text-1);
   outline: none;
 }
 
-.mr-cc-lanes__popover-row[data-disabled="true"] {
+.mr-param-lanes__popover-row[data-disabled="true"] {
   color: var(--mr-text-3);
   cursor: default;
 }
 
-.mr-cc-lanes__popover-row[data-disabled="true"]:hover {
+.mr-param-lanes__popover-row[data-disabled="true"]:hover {
   background: transparent;
   color: var(--mr-text-3);
 }
 
-.mr-cc-lanes__popover-divider {
+.mr-param-lanes__popover-divider {
   height: 1px;
   background: var(--mr-line-2);
   margin: 2px 0;
 }
 
-.mr-cc-lanes__popover-custom {
+.mr-param-lanes__popover-custom {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
 }
 
-.mr-cc-lanes__popover-custom label {
+.mr-param-lanes__popover-custom label {
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-3);
@@ -218,7 +224,7 @@
   letter-spacing: 0.06em;
 }
 
-.mr-cc-lanes__popover-custom input {
+.mr-param-lanes__popover-custom input {
   flex: 1;
   background: var(--mr-bg-app);
   border: 1px solid var(--mr-line-2);
@@ -231,7 +237,7 @@
   min-width: 0;
 }
 
-.mr-cc-lanes__popover-custom button {
+.mr-param-lanes__popover-custom button {
   appearance: none;
   background: transparent;
   border: 1px solid var(--mr-line-2);
@@ -243,7 +249,7 @@
   cursor: pointer;
 }
 
-.mr-cc-lanes__popover-custom button:hover {
+.mr-param-lanes__popover-custom button:hover {
   color: var(--mr-text-1);
   border-color: var(--mr-line-3);
 }

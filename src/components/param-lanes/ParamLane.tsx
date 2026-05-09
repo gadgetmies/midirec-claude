@@ -1,12 +1,12 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { MSChip } from '../ms-chip/MSChip';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
-import { laneCCLabel, type CCLane as CCLaneType } from '../../hooks/useChannels';
-import { CCMinimap } from './CCMinimap';
-import './CCLane.css';
+import { laneCCLabel, type ParamLane as ParamLaneType } from '../../hooks/useChannels';
+import { ParamMinimap } from './ParamMinimap';
+import './ParamLane.css';
 
-interface CCLaneProps {
-  lane: CCLaneType;
+interface ParamLaneProps {
+  lane: ParamLaneType;
   viewT0?: number;
   totalT: number;
   pxPerBeat?: number;
@@ -28,7 +28,7 @@ interface Bar {
   v: number;
 }
 
-function resampleBars(points: CCLaneType['points'], viewT0: number, totalT: number): Bar[] {
+function resampleBars(points: ParamLaneType['points'], viewT0: number, totalT: number): Bar[] {
   // An empty CC lane (no recorded events) renders no bars. The previous
   // behavior of returning 64 v=0 bars left visible cap rectangles along the
   // bottom of the plot, which read as "events".
@@ -51,7 +51,7 @@ function resampleBars(points: CCLaneType['points'], viewT0: number, totalT: numb
   return out;
 }
 
-export function CCLane({
+export function ParamLane({
   lane,
   viewT0 = 0,
   totalT,
@@ -61,7 +61,7 @@ export function CCLane({
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
-}: CCLaneProps) {
+}: ParamLaneProps) {
   const [hover, setHover] = useState<{ idx: number; v: number } | null>(null);
 
   const plotW = totalT * pxPerBeat;
@@ -89,27 +89,27 @@ export function CCLane({
 
   return (
     <div
-      className="mr-cc-lane"
+      className="mr-param-lane"
       data-muted={lane.muted ? 'true' : 'false'}
       data-soloed={lane.soloed ? 'true' : 'false'}
       data-collapsed={lane.collapsed ? 'true' : 'false'}
       data-audible={audible ? 'true' : 'false'}
     >
-      <div className="mr-cc-lane__hdr" onClick={onHeaderClick}>
-        <div className="mr-cc-lane__hdr-left">
-          <span className="mr-cc-lane__chev">▾</span>
-          <span className="mr-cc-lane__name">{lane.name}</span>
-          <span className="mr-cc-lane__cc">{laneCCLabel(lane)}</span>
+      <div className="mr-param-lane__hdr" onClick={onHeaderClick}>
+        <div className="mr-param-lane__hdr-left">
+          <span className="mr-param-lane__chev">▾</span>
+          <span className="mr-param-lane__name">{lane.name}</span>
+          <span className="mr-param-lane__cc">{laneCCLabel(lane)}</span>
         </div>
-        <div className="mr-cc-lane__hdr-spacer" />
-        <div className="mr-cc-lane__hdr-right">
+        <div className="mr-param-lane__hdr-spacer" />
+        <div className="mr-param-lane__hdr-right">
           <MSChip muted={lane.muted} soloed={lane.soloed} onMute={onToggleMuted} onSolo={onToggleSoloed} />
         </div>
       </div>
       {lane.collapsed ? (
-        <div className="mr-cc-lane__collapsed">
-          <div className="mr-cc-lane__keys-spacer" />
-          <CCMinimap
+        <div className="mr-param-lane__collapsed">
+          <div className="mr-param-lane__keys-spacer" />
+          <ParamMinimap
             points={lane.points}
             color={lane.color}
             viewT0={viewT0}
@@ -119,10 +119,10 @@ export function CCLane({
           <div className="mr-playhead" style={{ left: playheadLeft }} />
         </div>
       ) : (
-        <div className="mr-cc-lane__body">
-          <div className="mr-cc-lane__keys-spacer" />
+        <div className="mr-param-lane__body">
+          <div className="mr-param-lane__keys-spacer" />
           <div
-            className="mr-cc-lane__plot"
+            className="mr-param-lane__plot"
             style={{ width: plotW }}
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
@@ -189,7 +189,7 @@ export function CCLane({
             <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
             {hover && (
               <span
-                className="mr-cc-lane__readout"
+                className="mr-param-lane__readout"
                 style={{ left: hover.idx * cellW + cellW / 2 }}
               >
                 {Math.round(hover.v * 127)}
