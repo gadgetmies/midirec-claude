@@ -1,24 +1,40 @@
 import { useMemo } from 'react';
 import type { Marquee } from '../components/piano-roll/notes';
 import { useTransport } from './useTransport';
-import { useTracks, type Track } from './useTracks';
-import { useCCLanes, type CCLane } from './useCCLanes';
+import {
+  useChannels,
+  anySoloed,
+  channelHasContent,
+  type Channel,
+  type ChannelId,
+  type PianoRollTrack,
+  type CCLane,
+  type CCLaneKind,
+} from './useChannels';
 
 export interface StageState {
-  tracks: Track[];
-  ccLanes: CCLane[];
-  selectedTrackId: string | null;
+  channels: Channel[];
+  rolls: PianoRollTrack[];
+  lanes: CCLane[];
+  visibleChannels: Channel[];
+  selectedChannelId: ChannelId | null;
   lo: number;
   hi: number;
   totalT: number;
   playheadT: number;
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
-  toggleTrackOpen: (id: string) => void;
-  toggleTrackMuted: (id: string) => void;
-  toggleTrackSoloed: (id: string) => void;
-  toggleCCLaneMuted: (id: string) => void;
-  toggleCCLaneSoloed: (id: string) => void;
+  soloing: boolean;
+  toggleChannelCollapsed: (id: ChannelId) => void;
+  toggleChannelMuted: (id: ChannelId) => void;
+  toggleChannelSoloed: (id: ChannelId) => void;
+  toggleRollCollapsed: (id: ChannelId) => void;
+  toggleRollMuted: (id: ChannelId) => void;
+  toggleRollSoloed: (id: ChannelId) => void;
+  toggleLaneCollapsed: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
+  toggleLaneMuted: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
+  toggleLaneSoloed: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
+  addCCLane: (id: ChannelId, kind: CCLaneKind, cc?: number) => void;
 }
 
 const TOTAL_T = 16;
@@ -27,8 +43,7 @@ const HI = 76;
 
 export function useStage(): StageState {
   const { timecodeMs, bpm } = useTransport();
-  const { tracks, toggleTrackOpen, toggleTrackMuted, toggleTrackSoloed } = useTracks();
-  const { lanes: ccLanes, toggleCCLaneMuted, toggleCCLaneSoloed } = useCCLanes(TOTAL_T);
+  const channels = useChannels(TOTAL_T);
 
   const demoMarquee = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -44,22 +59,36 @@ export function useStage(): StageState {
     ? { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }
     : null;
   const selectedIdx = demoMarquee ? undefined : [];
-  const selectedTrackId = demoMarquee ? 't1' : null;
+  const selectedChannelId: ChannelId | null = demoMarquee ? 1 : null;
+
+  const visibleChannels = useMemo(
+    () => channels.channels.filter((c) => channelHasContent(c, channels.rolls, channels.lanes)),
+    [channels.channels, channels.rolls, channels.lanes],
+  );
+  const soloing = useMemo(() => anySoloed(channels), [channels]);
 
   return {
-    tracks,
-    ccLanes,
-    selectedTrackId,
+    channels: channels.channels,
+    rolls: channels.rolls,
+    lanes: channels.lanes,
+    visibleChannels,
+    selectedChannelId,
     lo: LO,
     hi: HI,
     totalT: TOTAL_T,
     playheadT,
     marquee,
     selectedIdx,
-    toggleTrackOpen,
-    toggleTrackMuted,
-    toggleTrackSoloed,
-    toggleCCLaneMuted,
-    toggleCCLaneSoloed,
+    soloing,
+    toggleChannelCollapsed: channels.toggleChannelCollapsed,
+    toggleChannelMuted: channels.toggleChannelMuted,
+    toggleChannelSoloed: channels.toggleChannelSoloed,
+    toggleRollCollapsed: channels.toggleRollCollapsed,
+    toggleRollMuted: channels.toggleRollMuted,
+    toggleRollSoloed: channels.toggleRollSoloed,
+    toggleLaneCollapsed: channels.toggleLaneCollapsed,
+    toggleLaneMuted: channels.toggleLaneMuted,
+    toggleLaneSoloed: channels.toggleLaneSoloed,
+    addCCLane: channels.addCCLane,
   };
 }

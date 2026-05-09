@@ -1,15 +1,5 @@
 /* Ported from design_handoff_midi_recorder/prototype/app.css lines ~736-812 */
 
-.mr-multi-track-stage {
-  /* Grow to fill remaining vertical space inside .mr-timeline__inner so the
-     CC lanes block stays at the bottom of the timeline area when the
-     multi-track content is short. flex-shrink: 0 prevents the content from
-     being compressed when there are many tracks. */
-  flex: 1 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
 /* Mute fades + grayscales the row's body. */
 [data-muted="true"] .mr-track__roll,
 [data-muted="true"] .mr-track__collapsed {
@@ -17,10 +7,14 @@
   filter: grayscale(0.7);
 }
 
-/* When solo is active anywhere in the stage, non-soloed rows go semi-dim. */
-[data-soloing="true"] [data-soloed="false"] .mr-track__roll,
-[data-soloing="true"] [data-soloed="false"] .mr-track__collapsed {
-  opacity: 0.45;
+/* The session-global solo dim (`.mr-timeline[data-soloing="true"]
+   [data-audible="false"]`) lives in the channels capability stylesheet. */
+
+/* Scope the marquee's z-index inside .mr-track__roll so it can't paint over
+   the ruler (z-3) or the channel header sticky band. */
+.mr-track__roll {
+  position: relative;
+  z-index: 1;
 }
 
 .mr-track {
@@ -72,7 +66,6 @@
   display: flex;
   align-items: center;
   padding: 0 10px 0 8px;
-  background: var(--mr-bg-panel-2);
   flex-shrink: 0;
 }
 
@@ -92,52 +85,58 @@
   font-size: 9px;
 }
 
-[data-track-open="false"] .mr-track__chev {
+[data-track-collapsed="true"] .mr-track__chev {
   transform: rotate(-90deg);
 }
 
-.mr-track__swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 1px;
-  flex-shrink: 0;
-  box-shadow: 0 0 6px color-mix(in oklab, currentColor 50%, transparent);
-}
-
 .mr-track__name {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--mr-text-1);
+  font-size: 10px;
+  font-weight: var(--mr-fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mr-text-2);
+  white-space: nowrap;
 }
 
 .mr-track__sub {
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-3);
+  white-space: nowrap;
 }
 
-.mr-track__roll {
-  position: relative;
-  /* Horizontal clipping is owned by the outer .mr-timeline scroller. The
-     PianoRoll inside extends to the timeline's intrinsic width; the
-     sticky-left .mr-keys can only stick if no intermediate ancestor
-     carries `overflow: hidden`. */
-}
+/* (`.mr-track__roll { position: relative; z-index: 1 }` is declared above to
+   establish the marquee's stacking context.) Horizontal clipping is owned by
+   the outer .mr-timeline scroller — the PianoRoll inside extends to the
+   timeline's intrinsic width and the sticky-left .mr-keys can only stick if
+   no intermediate ancestor carries `overflow: hidden`. */
 
 .mr-track__collapsed {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  align-items: stretch;
   height: 18px;
   background: var(--mr-bg-app);
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-3);
+  position: relative;
+}
+
+/* 56px sticky-left strip continuing the piano-roll keys column so the
+   minimap's left edge aligns with .mr-roll__lanes / .mr-cc-lane__plot above. */
+.mr-track__keys-spacer {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 56px;
+  flex-shrink: 0;
+  background: var(--mr-bg-panel-2);
+  border-right: var(--mr-bw-1) solid var(--mr-line-2);
 }
 
 .mr-track__minimap {
-  flex: 1;
+  flex-shrink: 0;
+  align-self: center;
   height: 6px;
   position: relative;
   background: var(--mr-bg-panel-2);

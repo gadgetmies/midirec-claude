@@ -99,20 +99,25 @@ The prototype's `app.css` `.mr-app` uses plain `1fr` columns and no `overflow: h
 
 ## 8. CC lane solo composition — lane-scoped, not stage-wide
 
-**What changed**: The `data-soloing` flag on `.mr-cc-lanes` is derived from `lanes.some(l => l.soloed)` — only CC-lane solos. CC-lane solos do NOT dim non-soloed track rows in the multi-track stack above; track-row solos do NOT dim non-soloed CC lanes below. The two solo groups are independent.
+**Status**: SUPERSEDED by the `channel-grouped-timeline` change. The `data-soloing` attribute now lives on the timeline root (`.mr-timeline`) and reflects a session-global predicate (any channel/roll/lane soloed). Audibility cascades: a roll/lane is audible iff its own `soloed` OR its parent channel's `soloed`. The earlier lane-block-scoped split is gone.
 
-The prototype's `Stage` computes a single `stageSoloing = anySolo || anyDJSolo || anyCCSolo` flag set on the stage wrapper, so a CC-lane solo dims everything (tracks too) and vice versa.
+## 10. Timeline organized by channel groups (Channel → Roll + CC lanes)
 
-**Why**: Our shell architecturally separates `.mr-stage` (multi-track stack) from `.mr-cc-lanes` (CC block) — they're sibling grid rows in `.mr-center`, not nested. Sharing `data-soloing` would require lifting it to a common ancestor (e.g., `.mr-center`) and broadening every solo-composition CSS selector across two capability stylesheets. Keeping the solo groups independent keeps the `tracks` and `cc-lanes` capabilities self-contained for Slice 4. Switching to stage-wide later (probably with Slice 7's DJ units) is a one-file refactor.
+**What changed**: The timeline is built from `.mr-channel` groups. Each channel owns one piano-roll track and zero-or-more CC lanes that render inline beneath it. M/S and collapse exist independently at three levels (channel / roll / lane). CC lanes carry a `kind: 'cc' | 'pb' | 'at' | 'vel'` discriminator instead of a free-form `cc: string`; the seeded "Velocity" lane is renamed "Note Velocity" with `kind: 'vel'` to stop pretending it's a CC. Each channel exposes a `+ Add CC` popover for adding standard MIDI CCs or a custom CC#. Channels render only when they have content (notes or non-empty CC plots).
+
+The prototype's `Stage` keeps tracks and CC lanes as separate sibling regions — the multi-track stack at top, the CC band at the bottom. There is no notion of a channel as an organizational unit; tracks carry a free-form `channel: "CH 1"` string and CC lanes are global to the session.
+
+**Why**: CCs in MIDI are channel-scoped (status byte `0xBn`). Treating channels as the organizational unit makes the data model honest, lets us colocate a channel's roll with its CCs, and gives a sensible home for channel-level M/S. Inlined CCs replace the prototype's sticky-bottom band — the synchronized horizontal scroll axis is preserved, but vertical scroll moves the whole stack as one continuous list.
 
 **Where**:
-- `src/components/cc-lanes/CCLanesBlock.tsx` — `data-soloing` derived from `lanes` only.
-- `src/components/cc-lanes/CCLane.css` — `[data-soloing="true"] [data-soloed="false"] .mr-cc-lane__plot` selector scoped to within `.mr-cc-lanes`.
-- `src/components/tracks/MultiTrackStage.tsx` — `data-soloing` derived from `tracks` only (existing).
+- Hook: `src/hooks/useChannels.ts` (replaces `useTracks` + `useCCLanes`).
+- Components: `src/components/channels/ChannelGroup.tsx`, `AddCCLaneRow.tsx`, `AddCCLanePopover.tsx`.
+- Updated leaves: `src/components/tracks/Track.tsx` (now takes `roll: PianoRollTrack` and `channel: Channel`), `src/components/cc-lanes/CCLane.tsx` (kind-aware label, chevron + collapsed support).
+- CSS: `.mr-channel`, `.mr-channel__hdr*` in `src/components/channels/ChannelGroup.css`. Session-global solo dim selector `.mr-timeline[data-soloing="true"] [data-audible="false"] ...` lives in the same file.
 
-**Recommendation**: Defer until Slice 7 lands. Once DJ units (`.mr-unit__rows`) need to participate in solo composition too, lift `data-soloing` to a shared wrapper around the stage and CC block, and rewrite the three composition rules (`.mr-track__roll`, `.mr-cc-lane__plot`, `.mr-unit__rows`) to share that ancestor.
+**Recommendation**: This is a structural deviation that the prototype design canvas doesn't yet model. Worth back-porting to the prototype as a refresh once the design owner reviews — the prototype's flat tracks+CCs sibling structure is a less-honest-to-MIDI shape.
 
-**Status**: deviation — pragmatic for Slice 4, revisit at Slice 7.
+**Status**: deviation — codebase moves ahead of the prototype.
 
 ## 9. M/S chips on the right edge of each CC lane row (now sticky-right)
 
@@ -143,5 +148,6 @@ The prototype's `CCLane` (`prototype/components.jsx` lines 497–504) nests `<MS
 | 5 | Fixed-zoom rendering | confirm | confirmed |
 | 6 | Ruler `5.1` label removed | back-port | deviation, small fix |
 | 7 | AppShell `minmax(0, 1fr)` + `overflow: hidden` | back-port | improvement |
-| 8 | CC-lane solo scope is lane-only | revisit at Slice 7 | deviation |
+| 8 | CC-lane solo scope is lane-only | superseded | superseded by #10 |
 | 9 | M/S chips on right edge of CC lane | back-port | deviation |
+| 10 | Channel-grouped timeline (Channel → Roll + CCs) | back-port pending | deviation |

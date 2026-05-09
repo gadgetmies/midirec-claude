@@ -72,6 +72,11 @@
   min-height: 0;
   background: var(--mr-bg-timeline);
   position: relative;
+  scrollbar-width: none;
+}
+
+.mr-timeline::-webkit-scrollbar {
+  display: none;
 }
 
 /* Inner wrapper with explicit width = KEYS_COLUMN_WIDTH + totalT * pxPerBeat
@@ -96,7 +101,8 @@
 }
 
 /* .mr-ruler styles live in components/ruler/Ruler.css */
-/* .mr-cc-lanes styles live in components/cc-lanes/CCLane.css */
+/* .mr-channel styles live in components/channels/ChannelGroup.css */
+/* .mr-cc-lane styles live in components/cc-lanes/CCLane.css */
 
 .mr-statusbar {
   display: flex;

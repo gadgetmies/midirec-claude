@@ -1,58 +1,139 @@
-/* Ported from design_handoff_midi_recorder/prototype/app.css lines 695-701,
-   737-747, 863-902. */
-
-/* The CC Lanes block sits at the bottom of the .mr-timeline scroller and
-   sticks to the bottom of the visible scroll area so it stays pinned even
-   when the multi-track stack scrolls vertically. */
-.mr-cc-lanes {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--mr-bg-panel);
-  border-top: var(--mr-bw-1) solid var(--mr-line-2);
-}
+/* Each lane is a flex column with a horizontal header on top and a body
+   below, mirroring the .mr-track row pattern. The header uses sticky-zoned
+   wrappers (left content, flex spacer, right M/S) and the body uses a 56px
+   sticky-left keys-spacer so the plot's left edge aligns with the piano
+   roll's notes-area above. */
 
 .mr-cc-lane {
-  height: var(--mr-h-cc-lane);
+  display: flex;
+  flex-direction: column;
   border-bottom: var(--mr-bw-1) solid var(--mr-line-1);
   position: relative;
-  display: flex;
-  align-items: stretch;
 }
 
 .mr-cc-lane:last-child {
   border-bottom: 0;
 }
 
-/* Sticky-left header strip with name + CC label. */
+/* Collapsed view: a thin row showing a minimap of CC point positions plus
+   the playhead. Mirrors the .mr-track__collapsed pattern used by collapsed
+   piano-roll tracks: sticky-left keys-spacer + fixed-width minimap so the
+   minimap's left edge aligns with the expanded plot above. */
+.mr-cc-lane__collapsed {
+  display: flex;
+  align-items: stretch;
+  height: 18px;
+  background: var(--mr-bg-app);
+  position: relative;
+}
+
+.mr-cc-lane__minimap {
+  flex-shrink: 0;
+  align-self: center;
+  height: 6px;
+  position: relative;
+  background: var(--mr-bg-panel-2);
+  border-radius: 1px;
+  overflow: hidden;
+  /* width is set inline from totalT * pxPerBeat */
+}
+
+/* ── Header row ─────────────────────────────────────────────────────────── */
+
 .mr-cc-lane__hdr {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  background: var(--mr-bg-panel-2);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-1);
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mr-cc-lane__hdr:hover {
+  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+}
+
+.mr-cc-lane__hdr-left {
   position: sticky;
   left: 0;
-  z-index: 2;
-  width: 56px;
-  flex-shrink: 0;
-  border-right: var(--mr-bw-1) solid var(--mr-line-2);
-  padding: 6px 8px;
+  z-index: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  background: var(--mr-bg-panel-2);
+  flex-shrink: 0;
+}
+
+.mr-cc-lane__hdr-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.mr-cc-lane__hdr-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 8px;
+  flex-shrink: 0;
   background: var(--mr-bg-panel-2);
 }
 
-.mr-cc-lane__name {
+.mr-cc-lane__chev {
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mr-text-3);
+  transition: transform 0.12s;
   font-size: 9px;
+  flex-shrink: 0;
+}
+
+.mr-cc-lane[data-collapsed="true"] .mr-cc-lane__chev {
+  transform: rotate(-90deg);
+}
+
+.mr-cc-lane__name {
+  font-size: 10px;
   font-weight: var(--mr-fw-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--mr-text-2);
+  white-space: nowrap;
 }
 
 .mr-cc-lane__cc {
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-3);
+  white-space: nowrap;
+}
+
+/* ── Body row (keys-spacer + plot) ──────────────────────────────────────── */
+
+.mr-cc-lane__body {
+  display: flex;
+  align-items: stretch;
+  height: var(--mr-h-cc-lane);
+  position: relative;
+}
+
+/* 56px sticky-left strip that visually continues the piano-roll keys column
+   into the CC band so the plot's left edge aligns with the notes area. */
+.mr-cc-lane__keys-spacer {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 56px;
+  flex-shrink: 0;
+  background: var(--mr-bg-panel-2);
+  border-right: var(--mr-bw-1) solid var(--mr-line-2);
 }
 
 .mr-cc-lane__plot {
@@ -70,16 +151,8 @@
       transparent calc(50% + 0.5px));
 }
 
-/* Sticky-right M/S chip wrapper, vertically centered, padded so the chips
-   sit ~8px in from the visible right edge of .mr-timeline. */
-.mr-cc-lane__ms {
-  position: sticky;
-  right: 0;
-  z-index: 1;
-  flex-shrink: 0;
-  align-self: center;
-  padding: 0 8px;
-  background: var(--mr-bg-panel);
+.mr-cc-lane__plot svg {
+  display: block;
 }
 
 .mr-cc-lane__readout {
@@ -92,11 +165,12 @@
   transform: translateX(4px);
 }
 
-.mr-cc-lanes [data-muted="true"] .mr-cc-lane__plot {
+[data-muted="true"] .mr-cc-lane__plot,
+[data-muted="true"] .mr-cc-lane__collapsed {
   opacity: 0.32;
   filter: grayscale(0.7);
 }
 
-.mr-cc-lanes[data-soloing="true"] [data-soloed="false"] .mr-cc-lane__plot {
-  opacity: 0.45;
-}
+/* The session-global solo dim selector
+   (`.mr-timeline[data-soloing="true"] [data-audible="false"] .mr-cc-lane__plot`)
+   lives in the channels capability stylesheet. */

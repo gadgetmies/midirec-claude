@@ -1,6 +1,5 @@
 import { useStage } from '../../hooks/useStage';
-import { MultiTrackStage } from '../tracks/MultiTrackStage';
-import { CCLanesBlock } from '../cc-lanes/CCLanesBlock';
+import { ChannelGroup } from '../channels/ChannelGroup';
 import { Ruler } from '../ruler/Ruler';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
@@ -17,6 +16,8 @@ export function AppShell() {
     playheadT: stage.playheadT,
   };
 
+  const state = { channels: stage.channels, rolls: stage.rolls, lanes: stage.lanes };
+
   return (
     <div className="mr-shell">
       <header className="mr-titlebar">
@@ -30,28 +31,41 @@ export function AppShell() {
           <div className="mr-toolstrip">
             <span className="mr-stub">Toolstrip</span>
           </div>
-          <div className="mr-timeline">
+          <div className="mr-timeline" data-soloing={stage.soloing ? 'true' : undefined}>
             <div
               className="mr-timeline__inner"
               style={{ width: KEYS_COLUMN_WIDTH + stage.totalT * DEFAULT_PX_PER_BEAT }}
             >
               <Ruler totalT={stage.totalT} />
-              <MultiTrackStage
-                tracks={stage.tracks}
-                viewProps={viewProps}
-                selectedTrackId={stage.selectedTrackId}
-                marquee={stage.marquee}
-                selectedIdx={stage.selectedIdx}
-                onToggleOpen={stage.toggleTrackOpen}
-                onToggleMuted={stage.toggleTrackMuted}
-                onToggleSoloed={stage.toggleTrackSoloed}
-              />
-              <CCLanesBlock
-                lanes={stage.ccLanes}
-                totalT={stage.totalT}
-                onToggleMuted={stage.toggleCCLaneMuted}
-                onToggleSoloed={stage.toggleCCLaneSoloed}
-              />
+              {stage.visibleChannels.map((channel) => {
+                const roll = stage.rolls.find((r) => r.channelId === channel.id);
+                const channelLanes = stage.lanes.filter((l) => l.channelId === channel.id);
+                const isSelected = stage.selectedChannelId === channel.id;
+                return (
+                  <ChannelGroup
+                    key={channel.id}
+                    channel={channel}
+                    roll={roll}
+                    lanes={channelLanes}
+                    state={state}
+                    viewProps={viewProps}
+                    isSelected={isSelected}
+                    marquee={isSelected ? stage.marquee : null}
+                    selectedIdx={isSelected ? stage.selectedIdx : []}
+                    totalT={stage.totalT}
+                    onToggleChannelCollapsed={() => stage.toggleChannelCollapsed(channel.id)}
+                    onToggleChannelMuted={() => stage.toggleChannelMuted(channel.id)}
+                    onToggleChannelSoloed={() => stage.toggleChannelSoloed(channel.id)}
+                    onToggleRollCollapsed={() => stage.toggleRollCollapsed(channel.id)}
+                    onToggleRollMuted={() => stage.toggleRollMuted(channel.id)}
+                    onToggleRollSoloed={() => stage.toggleRollSoloed(channel.id)}
+                    onToggleLaneCollapsed={(kind, cc) => stage.toggleLaneCollapsed(channel.id, kind, cc)}
+                    onToggleLaneMuted={(kind, cc) => stage.toggleLaneMuted(channel.id, kind, cc)}
+                    onToggleLaneSoloed={(kind, cc) => stage.toggleLaneSoloed(channel.id, kind, cc)}
+                    onAddCCLane={stage.addCCLane}
+                  />
+                );
+              })}
             </div>
           </div>
         </main>

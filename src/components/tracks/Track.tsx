@@ -1,9 +1,9 @@
 import type { MouseEvent } from 'react';
 import { MSChip } from '../ms-chip/MSChip';
-import { PianoRoll } from '../piano-roll/PianoRoll';
+import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH, PianoRoll } from '../piano-roll/PianoRoll';
 import type { Marquee } from '../piano-roll/notes';
 import { Minimap } from './Minimap';
-import type { Track as TrackType } from '../../hooks/useTracks';
+import type { Channel, PianoRollTrack } from '../../hooks/useChannels';
 import './Track.css';
 
 export interface TrackViewProps {
@@ -17,65 +17,83 @@ export interface TrackViewProps {
 }
 
 interface TrackProps {
-  track: TrackType;
+  channel: Channel;
+  roll: PianoRollTrack;
   viewProps: TrackViewProps;
   isSelected: boolean;
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
-  onToggleOpen: () => void;
+  audible: boolean;
+  onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
 }
 
 export function Track({
-  track,
+  channel,
+  roll,
   viewProps,
   isSelected,
   marquee,
   selectedIdx,
-  onToggleOpen,
+  audible,
+  onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
 }: TrackProps) {
   const headerClick = (event: MouseEvent<HTMLDivElement>) => {
     event.stopPropagation();
-    onToggleOpen();
+    onToggleCollapsed();
   };
 
   return (
     <div
       className="mr-track"
-      data-track-open={track.open ? 'true' : 'false'}
-      data-muted={track.muted ? 'true' : 'false'}
-      data-soloed={track.soloed ? 'true' : 'false'}
+      data-track-collapsed={roll.collapsed ? 'true' : 'false'}
+      data-muted={roll.muted ? 'true' : 'false'}
+      data-soloed={roll.soloed ? 'true' : 'false'}
+      data-audible={audible ? 'true' : 'false'}
     >
       <div className="mr-track__hdr" onClick={headerClick}>
         <div className="mr-track__hdr-left">
           <span className="mr-track__chev">▾</span>
-          <span
-            className="mr-track__swatch"
-            style={{ background: track.color, color: track.color }}
-          />
-          <span className="mr-track__name">{track.name}</span>
-          <span className="mr-track__sub">
-            {track.channel} · {track.notes.length} notes
-          </span>
+          <span className="mr-track__name">Notes</span>
+          <span className="mr-track__sub">{roll.notes.length} notes</span>
         </div>
         <div className="mr-track__hdr-spacer" />
         <div className="mr-track__hdr-right">
           <MSChip
-            muted={track.muted}
-            soloed={track.soloed}
+            muted={roll.muted}
+            soloed={roll.soloed}
             onMute={onToggleMuted}
             onSolo={onToggleSoloed}
           />
         </div>
       </div>
-      {track.open ? (
+      {roll.collapsed ? (
+        <div className="mr-track__collapsed">
+          <div className="mr-track__keys-spacer" />
+          <Minimap
+            notes={roll.notes}
+            color={channel.color}
+            viewT0={viewProps.viewT0 ?? 0}
+            totalT={viewProps.totalT ?? 16}
+            pxPerBeat={viewProps.pxPerBeat ?? DEFAULT_PX_PER_BEAT}
+          />
+          <div
+            className="mr-playhead"
+            style={{
+              left:
+                KEYS_COLUMN_WIDTH +
+                (viewProps.playheadT ?? 0) * (viewProps.pxPerBeat ?? DEFAULT_PX_PER_BEAT),
+            }}
+          />
+        </div>
+      ) : (
         <div className="mr-track__roll">
           <PianoRoll
-            notes={track.notes}
-            trackColor={track.color}
+            notes={roll.notes}
+            trackColor={channel.color}
             marquee={isSelected ? marquee : null}
             selectedIdx={isSelected ? selectedIdx : []}
             pxPerBeat={viewProps.pxPerBeat}
@@ -85,17 +103,6 @@ export function Track({
             totalT={viewProps.totalT}
             playheadT={viewProps.playheadT}
           />
-        </div>
-      ) : (
-        <div className="mr-track__collapsed">
-          <span>collapsed</span>
-          <Minimap
-            notes={track.notes}
-            color={track.color}
-            viewT0={viewProps.viewT0 ?? 0}
-            totalT={viewProps.totalT ?? 16}
-          />
-          <span>{track.notes.length} events · 4 bars</span>
         </div>
       )}
     </div>

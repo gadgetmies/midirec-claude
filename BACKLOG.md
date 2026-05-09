@@ -26,6 +26,28 @@ Small, scoped tasks that aren't tied to an in-flight slice or OpenSpec change. E
 
 **Status**: pending. Not blocking any other slice.
 
+### M/S chip jumps 1px to the left at the end of horizontal scroll
+
+**Why**: With the `channel-grouped-timeline` change, every level (channel header, track header, CC lane header) carries a sticky-right `__hdr-right` zone holding an `<MSChip>`. At horizontal `scrollLeft === scrollWidth - clientWidth` (the rightmost scroll position), the chip transitions from "pinned to viewport-right" to "natural position at parent's right edge" and visibly jumps 1px to the left. Reproduces in Chromium. Tracing the layout (the rightmost cap rect ends at ~1398.25px inside a 1408px plot; `hdr-right`'s natural right edge equals `inner.right` at scroll-max) suggests a sub-pixel rounding artifact at the sticky boundary rather than a layout error. Design owner confirms it's a minor visual nit, not a blocker.
+
+**Scope**:
+
+- Investigate whether the artifact is the sticky-right boundary or a flex layout-box edge case. Likely candidates: flex subpixel rounding inside `.mr-channel__hdr` / `.mr-track__hdr` / `.mr-cc-lane__hdr` (the spacer's computed width changes by < 1px as the sticky chip pulls/releases), or `.mr-cc-lane__keys-spacer`'s `border-right` rendering differently than the equivalent border on `.mr-keys` (both are `box-sizing: border-box; width: 56px` so total width is 56px, but pixel snapping at the right edge may differ).
+- Try mitigations in order of cheap-to-expensive:
+  1. Add `transform: translateZ(0)` or `will-change: transform` on `__hdr-right` zones to force a stable rasterization layer.
+  2. Verify nothing else uses fractional pixel values (e.g. the SVG cap's `x - 0.5`, `y - 0.5`).
+  3. Replace `position: sticky; right: 0` with a JS-driven `transform: translateX(...)` that always uses integer pixels (more invasive).
+- If none of the cheap mitigations work, document as a known platform issue.
+
+**Verification**:
+
+- Scroll the timeline horizontally to its rightmost position; the chip's left edge SHALL stay within ±0px of its position at scroll-1px.
+- Cross-browser check: Chromium (latest), Safari (latest), Firefox (latest).
+
+**Estimated effort**: 1–2 hours to investigate, plus 30 min if the cheap mitigation works. Could expand to a half-day if it's a deep CSS rounding issue.
+
+**Status**: pending. Surfaced during `channel-grouped-timeline` review; deferred per design owner.
+
 ## Done
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->

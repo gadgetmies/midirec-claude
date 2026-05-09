@@ -17,7 +17,10 @@
   border-right: var(--mr-bw-1) solid var(--mr-line-2);
   position: sticky;
   left: 0;
-  z-index: 2;
+  /* Sit above selected notes (z=2), the marquee (z=4), and the marquee badge
+     (z=6) so they don't paint into the keys column when the user scrolls
+     horizontally. */
+  z-index: 7;
   flex-shrink: 0;
 }
 
