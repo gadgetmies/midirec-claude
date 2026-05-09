@@ -1,8 +1,12 @@
-## Purpose
+## REMOVED Requirements
 
-Define the single-window app shell: the static six-region layout (Titlebar, Sidebar, Toolstrip, Timeline, Inspector, Statusbar), the timeline scroll container that hosts the Ruler and channel groups, the panel-token surface palette, and the empty-region rule that gates content per implementation slice.
+### Requirement: CC Lanes block holds three fixed-height lanes
 
-## Requirements
+**Reason**: With channel grouping, there is no longer a separate "CC Lanes block" at the bottom of the timeline. CC lanes render inline under their owning channel. The fixed count of three lanes is also gone — channels have a variable number of lanes (zero or more), driven by user-added lanes via the `+ Add CC` affordance.
+
+**Migration**: The seeded default still produces three lanes (Mod Wheel + Pitch Bend + Note Velocity), but they live under channel 1 in the new structure. See the `channels` capability for the seed shape and the `cc-lanes` capability for per-lane render concerns.
+
+## MODIFIED Requirements
 
 ### Requirement: Single-window shell with six static regions
 
@@ -28,22 +32,6 @@ All region sizes SHALL resolve through `--mr-*` size tokens; no pixel literals d
 - **WHEN** the app is rendered
 - **THEN** the DOM SHALL contain elements representing Titlebar, Sidebar, Toolstrip, Timeline (with Ruler + channel groups), Inspector, and Statusbar
 - **AND** each region SHALL be uniquely addressable via a `mr-*` class name matching the prototype's class taxonomy (e.g. `.mr-titlebar`, `.mr-sidebar`, `.mr-toolstrip`, `.mr-ruler`, `.mr-timeline`, `.mr-channel`, `.mr-inspector`, `.mr-statusbar`)
-
-### Requirement: Ruler region has fixed height
-
-The Ruler region SHALL render at height `var(--mr-h-ruler)` directly above the timeline scroll container's content. The Ruler element SHALL be the first child of `.mr-timeline` and SHALL participate in the timeline's shared horizontal scroll axis. While `.mr-timeline` scrolls vertically, the Ruler SHALL remain pinned at the top of the visible timeline area via `position: sticky; top: 0`.
-
-#### Scenario: Ruler slot present at the right height
-
-- **WHEN** the app is rendered
-- **THEN** an element with class `.mr-ruler` SHALL exist as the first child of `.mr-timeline`
-- **AND** its computed height SHALL equal `var(--mr-h-ruler)`
-- **AND** its computed `position` SHALL be `sticky` with `top` resolving to `0`
-
-#### Scenario: Ruler stays visible during vertical scroll
-
-- **WHEN** the user vertically scrolls `.mr-timeline` so that earlier track rows would scroll out the top
-- **THEN** the Ruler SHALL remain visible at the top of the timeline area (its computed `top` offset relative to the viewport SHALL stay constant at the timeline area's top edge)
 
 ### Requirement: Stage region fills remaining vertical space
 
@@ -88,23 +76,6 @@ The browser scrollbar SHALL be hidden via `scrollbar-width: none` and the WebKit
 - **THEN** `.mr-timeline` (or `.mr-timeline__inner`) SHALL carry `data-soloing="true"`
 - **AND** no `.mr-cc-lanes`, `.mr-multi-track-stage`, or other intermediate orchestrator element SHALL carry `data-soloing` (those elements no longer exist as orchestrators)
 
-### Requirement: Region surfaces use panel tokens
-
-Each region's background SHALL be drawn from the panel surface tokens. Specifically:
-
-- Titlebar, Sidebar, Inspector, Statusbar: `var(--mr-bg-panel)`.
-- Toolstrip: `var(--mr-bg-panel)` or `var(--mr-bg-panel-2)` per the prototype's `app.css`.
-- Stage timeline canvas: `var(--mr-bg-timeline)`.
-- App backdrop (behind the shell): `var(--mr-bg-app)`.
-
-Region dividers SHALL use `var(--mr-line-2)` 1px hairlines.
-
-#### Scenario: Panel surfaces and dividers use tokens
-
-- **WHEN** computed styles are inspected for each region
-- **THEN** the `background-color` of Titlebar, Sidebar, Inspector, and Statusbar SHALL match the computed value of `--mr-bg-panel`
-- **AND** divider borders between regions SHALL match the computed value of `--mr-line-2` at 1px width
-
 ### Requirement: Empty regions ship empty until their slices populate them
 
 Regions of the shell that have not yet been claimed by an implementation slice SHALL contain no transport buttons, no real CC lane bars, no inspector tabs, no statusbar meters. Each such empty region MAY contain a faint placeholder label (in `var(--mr-text-3)` or dimmer) solely to make geometry visible during development. As of this change, the **Titlebar** is populated by the `transport-titlebar` capability, the **Timeline** (Ruler + channel groups) is populated by the `ruler`, `channels`, `tracks`, `piano-roll`, and `cc-lanes` capabilities, and these regions are NOT subject to this rule. The remaining empty regions are: Sidebar, Toolstrip, Inspector, Statusbar.
@@ -131,13 +102,3 @@ Regions of the shell that have not yet been claimed by an implementation slice S
 
 - **WHEN** the app is rendered
 - **THEN** `.mr-timeline` MAY contain `.mr-ruler__tick` and `.mr-ruler__lbl` elements per the `ruler` capability, inside the sticky-top `.mr-ruler` element
-
-### Requirement: Screenshot 01 visual parity
-
-The rendered shell at zero functionality SHALL match `design_handoff_midi_recorder/screenshots/` screenshot 01 in geometry, surface colors, divider weights, and overall composition. Pixel-identical color sampling is the acceptance criterion for surfaces; ±1px tolerance is acceptable for region dimensions.
-
-#### Scenario: Manual screenshot comparison passes
-
-- **WHEN** a developer runs `npm run dev` and opens the app at the screenshot's documented viewport
-- **AND** captures a screenshot of the rendered shell
-- **THEN** the captured screenshot SHALL match screenshot 01 in region layout, surface colors, and divider weights, within stated tolerances

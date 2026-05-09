@@ -1,8 +1,30 @@
-## Purpose
+## REMOVED Requirements
 
-Define the per-row piano-roll track surface: the track header (chevron + label + M/S chip), the open vs collapsed body (embedded `PianoRoll` or 6px minimap), the marquee/selection scoping rule, and the per-row mute composition. Channels and the global solo dim live in the `channels` capability; this capability defines what one track row looks like and how it composes mute.
+### Requirement: Track is a flat record carrying notes, color, and per-row state
 
-## Requirements
+**Reason**: The `Track` interface is replaced by `PianoRollTrack` (defined in the new `channels` capability). Display fields (`name`, `color`) move to `Channel`; `channel: string` becomes `channelId: ChannelId`; `open` becomes `collapsed` (with inverted semantics).
+
+**Migration**: Replace all `Track` imports with `PianoRollTrack` from `src/hooks/useChannels.ts`. Field renames: `tr.channel` → look up via `channels.find(c => c.id === roll.channelId).name + " " + ...`; `tr.open` → `!roll.collapsed`; `tr.name` and `tr.color` → look up via channel.
+
+### Requirement: useTracks hook owns the track list and per-track actions
+
+**Reason**: `useTracks` is replaced by `useChannels` in the new `channels` capability, which owns the entire session organization (channels + rolls + lanes).
+
+**Migration**: Replace `useTracks()` with `useChannels()`. The `tracks` field becomes `rolls` (per-channel piano-roll records). Toggle actions are renamed: `toggleTrackOpen(id)` → `toggleRollCollapsed(channelId)`; `toggleTrackMuted(id)` → `toggleRollMuted(channelId)`; `toggleTrackSoloed(id)` → `toggleRollSoloed(channelId)`. Lookup by string `id` becomes lookup by `ChannelId`.
+
+### Requirement: MultiTrackStage renders a vertical stack of track rows
+
+**Reason**: The `MultiTrackStage` orchestrator is replaced by `<ChannelGroup>` rendering inside the `channels` capability. The stack is now per-channel; the `data-soloing` attribute moves from the orchestrator root to the timeline root and reflects session-global solo per the `channels` capability.
+
+**Migration**: Delete `src/components/tracks/MultiTrackStage.tsx`. Use `useChannels()` + `<ChannelGroup>` from the `channels` capability instead. The per-track render concerns (`<Track>` itself) remain in this capability.
+
+### Requirement: Stage hosts the MultiTrackStage orchestrator
+
+**Reason**: With the channel grouping, there is no longer a separate "multi-track stage" between Ruler and CC Lanes. The timeline hosts `<ChannelGroup>` elements directly, each composing the existing `<Track>` and `<CCLane>` leaves.
+
+**Migration**: Replace `<MultiTrackStage>` usage in `AppShell.tsx` with `channels.filter(hasContent).map(c => <ChannelGroup ... />)`. The new layout is documented in the `app-shell` and `channels` spec deltas.
+
+## MODIFIED Requirements
 
 ### Requirement: Track header renders chevron, swatch, name, sub, and M/S chip
 
@@ -162,44 +184,3 @@ All visual values SHALL resolve through `--mr-*` tokens; the `rgba()` literals a
 
 - **WHEN** `src/components/tracks/Track.css` is grepped for `#[0-9a-fA-F]{3,8}\b` AND for `oklch\(`
 - **THEN** the search SHALL return zero matches in both cases
-
-### Requirement: MSChip is a reusable mute/solo toggle pair
-
-The codebase SHALL expose an `MSChip` React component at `src/components/ms-chip/MSChip.tsx` accepting props:
-
-```ts
-interface MSChipProps {
-  muted: boolean;
-  soloed: boolean;
-  onMute?: () => void;
-  onSolo?: () => void;
-  size?: 'sm' | 'md';  // default 'sm'
-}
-```
-
-The component SHALL render `<div className="mr-ms" data-size={size}>` containing two `<button>` elements:
-- `<button className="mr-ms__btn" data-kind="m" data-on={muted ? "true" : undefined} onClick={...}>M</button>`
-- `<button className="mr-ms__btn" data-kind="s" data-on={soloed ? "true" : undefined} onClick={...}>S</button>`
-
-Each button's `onClick` handler SHALL call `event.stopPropagation()` BEFORE calling the corresponding callback (so clicks on the chip don't bubble to a container's click handler).
-
-The codebase SHALL ship `src/components/ms-chip/MSChip.css` containing the rules for `.mr-ms`, `.mr-ms__btn`, and the `[data-on="true"][data-kind="m"|"s"]` variants from `prototype/app.css` lines ~706–735.
-
-#### Scenario: MSChip renders M and S buttons
-
-- **WHEN** `<MSChip muted={false} soloed={false}/>` is rendered
-- **THEN** the rendered DOM SHALL contain exactly one `.mr-ms` element
-- **AND** SHALL contain exactly two `.mr-ms__btn` children
-- **AND** their text content SHALL be `M` and `S`
-
-#### Scenario: data-on reflects state
-
-- **WHEN** `<MSChip muted={true} soloed={false}/>` is rendered
-- **THEN** the `M` button SHALL carry `data-on="true"`
-- **AND** the `S` button SHALL NOT carry `data-on="true"`
-
-#### Scenario: Click stops propagation
-
-- **WHEN** the user clicks the `M` button inside an MSChip nested in a container with its own click handler
-- **THEN** the container's click handler SHALL NOT receive the click event
-- **AND** the chip's `onMute` callback SHALL be invoked

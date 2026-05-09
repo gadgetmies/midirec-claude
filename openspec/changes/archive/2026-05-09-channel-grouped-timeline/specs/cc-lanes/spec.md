@@ -1,8 +1,24 @@
-## Purpose
+## REMOVED Requirements
 
-Define the per-lane CC stream surface: the lane header (chevron + name + sub + M/S chip), the body (64-cell discrete-bar SVG plot or collapsed minimap), the hover scrubbing readout, and the per-lane mute composition. Lane state and the global solo dim live in the `channels` capability; this capability defines what one CC lane looks like and how it composes mute.
+### Requirement: CCLane data shape
 
-## Requirements
+**Reason**: The `CCLane` interface is replaced by the channel-scoped version defined in the `channels` capability. The new shape adds `channelId` and a `kind` discriminator (`'cc' | 'pb' | 'at' | 'vel'`), replacing the free-form `cc: string` (which conflated CC numbers with `"PB"` / `"VEL"` string sentinels).
+
+**Migration**: Replace `CCLane` imports with the redefined interface from `src/hooks/useChannels.ts`. String `cc: "01"` becomes `kind: 'cc', cc: 1`; `cc: "PB"` becomes `kind: 'pb'`; `cc: "VEL"` becomes `kind: 'vel'` with `name: "Note Velocity"`.
+
+### Requirement: useCCLanes hook is the source of CC lane state
+
+**Reason**: `useCCLanes` is replaced by `useChannels` (defined in the `channels` capability), which owns the entire session organization including all CC lanes.
+
+**Migration**: Replace `useCCLanes()` calls with `useChannels()`. The `lanes` field is now keyed by `(channelId, kind, cc?)` rather than an opaque id; toggle actions take that triple. `addCCLane(channelId, kind, cc?)` is the new affordance for inserting lanes.
+
+### Requirement: CCLanesBlock renders all lanes and owns lane-scoped solo flag
+
+**Reason**: The `CCLanesBlock` orchestrator is replaced by `<ChannelGroup>` rendering inside the `channels` capability. CC lanes render inline under their channel rather than as a single sticky-bottom band. The `data-soloing` attribute moves from `.mr-cc-lanes` to the timeline root and reflects session-global solo (channel-or-roll-or-lane), per the `channels` capability.
+
+**Migration**: Delete `src/components/cc-lanes/CCLanesBlock.tsx`. The per-lane render concerns (`<CCLane>` itself) remain in this capability; orchestration moves to `<ChannelGroup>`.
+
+## MODIFIED Requirements
 
 ### Requirement: CCLane renders a 56px header strip with right-aligned M/S chips
 
@@ -117,73 +133,6 @@ The lane's outer height when collapsed SHALL be `22px (header) + 18px (collapsed
 - **WHEN** `<CCLane lane={{ ..., muted: true, soloed: false, collapsed: false }} />` is rendered
 - **THEN** the rendered `.mr-cc-lane` SHALL have `data-muted="true"`, `data-soloed="false"`, `data-collapsed="false"`
 
-### Requirement: CCLane renders a 64-cell discrete-bar SVG plot
-
-The `.mr-cc-lane__plot` element SHALL contain an inline `<svg>` with `width="100%" height="72" preserveAspectRatio="none" viewBox={"0 0 ${plotW} 72"}` where `plotW` is the lane's measured plot width in pixels.
-
-The renderer SHALL resample `lane.points` onto a fixed 64-cell grid spanning `[viewT0, viewT0 + totalT]`. For each cell `i` in `[0, 64)`:
-
-- `cellT = totalT / 64`
-- `tCenter = (i + 0.5) * cellT + viewT0`
-- The cell's `v` SHALL be the `v` of whichever sample in `lane.points` has the smallest `|sample.t - tCenter|` (nearest-sample averaging). If `lane.points` is empty, every cell's `v` SHALL be 0.
-
-Each cell SHALL render two `<rect>` elements inside the same `<g>`:
-
-1. The bar: `width=1.5`, `height = cell.v * 56`, positioned at `x = i * cellW + (cellW - 1.5)/2`, `y = 8 + (56 - height)`, with `fill = lane.color`, `fill-opacity = 0.78`, `shape-rendering="crispEdges"`. (`cellW = plotW / 64`.)
-2. The cap: `width = 1.5 + 1`, `height = 2`, positioned at `x = bar.x - 0.5`, `y = bar.y - 0.5`, with `fill = lane.color`, `opacity = 1`, `shape-rendering="crispEdges"`.
-
-Cells with `v = 0` SHALL still render both rectangles — the bar at `height = 0`, the cap at the bar's top — so the plot maintains a regular 64-event grid even for silent regions.
-
-The plot's background mid-line SHALL be drawn in CSS as a 1px horizontal stripe at 50% height in `rgba(255,255,255,0.04)` via the `.mr-cc-lane__plot` rule's `linear-gradient` background.
-
-#### Scenario: 64 bar groups rendered for any non-empty points
-
-- **WHEN** `<CCLane lane={{ ..., points: [{t:4, v:0.5}, {t:8, v:0.7}] }} totalT={16} />` is rendered
-- **THEN** the rendered SVG SHALL contain exactly 64 `<g>` elements at the bar level
-- **AND** each `<g>` SHALL contain exactly two `<rect>` elements (bar + cap)
-
-#### Scenario: Empty points render zero-height bars
-
-- **WHEN** `<CCLane lane={{ ..., points: [] }} totalT={16} />` is rendered
-- **THEN** every bar `<rect>` SHALL have `height="0"`
-- **AND** every cap `<rect>` SHALL still render at `y = 64.5` (top of the zero-height bar)
-
-#### Scenario: Bars are 1.5px regardless of cell pitch
-
-- **WHEN** `<CCLane lane={...} totalT={16} />` is rendered into a plot of any width
-- **THEN** every bar `<rect>` SHALL have `width="1.5"`
-- **AND** every cap `<rect>` SHALL have `width="2.5"`
-
-### Requirement: CCLane shows a hover scrubbing readout
-
-The `CCLane` component SHALL maintain a local hover state of type `{ idx: number; v: number } | null` (initial `null`). On `mousemove` over the `.mr-cc-lane__plot` element, the renderer SHALL compute `idx = floor((event.offsetX / plotW) * 64)` clamped to `[0, 63]`, look up `v` from the resampled bar array at that index, and set hover state to `{ idx, v }`. On `mouseleave`, hover state SHALL be set back to `null`.
-
-While `hover != null`, the SVG SHALL render an additional `<g>` at the end of the children list (so it z-orders above the bars) containing:
-
-- A `<rect>` at `x = hover.idx * cellW`, `y = 8`, `width = cellW`, `height = 56`, `fill = "var(--mr-accent)"`, `opacity = 0.10`, `shape-rendering = "crispEdges"` — the column tint.
-- A `<rect>` at `x = hover.idx * cellW + (cellW - 1.5)/2`, `y = 8 + (56 - hover.v * 56)`, `width = 1.5`, `height = hover.v * 56`, `fill = "var(--mr-accent)"`, `opacity = 0.7`, `shape-rendering = "crispEdges"` — the ghost bar.
-
-In the same hover-active branch, the `.mr-cc-lane__plot` SHALL also render a sibling `<div className="mr-cc-lane__readout">` (outside the SVG) positioned at `style={{ left: hover.idx * cellW + cellW/2, top: 0 }}` with text `Math.round(hover.v * 127)` (a 0–127 integer string). The readout SHALL be styled in 10px monospace `var(--mr-text-2)` with no background fill.
-
-When hover state is `null`, none of the column tint, ghost bar, or readout elements SHALL render.
-
-#### Scenario: Hover renders three overlay elements
-
-- **WHEN** the user mouses over a CC lane plot at a position that resolves to cell index 12 (with that cell's `v = 0.4`)
-- **THEN** the rendered SVG SHALL contain a column-tint `<rect>` with `x = 12 * cellW`, `width = cellW`, `fill = "var(--mr-accent)"`, `opacity = 0.10`
-- **AND** SHALL contain a ghost-bar `<rect>` with `x = 12 * cellW + (cellW - 1.5)/2`, `width = 1.5`, `fill = "var(--mr-accent)"`, `opacity = 0.7`
-- **AND** the lane's DOM SHALL contain a `.mr-cc-lane__readout` element with text content `"51"` (`Math.round(0.4 * 127)`)
-
-#### Scenario: Mouseleave clears hover state
-
-- **WHEN** the user mouses over the plot then leaves it
-- **THEN** the rendered DOM SHALL contain zero column-tint, ghost-bar, or `.mr-cc-lane__readout` elements
-
-#### Scenario: Readout uses 0–127 integer formatting, not float
-
-- **WHEN** the hovered cell's `v` is `0.5`
-- **THEN** the `.mr-cc-lane__readout` text content SHALL be `"64"` (`Math.round(0.5 * 127)`) — NOT `"0.50"`, NOT `"50%"`
-
 ### Requirement: CCLane mute and solo composition matches data-attribute rules
 
 The component's stylesheet SHALL implement:
@@ -203,23 +152,3 @@ The previous lane-block-scoped `[data-soloing="true"] [data-soloed="false"] .mr-
 
 - **WHEN** the timeline carries `data-soloing="true"` and the lane carries `data-audible="false"`
 - **THEN** the lane's `.mr-cc-lane__plot` SHALL have computed `opacity: 0.45`
-
-### Requirement: CCLane forward-compat props for paint and interp are inert
-
-The `CCLane` component SHALL accept optional `paint?: number[]` and `interp?: { a: number | null; b: number | null }` props for forward-compat with a future paint/interp slice.
-
-In Slice 4 the `CCLanesBlock` orchestrator SHALL NOT pass either prop; both SHALL default to `undefined` at the component boundary. When undefined, `CCLane` SHALL render no paint trail, no interp endpoints, no interp guide line, and no paint/interp cursor hints — the rendered SVG SHALL be identical to a render with both props omitted.
-
-A future slice may activate these props; until then, type-checking SHALL still pass with `paint` and `interp` set, but no visual behavior SHALL be triggered.
-
-#### Scenario: Paint prop with values renders no trail
-
-- **WHEN** `<CCLane paint={[5, 6, 7]} ... />` is rendered (despite the orchestrator not passing it)
-- **THEN** the rendered SVG SHALL be identical to a render with `paint` omitted in this slice
-- **AND** the implementation MAY render the trail in a future slice without breaking this test (the test asserts current behavior, not eventual behavior)
-
-#### Scenario: Interp prop with endpoints renders no guide line
-
-- **WHEN** `<CCLane interp={{ a: 4, b: 12 }} ... />` is rendered in this slice
-- **THEN** the rendered SVG SHALL contain zero `<line>` elements
-- **AND** SHALL contain zero `.mr-cc-cursor` elements
