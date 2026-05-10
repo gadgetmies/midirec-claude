@@ -92,3 +92,31 @@ export function ChevDownIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function MicIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <rect x="5" y="2" width="4" height="7" rx="2" />
+      <path d="M3.5 7a3.5 3.5 0 007 0" />
+      <path d="M7 10.5V13" />
+    </svg>
+  );
+}
+
+export function RouteIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <circle cx="3" cy="3" r="1.5" />
+      <circle cx="11" cy="11" r="1.5" />
+      <path d="M3 4.5v3a2 2 0 002 2h2a2 2 0 012 2v.5" />
+    </svg>
+  );
+}
+
+export function FilterIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <path d="M2 3h10l-3.5 4.5V12L5.5 10.5v-3z" />
+    </svg>
+  );
+}

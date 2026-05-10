@@ -8,6 +8,8 @@ import '@fontsource/jetbrains-mono/600.css';
 
 import './styles/tokens.css';
 import './styles/global.css';
+import './styles/leds.css';
+import './styles/forms.css';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

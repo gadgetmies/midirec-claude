@@ -1,4 +1,5 @@
 import { type MouseEvent } from 'react';
+import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
 import { Track, type TrackViewProps } from '../tracks/Track';
 import { ParamLane } from '../param-lanes/ParamLane';
@@ -78,7 +79,9 @@ export function ChannelGroup({
     >
       <div className="mr-channel__hdr" onClick={headerClick}>
         <div className="mr-channel__hdr-left">
-          <span className="mr-channel__chev">▾</span>
+          <span className="mr-channel__chev">
+            <ChevDownIcon />
+          </span>
           <span
             className="mr-channel__swatch"
             style={{ background: channel.color, color: channel.color }}

@@ -1,4 +1,5 @@
 import { useMemo, useState, type MouseEvent } from 'react';
+import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
 import { laneCCLabel, type ParamLane as ParamLaneType } from '../../hooks/useChannels';
@@ -97,7 +98,9 @@ export function ParamLane({
     >
       <div className="mr-param-lane__hdr" onClick={onHeaderClick}>
         <div className="mr-param-lane__hdr-left">
-          <span className="mr-param-lane__chev">▾</span>
+          <span className="mr-param-lane__chev">
+            <ChevDownIcon />
+          </span>
           <span className="mr-param-lane__name">{lane.name}</span>
           <span className="mr-param-lane__cc">{laneCCLabel(lane)}</span>
         </div>

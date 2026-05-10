@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Marquee } from '../components/piano-roll/notes';
+import { notesInMarquee } from '../components/piano-roll/notes';
 import { useTransport } from './useTransport';
 import {
   useChannels,
@@ -11,6 +12,11 @@ import {
   type ParamLane,
   type ParamLaneKind,
 } from './useChannels';
+
+export interface ResolvedSelection {
+  channelId: ChannelId;
+  indexes: number[];
+}
 
 export interface StageState {
   channels: Channel[];
@@ -24,6 +30,7 @@ export interface StageState {
   playheadT: number;
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
+  resolvedSelection: ResolvedSelection | null;
   soloing: boolean;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
@@ -40,14 +47,18 @@ export interface StageState {
 const TOTAL_T = 16;
 const LO = 48;
 const HI = 76;
+const DEMO_NOTE_IDX = 3;
 
 export function useStage(): StageState {
   const { timecodeMs, bpm } = useTransport();
   const channels = useChannels(TOTAL_T);
 
-  const demoMarquee = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    return window.location.search.includes('demo=marquee');
+  const { demoMarquee, demoNote } = useMemo(() => {
+    if (typeof window === 'undefined') return { demoMarquee: false, demoNote: false };
+    const search = window.location.search;
+    const marquee = search.includes('demo=marquee');
+    const note = !marquee && search.includes('demo=note');
+    return { demoMarquee: marquee, demoNote: note };
   }, []);
 
   const beatsElapsed = (timecodeMs / 1000) * (bpm / 60);
@@ -58,8 +69,27 @@ export function useStage(): StageState {
   const marquee: Marquee | null = demoMarquee
     ? { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }
     : null;
-  const selectedIdx = demoMarquee ? undefined : [];
-  const selectedChannelId: ChannelId | null = demoMarquee ? 1 : null;
+  const selectedIdx: number[] | undefined = demoMarquee
+    ? undefined
+    : demoNote
+      ? [DEMO_NOTE_IDX]
+      : [];
+  const selectedChannelId: ChannelId | null = demoMarquee || demoNote ? 1 : null;
+
+  const resolvedSelection = useMemo<ResolvedSelection | null>(() => {
+    if (selectedChannelId === null) return null;
+    if (selectedIdx && selectedIdx.length > 0) {
+      return { channelId: selectedChannelId, indexes: selectedIdx };
+    }
+    if (marquee !== null) {
+      const roll = channels.rolls.find((r) => r.channelId === selectedChannelId);
+      if (!roll) return null;
+      const indexes = notesInMarquee(roll.notes, marquee);
+      if (indexes.length === 0) return null;
+      return { channelId: selectedChannelId, indexes };
+    }
+    return null;
+  }, [selectedChannelId, selectedIdx, marquee, channels.rolls]);
 
   const visibleChannels = useMemo(
     () => channels.channels.filter((c) => channelHasContent(c, channels.rolls, channels.lanes)),
@@ -79,6 +109,7 @@ export function useStage(): StageState {
     playheadT,
     marquee,
     selectedIdx,
+    resolvedSelection,
     soloing,
     toggleChannelCollapsed: channels.toggleChannelCollapsed,
     toggleChannelMuted: channels.toggleChannelMuted,

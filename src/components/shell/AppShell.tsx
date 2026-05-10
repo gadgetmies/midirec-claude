@@ -1,6 +1,8 @@
 import { useStage } from '../../hooks/useStage';
 import { ChannelGroup } from '../channels/ChannelGroup';
+import { Inspector } from '../inspector/Inspector';
 import { Ruler } from '../ruler/Ruler';
+import { Sidebar } from '../sidebar/Sidebar';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
@@ -25,7 +27,7 @@ export function AppShell() {
       </header>
       <div className="mr-body">
         <aside className="mr-sidebar">
-          <span className="mr-stub">Sidebar</span>
+          <Sidebar />
         </aside>
         <main className="mr-center">
           <div className="mr-toolstrip">
@@ -70,7 +72,7 @@ export function AppShell() {
           </div>
         </main>
         <aside className="mr-inspector">
-          <span className="mr-stub">Inspector</span>
+          <Inspector />
         </aside>
       </div>
       <footer className="mr-statusbar">

@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react';
+import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH, PianoRoll } from '../piano-roll/PianoRoll';
 import type { Marquee } from '../piano-roll/notes';
@@ -56,7 +57,9 @@ export function Track({
     >
       <div className="mr-track__hdr" onClick={headerClick}>
         <div className="mr-track__hdr-left">
-          <span className="mr-track__chev">▾</span>
+          <span className="mr-track__chev">
+            <ChevDownIcon />
+          </span>
           <span className="mr-track__name">Notes</span>
           <span className="mr-track__sub">{roll.notes.length} notes</span>
         </div>

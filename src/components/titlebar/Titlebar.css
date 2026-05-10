@@ -263,39 +263,5 @@
   font-size: var(--mr-fs-11);
 }
 
-/* LED — prototype uses oklch literals for the play-state glow.
-   We substitute with var(--mr-accent-soft) to keep the no-oklch rule.
-   Slight visual dimming versus the design source is accepted. */
-.mr-led {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--mr-text-4);
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.5);
-  flex-shrink: 0;
-}
-
-.mr-led[data-state='rec'] {
-  background: var(--mr-rec);
-  box-shadow: 0 0 6px var(--mr-rec-glow);
-  animation: mrLed 1.2s ease-in-out infinite;
-}
-
-.mr-led[data-state='play'] {
-  background: var(--mr-play);
-  box-shadow: 0 0 6px var(--mr-accent-soft);
-}
-
-.mr-led[data-state='midi'] {
-  background: var(--mr-cue);
-}
-
-@keyframes mrLed {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
+/* `.mr-led` and its `data-state` variants live in src/styles/leds.css —
+   shared with the Browser Sidebar's device rows. */

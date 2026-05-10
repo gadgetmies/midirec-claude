@@ -1,0 +1,84 @@
+/* Shared form primitives — label/value rows, toggle switches, and channel chips.
+   Consumers: Browser Sidebar (Record Filter), upcoming Export Dialog (Slice 6b).
+   Ported from design_handoff_midi_recorder/prototype/app.css lines ~307–420. */
+
+.mr-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-3);
+  min-height: var(--mr-h-row);
+}
+
+.mr-row > .mr-row-lbl {
+  flex: 1;
+  color: var(--mr-text-2);
+  font-size: var(--mr-fs-11);
+}
+
+/* Toggle / chip — small mono-typed pill that flips `data-on` to accent fill. */
+.mr-chip {
+  appearance: none;
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  background: transparent;
+  color: var(--mr-text-2);
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-10);
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--mr-r-1);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: color var(--mr-dur-fast) var(--mr-ease),
+    border-color var(--mr-dur-fast) var(--mr-ease),
+    background var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-chip:hover {
+  color: var(--mr-text-1);
+  border-color: var(--mr-line-3);
+}
+
+.mr-chip[data-on='true'] {
+  background: var(--mr-accent-soft);
+  border-color: var(--mr-accent);
+  color: var(--mr-accent);
+}
+
+/* Switch — pill toggle with a sliding thumb driven by `data-on`. */
+.mr-switch {
+  width: 26px;
+  height: 14px;
+  border-radius: var(--mr-r-pill);
+  background: var(--mr-bg-input);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--mr-dur-base) var(--mr-ease),
+    border-color var(--mr-dur-base) var(--mr-ease);
+  padding: 0;
+  appearance: none;
+}
+
+.mr-switch::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mr-text-3);
+  transition: transform var(--mr-dur-base) var(--mr-ease),
+    background var(--mr-dur-base) var(--mr-ease);
+}
+
+.mr-switch[data-on='true'] {
+  background: var(--mr-accent-soft);
+  border-color: var(--mr-accent);
+}
+
+.mr-switch[data-on='true']::after {
+  transform: translateX(12px);
+  background: var(--mr-accent);
+}

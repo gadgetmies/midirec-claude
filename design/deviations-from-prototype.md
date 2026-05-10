@@ -135,6 +135,35 @@ The prototype's `CCLane` (`prototype/components.jsx` lines 497–504) nests `<MS
 
 **Status**: deviation — design owner direction; awaiting back-port.
 
+## 11. Inspector tab labels — `Note / Pressure / Channel`
+
+**What changed**: The Inspector's tab strip ships with three tabs labelled `Note`, `Pressure`, `Channel`. In Slice 5 only the `Note` tab has body content; `Pressure` and `Channel` tabs are activatable but their bodies are empty placeholders.
+
+The prototype's Inspector (`prototype/components.jsx` lines 866–870) and screenshot 04 both show the tabs labelled `Note`, `Track`, `File`. Screenshot 04 only renders `NOTE` (active) and `TRACK` in the visible portion; `File` is documented in the prototype source.
+
+**Why**: The implementation plan (`design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` §Slice 5) specifies the `Note / Pressure / Channel` set, anticipating that the Pressure tab is the natural surface for the per-note pressure editor that lands in Slice 9. The prototype's `Track` and `File` labels were not flagged as needed by any subsequent slice. Keeping `Pressure` visible (even with an empty body) is honest signposting for the deferred Slice 9 content; renaming to `Track`/`File` now would force a second renaming pass when Slice 9 lands.
+
+**Where**:
+- JSX: `src/components/inspector/Inspector.tsx` — `const TABS: Tab[] = ['Note', 'Pressure', 'Channel']`.
+
+**Recommendation**: Back-port to the prototype — update the prototype's Inspector tab strip to `Note / Pressure / Channel`. The prototype currently has no Pressure-related content surface; this aligns the design source with the upcoming Slice 9 work.
+
+**Status**: deviation — implementation plan supersedes prototype labels; awaiting prototype refresh.
+
+## 12. Sidebar section names follow the prototype, not the implementation plan
+
+**What changed**: The Browser Sidebar ships four panels in this order: `MIDI Inputs`, `MIDI Outputs`, `Record Filter`, `Routing`. The implementation plan (`design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` §Slice 6) describes a different set: `Devices / Files / Markers, with the activity-LED list pattern`.
+
+**Why**: The prototype's four panels are fully realized in design — there's working component code (`design_handoff_midi_recorder/prototype/components.jsx` lines 144–239), CSS (`prototype/app.css` lines ~218–304), and they're visible in screenshot 01 (left edge) and screenshot 05 (full sidebar alongside the export dialog). The impl plan's `Devices / Files / Markers` naming is a sketch with no design source — `Files` and `Markers` would each need a fresh design pass before code, which is incompatible with the half-day Slice 6 budget. We follow the prototype because it's the more-realized source, matching the precedent set by deviation #10 (channel-grouped timeline) where the codebase advances ahead of the prototype's structure when the design is well-defined.
+
+**Where**:
+- JSX: `src/components/sidebar/Sidebar.tsx` — four `<Panel>` instances with the prototype's titles.
+- CSS: `src/components/sidebar/Sidebar.css` (panel chrome, device rows, routing matrix); `src/styles/forms.css` (shared `.mr-row`, `.mr-switch`, `.mr-chip` primitives); `src/styles/leds.css` (shared `.mr-led` and `data-state` variants, hoisted from `Titlebar.css`).
+
+**Recommendation**: Design owner decides — either update `IMPLEMENTATION_PLAN.md` §Slice 6 to read "Sidebar sections: MIDI Inputs / MIDI Outputs / Record Filter / Routing" (matching the prototype, which is what shipped), OR design `Files` and `Markers` panels in the prototype (replacing or supplementing the current four) and revisit. The codebase tracks whichever decision is made.
+
+**Status**: deviation — codebase follows prototype as the more-realized source; awaiting impl-plan or prototype reconciliation.
+
 ---
 
 ## Summary table
@@ -151,3 +180,5 @@ The prototype's `CCLane` (`prototype/components.jsx` lines 497–504) nests `<MS
 | 8 | CC-lane solo scope is lane-only | superseded | superseded by #10 |
 | 9 | M/S chips on right edge of CC lane | back-port | deviation |
 | 10 | Channel-grouped timeline (Channel → Roll + CCs) | back-port pending | deviation |
+| 11 | Inspector tabs `Note / Pressure / Channel` (vs prototype `Note / Track / File`) | back-port | deviation |
+| 12 | Sidebar sections follow prototype (`MIDI Inputs / MIDI Outputs / Record Filter / Routing`) over impl plan (`Devices / Files / Markers`) | back-port to impl plan, OR design Files/Markers panels | deviation |

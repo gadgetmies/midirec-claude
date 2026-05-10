@@ -1,0 +1,42 @@
+/* Activity LED primitive — used by the transport-titlebar's recording indicator
+   and the Browser Sidebar's device rows. The `data-state` attribute selects
+   the glow color from the design tokens.
+
+   Note: the prototype's `play`-state glow uses an oklch() literal in its
+   box-shadow. We substitute `--mr-accent-soft` to keep the no-oklch rule the
+   codebase has held since Slice 0. Slight visual dimming versus the design
+   source is accepted. */
+
+.mr-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mr-text-4);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.mr-led[data-state='rec'] {
+  background: var(--mr-rec);
+  box-shadow: 0 0 6px var(--mr-rec-glow);
+  animation: mrLed 1.2s ease-in-out infinite;
+}
+
+.mr-led[data-state='play'] {
+  background: var(--mr-play);
+  box-shadow: 0 0 6px var(--mr-accent-soft);
+}
+
+.mr-led[data-state='midi'] {
+  background: var(--mr-cue);
+}
+
+@keyframes mrLed {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
