@@ -1,0 +1,28 @@
+.mr-tool {
+  appearance: none;
+  background: transparent;
+  border: var(--mr-bw-1) solid transparent;
+  color: var(--mr-text-2);
+  height: var(--mr-h-control-md);
+  padding: 0 8px;
+  margin-left: var(--mr-sp-3);
+  border-radius: var(--mr-r-1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--mr-dur-fast) var(--mr-ease),
+    color var(--mr-dur-fast) var(--mr-ease),
+    border-color var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-tool:hover {
+  background: var(--mr-bg-panel-2);
+  color: var(--mr-text-1);
+  border-color: var(--mr-line-2);
+}
+
+.mr-tool:focus-visible {
+  outline: 2px solid var(--mr-accent);
+  outline-offset: -1px;
+}

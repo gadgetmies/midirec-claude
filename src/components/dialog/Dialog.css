@@ -1,0 +1,192 @@
+/* Export Dialog — overlay + card chrome ported from
+   design_handoff_midi_recorder/prototype/app.css lines ~1027-1100. */
+
+.mr-dialog-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--mr-bg-overlay);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--mr-z-dialog);
+}
+
+.mr-dialog {
+  background: var(--mr-bg-panel);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  border-radius: var(--mr-r-3);
+  width: 480px;
+  max-width: 92%;
+  box-shadow: var(--mr-shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mr-dialog__hd {
+  padding: 14px 18px 8px;
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-1);
+}
+
+.mr-dialog__hd h3 {
+  margin: 0;
+  font-size: var(--mr-fs-14);
+  font-weight: var(--mr-fw-semibold);
+  color: var(--mr-text-1);
+}
+
+.mr-dialog__hd p {
+  margin: 4px 0 0;
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-3);
+}
+
+.mr-dialog__body {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mr-sp-5);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.mr-dialog__ft {
+  padding: 10px 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--mr-sp-3);
+  background: var(--mr-bg-app);
+  border-top: var(--mr-bw-1) solid var(--mr-line-1);
+}
+
+/* Format radio cards — 2-column grid, each is a clickable button.
+   The selected card carries data-on="true" with accent border + soft fill. */
+.mr-fmt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--mr-sp-3);
+}
+
+.mr-fmt-card {
+  appearance: none;
+  text-align: left;
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  background: transparent;
+  border-radius: var(--mr-r-2);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--mr-text-1);
+  transition: border-color var(--mr-dur-fast) var(--mr-ease),
+    background var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-fmt-card:hover {
+  border-color: var(--mr-line-3);
+}
+
+.mr-fmt-card:focus-visible {
+  outline: 2px solid var(--mr-accent);
+  outline-offset: -1px;
+}
+
+.mr-fmt-card[data-on='true'] {
+  border-color: var(--mr-accent);
+  background: var(--mr-accent-soft);
+}
+
+.mr-fmt-card__title {
+  font-size: var(--mr-fs-11);
+  font-weight: var(--mr-fw-semibold);
+}
+
+.mr-fmt-card__sub {
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  font-family: var(--mr-font-mono);
+}
+
+/* Range — three radio options laid out in a row. */
+.mr-range-radios {
+  display: flex;
+  gap: var(--mr-sp-3);
+  flex: 2;
+}
+
+.mr-range-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-1);
+  cursor: pointer;
+  flex: 1;
+}
+
+.mr-range-radio[data-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mr-range-radio input[type='radio'] {
+  accent-color: var(--mr-accent);
+  margin: 0;
+}
+
+/* Tracks — vertical checkbox list, one row per channel.
+   The row's parent .mr-row carries .mr-row--top so the label aligns to the
+   first row instead of vertically centering on the list. */
+.mr-row.mr-row--top {
+  align-items: flex-start;
+}
+
+.mr-row.mr-row--top > .mr-row-lbl {
+  padding-top: 4px;
+}
+
+.mr-trk-list {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mr-sp-2);
+  min-width: 0;
+}
+
+.mr-trk-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-3);
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-1);
+  cursor: pointer;
+}
+
+.mr-trk-row input[type='checkbox'] {
+  accent-color: var(--mr-accent);
+  margin: 0;
+}
+
+.mr-trk-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ch-color, var(--mr-text-3));
+  flex-shrink: 0;
+}
+
+.mr-trk-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mr-trk-count {
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  white-space: nowrap;
+}

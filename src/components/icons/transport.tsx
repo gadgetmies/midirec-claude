@@ -120,3 +120,11 @@ export function FilterIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <path d="M6 2v7M3 6l3 3 3-3M2 10h8" />
+    </svg>
+  );
+}

@@ -1,7 +1,8 @@
 /* Inspector — right-aside panel.
    Surface and border-left for `.mr-inspector` are owned by AppShell.css; this
    file only adds the component-internal pieces (tab strip, KV rows, slider
-   primitive, multi-select hatched swatch, and a slice-local `.mr-btn`). */
+   primitive, multi-select hatched swatch). Shared primitives (`.mr-row`,
+   `.mr-btn`, `.mr-input`, `.mr-switch`, `.mr-chip`) live in src/styles/forms.css. */
 
 .mr-insp-tabs {
   display: flex;
@@ -199,31 +200,5 @@
   grid-column: 1 / -1;
 }
 
-.mr-btn {
-  appearance: none;
-  border: var(--mr-bw-1) solid var(--mr-line-2);
-  background: var(--mr-bg-panel-2);
-  color: var(--mr-text-1);
-  height: var(--mr-h-control-md);
-  padding: 0 14px;
-  border-radius: var(--mr-r-1);
-  font: inherit;
-  font-size: var(--mr-fs-11);
-  cursor: pointer;
-  transition: all var(--mr-dur-fast) var(--mr-ease);
-}
-
-.mr-btn:hover {
-  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 6%);
-}
-
-.mr-btn[data-danger="true"] {
-  background: var(--mr-rec);
-  color: var(--mr-text-on-accent);
-  border-color: var(--mr-rec);
-  font-weight: var(--mr-fw-semibold);
-}
-
-.mr-btn[data-danger="true"]:hover {
-  background: var(--mr-rec-hover);
-}
+/* .mr-btn rules live in src/styles/forms.css (hoisted in export-dialog change).
+   The .mr-insp-bulk-grid > .mr-btn override above remains slice-local. */

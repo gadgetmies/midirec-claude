@@ -5,6 +5,8 @@ import { Ruler } from '../ruler/Ruler';
 import { Sidebar } from '../sidebar/Sidebar';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
+import { Toolstrip } from '../toolstrip/Toolstrip';
+import { ExportDialog } from '../dialog/ExportDialog';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
 import './AppShell.css';
 
@@ -31,7 +33,7 @@ export function AppShell() {
         </aside>
         <main className="mr-center">
           <div className="mr-toolstrip">
-            <span className="mr-stub">Toolstrip</span>
+            <Toolstrip />
           </div>
           <div className="mr-timeline" data-soloing={stage.soloing ? 'true' : undefined}>
             <div
@@ -79,6 +81,7 @@ export function AppShell() {
         <span className="mr-stub">Statusbar</span>
       </footer>
       <ToastViewport />
+      {stage.dialogOpen && <ExportDialog />}
     </div>
   );
 }

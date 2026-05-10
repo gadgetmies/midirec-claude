@@ -164,6 +164,26 @@ The prototype's Inspector (`prototype/components.jsx` lines 866–870) and scree
 
 **Status**: deviation — codebase follows prototype as the more-realized source; awaiting impl-plan or prototype reconciliation.
 
+## 13. Export Dialog ships the union of prototype + impl-plan fields
+
+**What changed**: The Export Dialog ships six body fields in this order: **Format** (Standard MIDI File / NDJSON), **Filename**, **Range** (Whole session / Selection / Loop region), **Tracks** (per-channel checkbox list), **Quantize on export**, **Include CC lanes**. The footer is `Cancel` and `Save · ⌘S`.
+
+The prototype's `ExportDialog()` (`design_handoff_midi_recorder/prototype/components.jsx` lines 1024–1075) ships only **Format**, **Filename**, **Quantize on export**, **Include CC lanes** — no Range and no Tracks. The implementation plan and the `session-model` proposal both describe **Range** (with `Whole session / Selection / Loop region` resolving through the session-model's `loopRegion` shape) and **Tracks** as part of the slice. The codebase ships the union: prototype controls plus Range and Tracks added per the impl plan / session-model.
+
+**Why**: The prototype is from before the session-model lock-in; it predates the `loopRegion` contract and the multi-track storage shape. Both Range (the consumer of `loopRegion` per `design/session-model.md:26`) and Tracks (the impl plan's "export's Tracks checkbox list" — also the first user-facing consumer of the `tracks` capability) are required by upstream specs that landed after the prototype was authored. Shipping Format/Filename/Quantize/Include-CC alone would leave both upstream contracts without a UI consumer.
+
+The dialog also widens to **480px** (prototype: 420px) to accommodate the additional rows comfortably; switches the format-card styling from inline-styles to class-based `.mr-fmt-card` rules per the same reasoning as deviation #10's routing matrix; and renders as a child of `.mr-shell` (no portal) so the scrim's `position: absolute; inset: 0` covers all six regions.
+
+**Where**:
+- JSX: `src/components/dialog/ExportDialog.tsx`.
+- CSS: `src/components/dialog/Dialog.css` (scrim, card, format cards, range radios, tracks list).
+- Hoisted primitives: `.mr-btn`, `.mr-btn[data-primary="true"]`, `.mr-input` moved to `src/styles/forms.css` (the dialog footer's `Save` button is the second consumer of `.mr-btn` after the Inspector's bulk-action buttons).
+- Save behaviour: stub — emits a toast `Exported "<filename>" · <N> events` and closes. Real `.mid` / `.ndjson` serialisation is Slice 10's audio-engine concern.
+
+**Recommendation**: Update the prototype's `ExportDialog()` to match — add a Range radio with the three options and a Tracks checkbox list. The prototype's design-canvas screenshot (05) is then in sync with the implementation, and future updates can flow either direction.
+
+**Status**: deviation — codebase ships the impl-plan/session-model contract; prototype refresh pending.
+
 ---
 
 ## Summary table
@@ -182,3 +202,4 @@ The prototype's Inspector (`prototype/components.jsx` lines 866–870) and scree
 | 10 | Channel-grouped timeline (Channel → Roll + CCs) | back-port pending | deviation |
 | 11 | Inspector tabs `Note / Pressure / Channel` (vs prototype `Note / Track / File`) | back-port | deviation |
 | 12 | Sidebar sections follow prototype (`MIDI Inputs / MIDI Outputs / Record Filter / Routing`) over impl plan (`Devices / Files / Markers`) | back-port to impl plan, OR design Files/Markers panels | deviation |
+| 13 | Export Dialog adds Range + Tracks rows, widens to 480px, classifies format cards | back-port — refresh prototype dialog to match | deviation |

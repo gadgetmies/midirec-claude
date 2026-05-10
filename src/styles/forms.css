@@ -82,3 +82,82 @@
   transform: translateX(12px);
   background: var(--mr-accent);
 }
+
+/* Button — neutral pill, with `data-primary` accent fill and `data-danger` rec fill.
+   Hoisted from Inspector.css in the export-dialog change; consumers are the
+   Inspector's bulk-action buttons and the Export Dialog's footer. */
+.mr-btn {
+  appearance: none;
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  background: var(--mr-bg-panel-2);
+  color: var(--mr-text-1);
+  height: var(--mr-h-control-md);
+  padding: 0 14px;
+  border-radius: var(--mr-r-1);
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  cursor: pointer;
+  transition: all var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-btn:hover {
+  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 6%);
+}
+
+.mr-btn:focus-visible {
+  outline: 2px solid var(--mr-accent);
+  outline-offset: -1px;
+}
+
+.mr-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mr-btn[data-primary='true'] {
+  background: var(--mr-accent);
+  color: var(--mr-text-on-accent);
+  border-color: var(--mr-accent);
+  font-weight: var(--mr-fw-semibold);
+}
+
+.mr-btn[data-primary='true']:hover {
+  background: var(--mr-accent-hover);
+}
+
+.mr-btn[data-danger='true'] {
+  background: var(--mr-rec);
+  color: var(--mr-text-on-accent);
+  border-color: var(--mr-rec);
+  font-weight: var(--mr-fw-semibold);
+}
+
+.mr-btn[data-danger='true']:hover {
+  background: var(--mr-rec-hover);
+}
+
+/* Text input — used by the Export Dialog's filename field. */
+.mr-input {
+  appearance: none;
+  height: var(--mr-h-control-md);
+  padding: 0 10px;
+  background: var(--mr-bg-input);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  border-radius: var(--mr-r-1);
+  color: var(--mr-text-1);
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  min-width: 0;
+  transition: border-color var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-input:hover {
+  border-color: var(--mr-line-3);
+}
+
+.mr-input:focus,
+.mr-input:focus-visible {
+  outline: 2px solid var(--mr-accent);
+  outline-offset: -1px;
+  border-color: var(--mr-accent);
+}

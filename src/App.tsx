@@ -1,5 +1,6 @@
 import { AppShell } from './components/shell/AppShell';
 import { ToastProvider } from './components/toast/Toast';
+import { StageProvider } from './hooks/useStage';
 import { TransportProvider } from './hooks/useTransport';
 
 export function App() {
@@ -7,7 +8,9 @@ export function App() {
     <div className="mr-app" data-mr-theme="console">
       <TransportProvider>
         <ToastProvider>
-          <AppShell />
+          <StageProvider>
+            <AppShell />
+          </StageProvider>
         </ToastProvider>
       </TransportProvider>
     </div>

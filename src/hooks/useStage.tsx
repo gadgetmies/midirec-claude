@@ -1,4 +1,11 @@
-import { useMemo } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { Marquee } from '../components/piano-roll/notes';
 import { notesInMarquee } from '../components/piano-roll/notes';
 import { useTransport } from './useTransport';
@@ -18,6 +25,11 @@ export interface ResolvedSelection {
   indexes: number[];
 }
 
+export interface LoopRegion {
+  start: number;
+  end: number;
+}
+
 export interface StageState {
   channels: Channel[];
   rolls: PianoRollTrack[];
@@ -31,7 +43,11 @@ export interface StageState {
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
   resolvedSelection: ResolvedSelection | null;
+  loopRegion: LoopRegion | null;
   soloing: boolean;
+  dialogOpen: boolean;
+  openExportDialog: () => void;
+  closeExportDialog: () => void;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
@@ -49,9 +65,13 @@ const LO = 48;
 const HI = 76;
 const DEMO_NOTE_IDX = 3;
 
-export function useStage(): StageState {
+function useStageState(): StageState {
   const { timecodeMs, bpm } = useTransport();
   const channels = useChannels(TOTAL_T);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const openExportDialog = useCallback(() => setDialogOpen(true), []);
+  const closeExportDialog = useCallback(() => setDialogOpen(false), []);
 
   const { demoMarquee, demoNote } = useMemo(() => {
     if (typeof window === 'undefined') return { demoMarquee: false, demoNote: false };
@@ -110,7 +130,11 @@ export function useStage(): StageState {
     marquee,
     selectedIdx,
     resolvedSelection,
+    loopRegion: null,
     soloing,
+    dialogOpen,
+    openExportDialog,
+    closeExportDialog,
     toggleChannelCollapsed: channels.toggleChannelCollapsed,
     toggleChannelMuted: channels.toggleChannelMuted,
     toggleChannelSoloed: channels.toggleChannelSoloed,
@@ -122,4 +146,19 @@ export function useStage(): StageState {
     toggleLaneSoloed: channels.toggleLaneSoloed,
     addParamLane: channels.addParamLane,
   };
+}
+
+const StageContext = createContext<StageState | null>(null);
+
+export function StageProvider({ children }: { children: ReactNode }) {
+  const stage = useStageState();
+  return <StageContext.Provider value={stage}>{children}</StageContext.Provider>;
+}
+
+export function useStage(): StageState {
+  const ctx = useContext(StageContext);
+  if (!ctx) {
+    throw new Error('useStage must be used inside <StageProvider>');
+  }
+  return ctx;
 }
