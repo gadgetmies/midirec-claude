@@ -16,6 +16,7 @@ Drop the docs in this folder into the design project's import flow to reconcile 
 | [`deviations-from-prototype.md`](./deviations-from-prototype.md) | Itemized list of every visual/structural choice in the codebase that diverges from `design_handoff_midi_recorder/prototype/`. Each entry has the why, the where (file path), and a recommendation for whether to back-port to the design source. |
 | [`session-model.md`](./session-model.md) | A conceptual addition that does not yet exist in the design source: sessions are unbounded, with user-addable loop markers that wrap playback. Cross-references the formal OpenSpec proposal at `openspec/changes/session-model/`. |
 | [`loop-markers.md`](./loop-markers.md) | One-page component spec for the new visual element introduced by the session-model concept. Glyph details deferred to design owner's call. |
+| [`real-time-correctness.md`](./real-time-correctness.md) | Cross-cutting non-functional constraint: the system is real-time. UI render load must not drop messages, delay playback, or offset recorded timestamps. Applies to every slice; will become a formal capability spec when Slice 10 wires the audio engine. |
 
 ## What's NOT in here (and why)
 

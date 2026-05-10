@@ -105,7 +105,8 @@
 .mr-timeline[data-soloing="true"] .mr-track[data-audible="false"] .mr-track__roll,
 .mr-timeline[data-soloing="true"] .mr-track[data-audible="false"] .mr-track__collapsed,
 .mr-timeline[data-soloing="true"] .mr-param-lane[data-audible="false"] .mr-param-lane__plot,
-.mr-timeline[data-soloing="true"] .mr-param-lane[data-audible="false"] .mr-param-lane__collapsed {
+.mr-timeline[data-soloing="true"] .mr-param-lane[data-audible="false"] .mr-param-lane__collapsed,
+.mr-timeline[data-soloing="true"] .mr-djtrack[data-audible="false"] .mr-djtrack__body {
   opacity: 0.45;
 }
 

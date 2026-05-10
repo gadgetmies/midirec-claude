@@ -1,5 +1,6 @@
 import { useStage } from '../../hooks/useStage';
 import { ChannelGroup } from '../channels/ChannelGroup';
+import { DJActionTrack } from '../dj-action-tracks/DJActionTrack';
 import { Inspector } from '../inspector/Inspector';
 import { Ruler } from '../ruler/Ruler';
 import { Sidebar } from '../sidebar/Sidebar';
@@ -7,6 +8,7 @@ import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
 import { Toolstrip } from '../toolstrip/Toolstrip';
 import { ExportDialog } from '../dialog/ExportDialog';
+import { isDJTrackAudible } from '../../hooks/useDJActionTracks';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
 import './AppShell.css';
 
@@ -70,6 +72,16 @@ export function AppShell() {
                   />
                 );
               })}
+              {stage.djActionTracks.map((track) => (
+                <DJActionTrack
+                  key={track.id}
+                  track={track}
+                  audible={isDJTrackAudible(track, stage.soloing)}
+                  onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
+                  onToggleMuted={() => stage.toggleDJTrackMuted(track.id)}
+                  onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}
+                />
+              ))}
             </div>
           </div>
         </main>

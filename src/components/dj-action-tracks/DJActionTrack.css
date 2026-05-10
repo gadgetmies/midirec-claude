@@ -1,0 +1,153 @@
+/* DJ action track — Slice 7a structural shell.
+   Header chrome mirrors .mr-channel/.mr-track conventions so the component
+   visually belongs in the same timeline. Body is placeholder rows; the
+   ActionKeys column + per-action note rendering land in Slice 7b. */
+
+.mr-djtrack {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--mr-line-2);
+}
+
+.mr-djtrack:last-of-type {
+  border-bottom: 0;
+}
+
+.mr-djtrack__hdr {
+  display: flex;
+  align-items: center;
+  height: var(--mr-h-row);
+  background: var(--mr-bg-panel-2);
+  border-bottom: 1px solid var(--mr-line-1);
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  /* Lift the header to z=1 so the panel-2 fill covers anything overlapping
+     from the body below — same pattern as .mr-track__hdr. */
+  position: relative;
+  z-index: 1;
+}
+
+.mr-djtrack__hdr:hover {
+  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+}
+
+.mr-djtrack__hdr-left {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 8px;
+  background: var(--mr-bg-panel-2);
+  flex-shrink: 0;
+}
+
+.mr-djtrack__hdr-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 8px;
+  background: var(--mr-bg-panel-2);
+  flex-shrink: 0;
+}
+
+.mr-djtrack__hdr-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.mr-djtrack__chev {
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mr-text-3);
+  transition: transform 0.12s;
+  font-size: 9px;
+}
+
+.mr-djtrack[data-track-collapsed="true"] .mr-djtrack__chev {
+  transform: rotate(-90deg);
+}
+
+.mr-djtrack__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px color-mix(in oklab, currentColor 50%, transparent);
+}
+
+.mr-djtrack__name {
+  font-size: 11px;
+  font-weight: var(--mr-fw-semibold);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.mr-djtrack__sub {
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  color: var(--mr-text-3);
+  white-space: nowrap;
+}
+
+.mr-djtrack__body {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  background: var(--mr-bg-app);
+}
+
+/* 56px sticky-left strip continuing the keys column used by .mr-track /
+   .mr-param-lane (KEYS_COLUMN_WIDTH in PianoRoll.tsx). Empty in 7a;
+   becomes the ActionKeys column in 7b. */
+.mr-djtrack__keys-spacer {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 56px;
+  flex-shrink: 0;
+  background: var(--mr-bg-panel-2);
+  border-right: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-djtrack__rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.mr-djtrack__row {
+  height: var(--mr-h-row);
+  border-bottom: var(--mr-bw-1) solid color-mix(in oklab, var(--mr-line-2) 35%, transparent);
+}
+
+.mr-djtrack__row:last-of-type {
+  border-bottom: 0;
+}
+
+.mr-djtrack__placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--mr-font-mono);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--mr-text-3);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Mute fades + grayscales the row's body — matches .mr-track convention. */
+.mr-djtrack[data-muted="true"] .mr-djtrack__body {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+}

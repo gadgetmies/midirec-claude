@@ -19,6 +19,12 @@ import {
   type ParamLane,
   type ParamLaneKind,
 } from './useChannels';
+import {
+  useDJActionTracks,
+  anyDJTrackSoloed,
+  type DJActionTrack,
+  type DJTrackId,
+} from './useDJActionTracks';
 
 export interface ResolvedSelection {
   channelId: ChannelId;
@@ -48,6 +54,7 @@ export interface StageState {
   dialogOpen: boolean;
   openExportDialog: () => void;
   closeExportDialog: () => void;
+  djActionTracks: DJActionTrack[];
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
@@ -58,6 +65,9 @@ export interface StageState {
   toggleLaneMuted: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   toggleLaneSoloed: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   addParamLane: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  toggleDJTrackCollapsed: (id: DJTrackId) => void;
+  toggleDJTrackMuted: (id: DJTrackId) => void;
+  toggleDJTrackSoloed: (id: DJTrackId) => void;
 }
 
 const TOTAL_T = 16;
@@ -68,6 +78,7 @@ const DEMO_NOTE_IDX = 3;
 function useStageState(): StageState {
   const { timecodeMs, bpm } = useTransport();
   const channels = useChannels(TOTAL_T);
+  const djTracks = useDJActionTracks();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const openExportDialog = useCallback(() => setDialogOpen(true), []);
@@ -115,7 +126,10 @@ function useStageState(): StageState {
     () => channels.channels.filter((c) => channelHasContent(c, channels.rolls, channels.lanes)),
     [channels.channels, channels.rolls, channels.lanes],
   );
-  const soloing = useMemo(() => anySoloed(channels), [channels]);
+  const soloing = useMemo(
+    () => anySoloed(channels) || anyDJTrackSoloed(djTracks.djActionTracks),
+    [channels, djTracks.djActionTracks],
+  );
 
   return {
     channels: channels.channels,
@@ -145,6 +159,10 @@ function useStageState(): StageState {
     toggleLaneMuted: channels.toggleLaneMuted,
     toggleLaneSoloed: channels.toggleLaneSoloed,
     addParamLane: channels.addParamLane,
+    djActionTracks: djTracks.djActionTracks,
+    toggleDJTrackCollapsed: djTracks.toggleDJTrackCollapsed,
+    toggleDJTrackMuted: djTracks.toggleDJTrackMuted,
+    toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,
   };
 }
 

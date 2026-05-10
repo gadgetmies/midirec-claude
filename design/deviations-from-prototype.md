@@ -184,6 +184,48 @@ The dialog also widens to **480px** (prototype: 420px) to accommodate the additi
 
 **Status**: deviation — codebase ships the impl-plan/session-model contract; prototype refresh pending.
 
+## 14. DJ mode is a per-track kind, not a global `lanesMode` toggle
+
+**What changed**: The prototype models DJ mode as a global timeline-wide toggle (`lanesMode: 'piano' | 'actions'`): flip it and the entire timeline re-renders as a stack of per-device units. The codebase reframes DJ mode as a **track kind** — the timeline holds a vertical stack of tracks, each with a kind chosen at creation:
+
+- **Channel track** (today's behavior, in the `channels` capability): bound to one channel, displayed as a piano roll.
+- **DJ action track** (new in Slice 7a, `dj-action-tracks` capability): has user-configured input/output routing maps (which channels feed it, where its actions emit on playback), displayed as DJ actions.
+
+Both kinds coexist in the same timeline. The same source note can appear in both views simultaneously. There is no `lanesMode` toggle in the Toolstrip; the prototype's `Toolstrip()` Piano/Actions chip group is not ported.
+
+Track kind is fixed at creation — no conversion affordance. The "+ Add Track" picker that lets users pick which kind to create lands in Slice 7b (or later).
+
+**Why**: A global toggle forces the user to switch contexts to see one or the other rendering; a real session might want to view some channels as piano rolls AND aggregate some of them as a DJ controller surface at the same time. Per-track kind composes with the rest of the architecture — channels are real entities, the recording pipeline writes notes to channels, and a dj-action-track is just another renderable that consumes routing-selected events.
+
+**Where**:
+- Data: `src/data/dj.ts` — `DJ_CATEGORIES`, `DJ_DEVICES`, `DEFAULT_ACTION_MAP`, `pitchLabel`, `devColor`/`devShort`/`devLabel`.
+- Hook: `src/hooks/useDJActionTracks.ts` — `DJActionTrack`, `DJTrackRouting`, the seeded default track, M/S toggles. State is sibling-array (`state.djActionTracks`) alongside `state.rolls`; storage unification is deferred.
+- Component: `src/components/dj-action-tracks/DJActionTrack.tsx` + `DJActionTrack.css` — header (stripe + chev + name + count + M/S chip) and placeholder body sized to the action-map row count.
+- AppShell: `src/components/shell/AppShell.tsx` — renders dj-action-tracks below the channel-groups iteration, both inside `.mr-timeline__inner`.
+- Solo: `data-soloing` on `.mr-timeline` combines channel/roll/lane solo AND dj-action-track solo (`useStage`'s `soloing` flag). Dimming rule extended in `ChannelGroup.css` to cover `.mr-djtrack[data-audible="false"] .mr-djtrack__body`.
+
+**Recommendation**: Back-port to the prototype's `lanesMode` model — the prototype should drop the global toggle and instead show channel groups + a sample dj-action-track in the same timeline. Screenshot 06 (DJ overview) would re-shoot with both kinds visible. The prototype's `ActionRoll` / `ActionRollUnit` / `ActionMapPanel` components remain useful — they become per-dj-action-track rendering (Slice 7b) rather than a global mode swap.
+
+**Status**: deviation — architectural pivot, awaiting design-source refresh.
+
+## 15. Default seeded session has one "DJ" dj-action-track with a 4-action demo subset
+
+**What changed**: The default session ships with one `DJActionTrack` named "DJ" appended below the existing channel groups. Its `actionMap` contains 4 entries copied from `DEFAULT_ACTION_MAP` at pitches 48 / 56 / 60 / 71 (Play on Deck 1, Hot Cue 1 on Deck 1, FX 1 On, Crossfade ◀ on Mixer). Its `color` is `DJ_DEVICES.global.color` (warm neutral). Both `inputRouting.channels` and `outputRouting.channels` are empty.
+
+The prototype's screenshot-06 mock seeds six per-device units (Deck 1, Deck 2, FX 1, FX 2, Mixer, Global) each with the full subset of `DEFAULT_ACTION_MAP` entries for that device, and custom open/muted/soloed defaults; the codebase does not ship those defaults.
+
+**Why**: The track's `actionMap` is the set of actions ACTIVELY CONFIGURED on it — not a catalog reference. `DEFAULT_ACTION_MAP` (28 entries) lives in `src/data/dj.ts` as the source the future routing/add-action picker draws from. Seeding the whole map into the default track would imply "every possible action is configured" which isn't the right default; seeding empty would render a body with zero rows (valid but visually broken until the routing-add UI exists). The 4-entry subset gives the shell visible rows for demo and Slice 7b's per-action rendering testing.
+
+The prototype's six-unit mock exists to compose screenshot 06's specific look — it's not a contract. A working app shouldn't ship with arbitrary mute/solo state pre-set on devices the user hasn't yet decided to route to; the user expects a clean slate.
+
+**Where**:
+- `src/hooks/useDJActionTracks.ts` — `seedDefault()` returns the single seeded entry.
+- `design/real-time-correctness.md` — cross-cutting non-functional constraint that any future per-device default seeding must respect (no MIDI side-effects on app start).
+
+**Recommendation**: No back-port required — the prototype's six-unit screenshot composition can stay as a screenshot-only fixture. If the design source wants a "DJ mode demo" screenshot for the per-track-kind model, re-shoot with the codebase's actual default (one DJ track + the channel groups), or with explicit `?demo=dj` fixture state if such a URL convention is added later.
+
+**Status**: deviation — intentional default-state difference, not a back-port target.
+
 ---
 
 ## Summary table
@@ -203,3 +245,5 @@ The dialog also widens to **480px** (prototype: 420px) to accommodate the additi
 | 11 | Inspector tabs `Note / Pressure / Channel` (vs prototype `Note / Track / File`) | back-port | deviation |
 | 12 | Sidebar sections follow prototype (`MIDI Inputs / MIDI Outputs / Record Filter / Routing`) over impl plan (`Devices / Files / Markers`) | back-port to impl plan, OR design Files/Markers panels | deviation |
 | 13 | Export Dialog adds Range + Tracks rows, widens to 480px, classifies format cards | back-port — refresh prototype dialog to match | deviation |
+| 14 | DJ mode is a per-track kind, not a global `lanesMode` toggle | back-port — drop the lanesMode toggle, model dj-action-tracks per-track | deviation, architectural |
+| 15 | Default seeded session has one "DJ" dj-action-track (empty routing) instead of the prototype's six per-device units | no back-port — intentional default-state difference | deviation |

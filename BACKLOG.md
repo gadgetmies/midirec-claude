@@ -219,6 +219,43 @@ The sticky zones currently need an opaque background only to keep `chev + swatch
 
 **Status**: pending.
 
+### Piano-roll 2-octave visible viewport + vertical scroll
+
+**Why**: Today the piano roll renders the entire `lo..hi` pitch range as a single fixed-height block — `lo = 48`, `hi = 76` means every roll is 28 semitones tall, all visible at once. There's no way to record/display notes outside that range, and a real session might span more than 28 semitones (or far less). The intended model: each channel-track's piano roll shows a 2-octave (24-semitone) visible window with vertical scrolling to navigate the rest of the track's recorded pitch range.
+
+This affects the `piano-roll` and `tracks` capabilities. It does NOT affect dj-action-tracks (their body is row-per-mapped-action, not pitch-based — see Slice 7a's `dj-action-tracks` spec).
+
+**Scope** (escalate to OpenSpec proposal when picked up):
+
+- **Visible-window contract**: each piano-roll renders `lo..lo+24` as the visible viewport (24 semitones = 2 octaves). The recorded pitch range can be wider; notes outside the visible window exist in the data but only render when scrolled into view.
+- **`piano-roll` capability**:
+  - `<PianoRoll>` receives a `visibleLo`/`visibleHi` window (or equivalent `viewportStart`/`viewportSpan`) in addition to or replacing today's `lo`/`hi`.
+  - The roll's `.mr-roll__lanes` container becomes `overflow-y: auto` with `height = 24 * rowHeight` (2 octaves at default zoom).
+  - The keys column `.mr-keys` either scrolls in lockstep (sticky-left within the scroll container) OR stays full-pitch-range static (a navigator strip). Recommend lockstep — matches DAW convention.
+  - Notes are clipped to the visible window by the scroll container's `overflow: hidden`-via-`auto` behavior; no extra JS filtering needed.
+- **`tracks` capability**:
+  - The open-track body height becomes a fixed `24 * rowHeight` value rather than today's `range * rowHeight`. Track header heights unchanged.
+  - The collapsed-track minimap behaviour is unchanged (it already compresses everything to a 6px strip).
+- **`useStage`** or `useChannels`:
+  - Per-track `viewportLo` state (initialized to the channel's recorded median pitch's octave boundary, or to a session-default like 48).
+  - `setRollViewportLo(channelId, lo)` action; the scroll container's `onScroll` handler updates this state (or, simpler, the viewport is uncontrolled and managed entirely by the browser scrollbar).
+- **Per-track pitch window** (related question): today every roll shares `LO=48, HI=76`. With per-track viewports, each track can independently scroll its piano range. This naturally extends to per-channel pitch ranges (a bass channel might naturally sit in `lo=24`, a lead in `lo=60`). Recommend keeping the data model channel-agnostic for now — the viewport is a render-time concern, not a data-model one.
+- **Spec deltas**: `piano-roll` capability adds a "2-octave visible viewport" requirement; `tracks` capability updates the open-track body height rule.
+
+**Verification**:
+
+- A track with notes from C3 to C5 (across 2 octaves exactly) renders all notes visible in the default viewport.
+- A track with notes from C2 to G5 (4.5 octaves) renders 2 octaves visible; vertical scroll reveals the rest. The scroll position SHALL persist within a session.
+- The scroll within a track does NOT scroll the timeline's horizontal axis or any other track.
+- The keys column scrolls in lockstep with the lanes.
+- The collapsed-track minimap still shows the full pitch range compressed (no scrolling there — minimap is the "everything compressed" view).
+- `?demo=marquee` and `?demo=note` URL fixtures still work; they may need updated default `viewportLo` values if the demo notes fall outside the default 2-octave window.
+- `yarn typecheck` clean; `openspec validate --strict` clean for the new requirements.
+
+**Estimated effort**: 1 day — the viewport math is straightforward but every piano-roll consumer (`<Track>`, `<ChannelGroup>`, `?demo=*` fixtures, the marquee/selection scoping, the `notesInMarquee` helper) needs to be reviewed for assumptions about the visible window. The marquee rectangle is currently in pitch units (`p0`, `p1` MIDI pitch); per-track viewports change how those translate to screen Y per roll.
+
+**Status**: pending. Surfaced during dj-mode-shell (Slice 7a) review as a separate concern from the dj-action-track row-count fix.
+
 ## Done
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->
