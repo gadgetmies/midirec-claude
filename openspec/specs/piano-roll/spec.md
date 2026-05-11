@@ -1,3 +1,8 @@
+# piano-roll Specification
+
+## Purpose
+TBD - structural scaffolding added during archive of remove-marquee-badge. Update Purpose after archive.
+## Requirements
 ### Requirement: PianoRoll renders keys column, lane grid, notes, and playhead
 
 The codebase SHALL expose a `PianoRoll` React component at `src/components/piano-roll/PianoRoll.tsx`. Given props `{ width, height, notes, lo?, hi?, totalT?, playheadT?, marquee?, selectedIdx?, trackColor?, accent? }`, the component SHALL render a `.mr-roll` element containing:
@@ -85,29 +90,6 @@ Each `.mr-note` element SHALL be absolute-positioned according to the following 
 - **WHEN** `<PianoRoll width={160} totalT={16} notes={[{t:0,dur:0.05,pitch:60,vel:0.5}]} />` is rendered (raw width = 0.5px)
 - **THEN** the rendered `.mr-note`'s computed `width` SHALL be `2px`
 
-### Requirement: Marquee renders dashed rect with badge
-
-When the `marquee` prop is non-null, the `PianoRoll` SHALL render:
-
-1. A `.mr-marquee` SVG element absolute-positioned to enclose the rectangle from `(min(t0,t1), max(p0,p1))` (top-left in lane coordinates, since pitch grows upward) to `(max(t0,t1), min(p0,p1))`. The SVG SHALL contain a single `.mr-marquee__rect` `<rect>` with a 1px dashed stroke in `var(--mr-accent)`, a translucent fill of `color-mix(in oklab, var(--mr-accent) 10%, transparent)`, and SHALL animate via the `mr-marquee-march` keyframe (0.8s linear infinite) by varying `stroke-dashoffset` (which produces a visible marching-ants effect, unlike the prototype's flat-color `background-position` animation which is invisible).
-2. A `.mr-marquee__badge` element positioned at `left: rectRight + 6, top: rectTop`, containing a `.mr-marquee__count` displaying the effective selection count and a `.mr-marquee__lbl` displaying the static text `selected`.
-
-The prototype's four `.mr-marquee__corner` markers are intentionally omitted — they were visually noisy and added no signal beyond what the dashed border already conveys.
-
-#### Scenario: Marquee rectangle dimensions match the input
-
-- **WHEN** `<PianoRoll width={1600} height={280} lo={48} hi={76} totalT={16} marquee={{t0:4, t1:8, p0:60, p1:67}} notes={[]} />` is rendered
-- **THEN** the rendered `.mr-marquee`'s computed `left` SHALL be `400px` (`4 * 100`)
-- **AND** its computed `width` SHALL be `400px` (`(8-4) * 100`)
-- **AND** its computed `top` SHALL be `80px` (`height - (max(p0,p1) - lo + 1) * rowH = 280 - 20*10 = 80`)
-- **AND** its computed `height` SHALL be `(max(p0,p1) - min(p0,p1) + 1) * rowH = 80px`
-
-#### Scenario: Badge count matches selectedIdx length
-
-- **WHEN** `<PianoRoll marquee={{...}} selectedIdx={[1, 4, 9]} ... />` is rendered
-- **THEN** the rendered `.mr-marquee__badge` SHALL contain a `.mr-marquee__count` whose text content is `3`
-- **AND** SHALL contain a `.mr-marquee__lbl` whose text content is `selected`
-
 ### Requirement: Selection resolution prefers explicit selectedIdx over marquee derivation
 
 The renderer's effective selection list SHALL be computed as:
@@ -122,7 +104,7 @@ The pure helper `notesInMarquee(notes, marquee)` SHALL be exported from `src/com
 
 - **WHEN** `<PianoRoll marquee={{t0:0,t1:16,p0:48,p1:76}} selectedIdx={[2]} notes={[{t:0,dur:1,pitch:60,vel:.5},{t:1,dur:1,pitch:62,vel:.5},{t:2,dur:1,pitch:64,vel:.5}]} />` is rendered
 - **THEN** only the note at index 2 SHALL carry `data-sel="true"`
-- **AND** the badge count SHALL display `1`
+- **AND** exactly one `.mr-note` element SHALL carry `data-sel="true"`
 
 #### Scenario: Marquee auto-derives selection when selectedIdx is omitted
 
@@ -150,7 +132,7 @@ The `.mr-playhead` element's computed `left` SHALL equal `playheadT * (width / t
 
 ### Requirement: PianoRoll stylesheet ports prototype rules verbatim
 
-The codebase SHALL ship `src/components/piano-roll/PianoRoll.css` containing the rules from `prototype/app.css` lines ~493–692 covering: `.mr-roll`, `.mr-keys`, `.mr-key` (including `[data-black="true"]`), `.mr-roll__lanes`, `.mr-lane` (including `[data-black="true"]`), `.mr-note` (including `[data-sel="true"]`), `.mr-marquee`, `.mr-marquee__corner` (including all four `[data-c]` variants), `.mr-marquee__badge`, `.mr-marquee__count`, `.mr-marquee__lbl`, `.mr-playhead` (including `::before`), and the `@keyframes mr-marquee-march` definition. All visual values in the stylesheet SHALL resolve through `--mr-*` tokens or `rgba(...)` literals already present in the prototype's same lines.
+The codebase SHALL ship `src/components/piano-roll/PianoRoll.css` containing the rules from `prototype/app.css` lines ~493–692 covering: `.mr-roll`, `.mr-keys`, `.mr-key` (including `[data-black="true"]`), `.mr-roll__lanes`, `.mr-lane` (including `[data-black="true"]`), `.mr-note` (including `[data-sel="true"]`), `.mr-marquee`, `.mr-marquee__corner` (including all four `[data-c]` variants), `.mr-playhead` (including `::before`), and the `@keyframes mr-marquee-march` definition. The prototype's `.mr-marquee__badge`, `.mr-marquee__count`, and `.mr-marquee__lbl` rules SHALL NOT be ported — the selection-count badge they styled is intentionally omitted (see `Marquee renders dashed rect`). All visual values in the stylesheet SHALL resolve through `--mr-*` tokens or `rgba(...)` literals already present in the prototype's same lines.
 
 In addition to the prototype's rules, `.mr-keys` SHALL carry `position: sticky; left: 0; z-index: 2`. This pins the keys column to the visible left edge of the outer `.mr-timeline` scroll container at any horizontal scroll offset. The keys column's `width: 56px` and `background: var(--mr-bg-panel-2)` SHALL be preserved so it visually masks the lanes content beneath it when sticky-pinned.
 
@@ -168,6 +150,11 @@ In addition to the prototype's rules, `.mr-keys` SHALL carry `position: sticky; 
 
 - **WHEN** `src/components/piano-roll/PianoRoll.css` is grepped for `#[0-9a-fA-F]{3,8}\b` AND for `oklch\(`
 - **THEN** the search SHALL return zero matches in both cases
+
+#### Scenario: No badge class rules in PianoRoll.css
+
+- **WHEN** `src/components/piano-roll/PianoRoll.css` is grepped for `mr-marquee__badge`, `mr-marquee__count`, and `mr-marquee__lbl`
+- **THEN** the search SHALL return zero matches for each pattern
 
 #### Scenario: Keys column is sticky-left
 
@@ -206,7 +193,7 @@ This pre-computed shape is consumed by the `inspector` capability so the Inspect
 - Return `lo = 48`, `hi = 76`, `totalT = 16`.
 - Return `playheadT` derived from the `useTransport()` clock as `((timecodeMs / 1000) * (bpm / 60)) % totalT`, so the playhead sweeps proportionally to the fake clock and wraps at the right edge.
 - Branch on URL flags as follows. The flags are mutually exclusive; when both are present, `?demo=marquee` SHALL win:
-  - **`demo=marquee`**: return `marquee = { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }`, omit `selectedIdx` (so it is auto-derived as the empty array; `resolvedSelection` derives from the marquee branch above), and set `selectedChannelId = 1`. The rectangle is tuned so that `notesInMarquee(makeNotes(38, 7), marquee)` returns exactly 7 indexes — matching screenshot 04's `7 SELECTED` count. `resolvedSelection` SHALL therefore have `indexes.length === 7`.
+  - **`demo=marquee`**: return `marquee = { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }`, omit `selectedIdx` (so it is auto-derived as the empty array; `resolvedSelection` derives from the marquee branch above), and set `selectedChannelId = 1`. The rectangle is tuned so that `notesInMarquee(makeNotes(38, 7), marquee)` returns exactly 7 indexes — matching screenshot 04's previously-displayed `7 SELECTED` count. `resolvedSelection` SHALL therefore have `indexes.length === 7`.
   - **`demo=note`**: return `marquee = null`, `selectedIdx = [<idx>]` for a fixed index `<idx>` chosen so that the selected note has a recognisable pitch in the Lead channel's roll (the implementation MAY choose any deterministic index in `[0, makeNotes(38, 7).length)`), and `selectedChannelId = 1`. `resolvedSelection.indexes` SHALL therefore have length exactly 1.
   - **Neither flag**: return `marquee = null`, `selectedIdx = []`, `selectedChannelId = null`. `resolvedSelection` SHALL be `null`.
 
@@ -220,9 +207,9 @@ This pre-computed shape is consumed by the `inspector` capability so the Inspect
 
 - **WHEN** the app is loaded at `/?demo=marquee`
 - **THEN** the rendered DOM SHALL contain exactly one `.mr-marquee` element
-- **AND** the `.mr-marquee__count` SHALL display `7` (the count of notes from `makeNotes(38, 7)` whose `[t, t+dur)` interval overlaps `[3.5, 8.5)` AND whose `pitch` is in `[56, 69]`)
 - **AND** exactly seven `.mr-note` elements SHALL carry `data-sel="true"`
 - **AND** `useStage().resolvedSelection` SHALL be a non-null object with `channelId === 1` and `indexes.length === 7`
+- **AND** the rendered DOM SHALL contain zero `.mr-marquee__badge` elements
 
 #### Scenario: ?demo=note shows a single-note selection
 
@@ -338,3 +325,27 @@ The marker color SHALL be `var(--mr-loop)` — a dedicated loop-marker token int
 - **WHEN** `<PianoRoll loopRegion={null} ... />` or `<PianoRoll ... />` (loopRegion omitted) is rendered
 - **THEN** the rendered DOM SHALL contain zero `.mr-loop-marker` elements
 - **AND** SHALL contain zero `.mr-loop-tint` elements
+
+### Requirement: Marquee renders dashed rect
+
+When the `marquee` prop is non-null, the `PianoRoll` SHALL render a `.mr-marquee` SVG element absolute-positioned to enclose the rectangle from `(min(t0,t1), max(p0,p1))` (top-left in lane coordinates, since pitch grows upward) to `(max(t0,t1), min(p0,p1))`. The SVG SHALL contain a single `.mr-marquee__rect` `<rect>` with a 1px dashed stroke in `var(--mr-accent)`, a translucent fill of `color-mix(in oklab, var(--mr-accent) 10%, transparent)`, and SHALL animate via the `mr-marquee-march` keyframe (0.8s linear infinite) by varying `stroke-dashoffset` (which produces a visible marching-ants effect, unlike the prototype's flat-color `background-position` animation which is invisible).
+
+The rendered DOM SHALL NOT contain any `.mr-marquee__badge`, `.mr-marquee__count`, or `.mr-marquee__lbl` element for any marquee value.
+
+The prototype's four `.mr-marquee__corner` markers are intentionally omitted — they were visually noisy and added no signal beyond what the dashed border already conveys. The prototype's `.mr-marquee__badge` chip is also intentionally omitted; see the `inspector` capability's multi-select panel for the selection-count signal it used to carry.
+
+#### Scenario: Marquee rectangle dimensions match the input
+
+- **WHEN** `<PianoRoll width={1600} height={280} lo={48} hi={76} totalT={16} marquee={{t0:4, t1:8, p0:60, p1:67}} notes={[]} />` is rendered
+- **THEN** the rendered `.mr-marquee`'s computed `left` SHALL be `400px` (`4 * 100`)
+- **AND** its computed `width` SHALL be `400px` (`(8-4) * 100`)
+- **AND** its computed `top` SHALL be `80px` (`height - (max(p0,p1) - lo + 1) * rowH = 280 - 20*10 = 80`)
+- **AND** its computed `height` SHALL be `(max(p0,p1) - min(p0,p1) + 1) * rowH = 80px`
+
+#### Scenario: No badge elements are rendered
+
+- **WHEN** `<PianoRoll marquee={{t0:0, t1:4, p0:60, p1:64}} selectedIdx={[1, 4, 9]} notes={[...]} />` is rendered
+- **THEN** the rendered DOM SHALL contain zero `.mr-marquee__badge` elements
+- **AND** SHALL contain zero `.mr-marquee__count` elements
+- **AND** SHALL contain zero `.mr-marquee__lbl` elements
+
