@@ -17,8 +17,8 @@
   border-right: var(--mr-bw-1) solid var(--mr-line-2);
   position: sticky;
   left: 0;
-  /* Sit above selected notes (z=2), the marquee (z=4), and the marquee badge
-     (z=6) so they don't paint into the keys column when the user scrolls
+  /* Sit above selected notes (z=2), the marquee (z=4), and the playhead (z=5)
+     so they don't paint into the keys column when the user scrolls
      horizontally. */
   z-index: 7;
   flex-shrink: 0;
@@ -100,35 +100,6 @@
   to {
     stroke-dashoffset: -8;
   }
-}
-
-.mr-marquee__badge {
-  position: absolute;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  padding: 3px 7px;
-  background: var(--mr-bg-app);
-  border: 1px solid var(--mr-accent);
-  border-radius: var(--mr-r-1);
-  font-family: var(--mr-font-mono);
-  font-size: 10px;
-  color: var(--mr-accent);
-  z-index: 6;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  white-space: nowrap;
-}
-
-.mr-marquee__count {
-  font-weight: 700;
-  font-size: 11px;
-}
-
-.mr-marquee__lbl {
-  color: var(--mr-text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 9px;
 }
 
 /* Playhead */

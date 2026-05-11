@@ -16,7 +16,7 @@ Every place where the codebase chose differently than `design_handoff_midi_recor
 
 ## 2. Marquee corner markers removed
 
-**What changed**: The four `.mr-marquee__corner` squares (positioned at `tl/tr/bl/br` of the marquee rectangle in the prototype) are no longer rendered. The marquee is just a dashed-stroke rectangle with the `7 SELECTED` badge alongside.
+**What changed**: The four `.mr-marquee__corner` squares (positioned at `tl/tr/bl/br` of the marquee rectangle in the prototype) are no longer rendered. The marquee is just a dashed-stroke rectangle. (The prototype's `.mr-marquee__badge` chip was also removed — see #21.)
 
 **Why**: Design owner request after visual review — the corner squares added clutter without adding signal beyond what the dashed border already conveys. Removing them simplifies the visual.
 
@@ -316,6 +316,28 @@ The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colo
 
 **Status**: deviation — MIDI-only scope; permanent (not a deferral). Awaiting impl-plan and README refresh.
 
+## 21. Marquee selection-count badge removed
+
+**What changed**: The prototype's marquee renders a floating chip (`<div class="mr-marquee__badge">`) to the upper-right of the dashed rectangle, containing a `.mr-marquee__count` with the selection count and a `.mr-marquee__lbl` with the static text `selected` (e.g., `7 selected`). The codebase no longer renders this chip — the marquee is just the SVG dashed rectangle.
+
+**Why**: After Slice 2 review the chip was deemed redundant:
+
+- The per-note orange-red `var(--mr-note-sel)` background + `data-sel="true"` attribute (Slice 4) already encodes "these notes are selected" directly on the affected notes — the user can see the count by glancing at the rectangle.
+- The Inspector's multi-select panel (Slice 5, `inspector` capability) reads `useStage().resolvedSelection.indexes.length` and renders a richer selection summary in the right aside (count + pitch range + velocity + channel), at higher fidelity than the badge ever provided.
+
+The chip also occupied lane space at the top-right of every marquee and was the only renderer element whose only purpose was a JS-side selection count.
+
+**Where**:
+- JSX: `src/components/piano-roll/PianoRoll.tsx` — `marqueeBadge` local + JSX block deleted; only `marqueeEl` remains in the `if (marquee)` branch.
+- CSS: `src/components/piano-roll/PianoRoll.css` — `.mr-marquee__badge`, `.mr-marquee__count`, `.mr-marquee__lbl` rules deleted; the stale "marquee badge (z=6)" comment on `.mr-keys`'s `z-index` was also corrected.
+- Spec: `openspec/specs/piano-roll/spec.md` — requirement renamed from `Marquee renders dashed rect with badge` to `Marquee renders dashed rect`; badge scenarios dropped; two other requirements that referenced the badge in scenarios (`Selection resolution prefers explicit selectedIdx over marquee derivation`, `Stage hosts a single PianoRoll driven by useStage()`) had their assertions retargeted at `data-sel="true"` element counts. The stylesheet inventory requirement (`PianoRoll stylesheet ports prototype rules verbatim`) dropped the three badge classes from its port list.
+
+**Related**: pairs with #2 (corner markers removed) and #3 (marquee animation → SVG) — three independent simplifications of the same marquee component, all converging on "marquee is a dashed rectangle, period". Selection-count signal lives in the Inspector (capability `inspector`), not in the marquee.
+
+**Recommendation**: Back-port to `prototype/components.jsx` and `prototype/app.css` — drop the `mr-marquee__badge` / `mr-marquee__count` / `mr-marquee__lbl` element + rules. The prototype's screenshot 04 still shows the `7 SELECTED` chip; if that screenshot is regenerated, it should match the new rectangle-only marquee. The selection-count signal is preserved in the prototype's own Inspector mockups already (if/when they catch up to Slice 5's multi-select panel).
+
+**Status**: deviation — back-port recommended; pairs with marquee deviations #2 and #3.
+
 ---
 
 ## Summary table
@@ -342,3 +364,4 @@ The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colo
 | 18 | DJ action-track keys row drops the 3px device-color stripe; device color lives only in rendered notes | back-port — pairs with #16 | deviation |
 | 19 | Map Note editor's "Deck" select uses real device labels (`Deck 1`/`FX 1`/etc) instead of the prototype's `A / B / —` placeholders | back-port — prototype values were placeholders | deviation |
 | 20 | Statusbar = live incoming-MIDI cluster; clock source moves to Titlebar `Clk` cell; MIDI IN LED becomes activity-driven; CPU/RAM/sample-rate/buffer-size dropped permanently | back-port — refresh impl plan + README to reflect MIDI-only scope | deviation, MIDI-only |
+| 21 | Marquee `7 SELECTED` badge chip removed (selection-count signal now lives in the Inspector multi-select panel; per-note `data-sel`/`--mr-note-sel` covers in-roll signal) | back-port — drop `.mr-marquee__badge`/`__count`/`__lbl` from prototype; pairs with #2 and #3 | deviation, back-port-recommended |

@@ -104,7 +104,6 @@ export function PianoRoll({
   });
 
   let marqueeEl: JSX.Element | null = null;
-  let marqueeBadge: JSX.Element | null = null;
   if (marquee) {
     const x0 = Math.min(marquee.t0, marquee.t1) * pxPerBeat;
     const x1 = Math.max(marquee.t0, marquee.t1) * pxPerBeat;
@@ -130,12 +129,6 @@ export function PianoRoll({
         />
       </svg>
     );
-    marqueeBadge = (
-      <div className="mr-marquee__badge" style={{ left: x1 + 6, top: yTop }}>
-        <span className="mr-marquee__count">{effectiveSel.length}</span>
-        <span className="mr-marquee__lbl">selected</span>
-      </div>
-    );
   }
 
   return (
@@ -147,7 +140,6 @@ export function PianoRoll({
         {noteEls}
         {marqueeEl}
         <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
-        {marqueeBadge}
       </div>
     </div>
   );
