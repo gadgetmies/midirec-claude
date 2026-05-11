@@ -1,3 +1,10 @@
+# ruler Specification
+
+## Purpose
+Bar/beat ruler strip at the top of the timeline. Renders ticks and bar.beat labels aligned to the piano-roll lanes below, using the same `pxPerBeat` zoom and keys-column offset as the lanes so beat 0 in the ruler lines up with beat 0 in the rolls.
+
+## Requirements
+
 ### Requirement: Ruler renders bar/beat ticks with major/minor differentiation
 
 The codebase SHALL expose a `Ruler` React component at `src/components/ruler/Ruler.tsx`. Given props `{ width, totalT? }`, the component SHALL render a `.mr-ruler` element containing one `.mr-ruler__tick` per integer beat from `0` through `totalT` inclusive, absolute-positioned at `left: i * (width / totalT)`. Beats divisible by 4 SHALL ALSO carry the `mr-ruler__tick--major` class and SHALL be accompanied by a `.mr-ruler__lbl` element rendering the bar.beat label in the format `{bar}.{beat}` (e.g. `1.1`, `2.1`, `3.1`, `4.1` for `totalT=16`).

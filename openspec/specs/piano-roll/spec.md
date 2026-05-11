@@ -1,7 +1,8 @@
 # piano-roll Specification
 
 ## Purpose
-TBD - structural scaffolding added during archive of remove-marquee-badge. Update Purpose after archive.
+The piano-roll component — keys column, lane grid, notes, marquee selection, playhead, loop markers — and the `useStage()` hook that drives a single roll in the stage. Renders a windowed view (`viewT0` + `totalT` beats) into an unbounded session, with notes positioned by the prototype's velocity-color and geometry formulas.
+
 ## Requirements
 ### Requirement: PianoRoll renders keys column, lane grid, notes, and playhead
 

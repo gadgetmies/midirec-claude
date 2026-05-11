@@ -1,3 +1,10 @@
+# session-model Specification
+
+## Purpose
+Conceptual model of a session: an unbounded note stream with optional user-defined loop markers that wrap playback. Session length is derived on demand (`max(n.t + n.dur)`), never stored as state.
+
+## Requirements
+
 ### Requirement: Session is an unbounded note stream
 
 A **session** SHALL be modelled as an unbounded sequence of notes. There SHALL NOT be a session-length field, an end-time field, or any session-scope state that caps the time range. Any `Note` carrying `t >= 0` is a valid session note; the system makes no assumption that `t + dur` is below any threshold.

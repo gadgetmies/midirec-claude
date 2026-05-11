@@ -1,3 +1,10 @@
+# toast Specification
+
+## Purpose
+Transient bottom-center notifications mounted into the app shell. A single `.mr-toast-viewport` hosts the active toast; the viewport is pointer-transparent so the app underneath stays interactive while no toast is showing.
+
+## Requirements
+
 ### Requirement: Toast viewport renders at the bottom-center of the app shell
 
 The app SHALL render a single `.mr-toast-viewport` element absolutely positioned within the `.mr-shell`. The viewport itself SHALL have `pointer-events: none` so the underlying app remains interactive when no toast is present. When a toast is shown, the toast element (`.mr-toast`) SHALL be a child of the viewport and SHALL position itself 16px above the bottom edge, horizontally centered, with `pointer-events: auto`.

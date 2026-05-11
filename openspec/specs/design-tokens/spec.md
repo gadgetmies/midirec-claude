@@ -1,3 +1,10 @@
+# design-tokens Specification
+
+## Purpose
+Single source of truth for visual values — colors, spacing, radii, shadows, type scale — consumed from `src/styles/tokens.css` as a byte-identical copy of the design source's `tokens.css`. Component CSS resolves every visual value through a `--mr-*` custom property, never a hand-typed literal.
+
+## Requirements
+
 ### Requirement: Codebase consumes tokens.css verbatim
 
 The codebase SHALL import `tokens.css` from `design_handoff_midi_recorder/prototype/tokens.css` as a byte-identical copy located at `src/styles/tokens.css`. The codebase MUST NOT introduce hand-typed color, spacing, radius, shadow, or type-scale literals in component CSS — every visual value MUST resolve through a `--mr-*` custom property.
