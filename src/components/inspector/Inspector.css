@@ -202,3 +202,56 @@
 
 /* .mr-btn rules live in src/styles/forms.css (hoisted in export-dialog change).
    The .mr-insp-bulk-grid > .mr-btn override above remains slice-local. */
+
+.mr-insp__edit-action {
+  align-self: flex-start;
+  margin-top: 4px;
+  height: 26px;
+  padding: 0 12px;
+  font-size: var(--mr-fs-10);
+}
+
+.mr-insp__hint {
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  line-height: 1.4;
+  margin: -4px 0 4px;
+}
+
+.mr-insp__field {
+  flex: 1;
+  height: 24px;
+  min-width: 0;
+  font-size: var(--mr-fs-10);
+}
+
+input.mr-insp__field {
+  padding: 0 8px;
+}
+
+.mr-insp__pitch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mr-insp__pitch-label {
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  flex-shrink: 0;
+}
+
+.mr-insp__edit-action-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.mr-insp__edit-action-row .mr-btn {
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--mr-fs-10);
+}

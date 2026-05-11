@@ -3,6 +3,7 @@ import {
   DEFAULT_ACTION_MAP,
   actionMode,
   type ActionMapEntry,
+  type TriggerMode,
 } from './dj';
 
 const make = (over: Partial<ActionMapEntry> = {}): ActionMapEntry => ({
@@ -63,5 +64,27 @@ describe('actionMode', () => {
     /* Synthetic: hotcue category (would match trigger) + pad: true. Velocity
        wins. */
     expect(actionMode(make({ cat: 'hotcue', pad: true }))).toBe('velocity-sensitive');
+  });
+});
+
+describe('trigger field on ActionMapEntry', () => {
+  test('DEFAULT_ACTION_MAP entries omit the trigger field', () => {
+    expect(DEFAULT_ACTION_MAP[48].trigger).toBeUndefined();
+    expect(DEFAULT_ACTION_MAP[56].trigger).toBeUndefined();
+    expect(DEFAULT_ACTION_MAP[71].trigger).toBeUndefined();
+  });
+
+  test('TriggerMode accepts momentary and toggle', () => {
+    const momentary: TriggerMode = 'momentary';
+    const toggle: TriggerMode = 'toggle';
+    expect(momentary).toBe('momentary');
+    expect(toggle).toBe('toggle');
+  });
+
+  test('ActionMapEntry accepts an explicit trigger value', () => {
+    const withMomentary = make({ trigger: 'momentary' });
+    const withToggle = make({ trigger: 'toggle' });
+    expect(withMomentary.trigger).toBe('momentary');
+    expect(withToggle.trigger).toBe('toggle');
   });
 });

@@ -136,6 +136,37 @@
   background: var(--mr-rec-hover);
 }
 
+/* Select — neutral dropdown matching mr-input/mr-btn metrics; chevron drawn
+   via inline SVG background image. Consumer: Map Note editor (Slice 8). */
+.mr-select {
+  appearance: none;
+  background: var(--mr-bg-input);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  color: var(--mr-text-1);
+  height: var(--mr-h-control-md);
+  padding: 0 18px 0 10px;
+  border-radius: var(--mr-r-1);
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  cursor: pointer;
+  min-width: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'><path fill='rgba(255,255,255,.5)' d='M0 0h8L4 5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  transition: border-color var(--mr-dur-fast) var(--mr-ease);
+}
+
+.mr-select:hover {
+  border-color: var(--mr-line-3);
+}
+
+.mr-select:focus,
+.mr-select:focus-visible {
+  outline: 2px solid var(--mr-accent);
+  outline-offset: -1px;
+  border-color: var(--mr-accent);
+}
+
 /* Text input — used by the Export Dialog's filename field. */
 .mr-input {
   appearance: none;

@@ -26,8 +26,19 @@
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-2);
+  cursor: pointer;
+  outline: none;
   /* No left border-stripe — device color survives only in the rendered
      notes inside the lanes. See deviation #18. */
+}
+
+.mr-actkey:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--mr-accent);
+}
+
+.mr-actkey[data-selected="true"] {
+  background: color-mix(in oklab, var(--mr-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mr-accent) 45%, transparent);
 }
 
 .mr-actkey:last-of-type {
@@ -44,15 +55,14 @@
 }
 
 /* M/S chip — hidden at rest, overlays on the right when the row is hovered
-   or focused. Absolute positioning keeps the label's natural width at rest
-   (no reserved space) and lets the chip float on top without reflowing the
-   label. Per-row muted/soloed state is still visible at rest via the label
-   color rules below.
+   OR when either M or S is on for the row. Absolute positioning keeps the
+   label's natural width at rest (no reserved space) and lets the chip float
+   on top without reflowing the label.
 
-   The wrapper carries a solid panel-2 background so the chip occludes the
-   label text underneath when shown — without this the M/S buttons (which
-   are themselves transparent) would visually blend into a long label. A
-   thin left-edge gradient softens the seam between label and chip. */
+   Note: row focus (data-selected / data-editing) does NOT reveal the chip —
+   the row label takes precedence as the "this is your current target" cue,
+   and the chip would otherwise compete for attention when the editor is the
+   focal point. */
 .mr-actkey__chip {
   position: absolute;
   right: 0;
@@ -61,17 +71,22 @@
   display: flex;
   align-items: center;
   padding: 0 2px 0 6px;
-  background: var(--mr-bg-panel-2);
-  /* Soft 4px fade on the left edge so the chip doesn't slam into the label. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--mr-bg-panel-2) 4px);
-          mask-image: linear-gradient(to right, transparent 0, var(--mr-bg-panel-2) 4px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.08s;
 }
 
+/* Each M/S button carries its own panel-2 background (rather than the wrapper)
+   so an "on" button can stay visible at rest without the inactive button
+   occluding the label. The data-on rules in MSChip.css already paint the
+   colored M/S fill on top of this neutral base. */
+.mr-actkey__chip .mr-ms__btn {
+  background: var(--mr-bg-panel-2);
+}
+
 .mr-actkey:hover .mr-actkey__chip,
-.mr-actkey:focus-within .mr-actkey__chip {
+.mr-actkey[data-row-muted="true"] .mr-actkey__chip,
+.mr-actkey[data-row-soloed="true"] .mr-actkey__chip {
   opacity: 1;
   pointer-events: auto;
 }

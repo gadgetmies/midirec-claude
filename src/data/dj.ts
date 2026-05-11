@@ -29,6 +29,8 @@ export type DeviceId =
   | 'mixer'
   | 'global';
 
+export type TriggerMode = 'momentary' | 'toggle';
+
 export interface ActionMapEntry {
   id: string;
   cat: CategoryId;
@@ -37,6 +39,18 @@ export interface ActionMapEntry {
   device: DeviceId;
   pad?: boolean;
   pressure?: boolean;
+  trigger?: TriggerMode;
+}
+
+/* The MIDI emitted on playback when an action fires. Distinct from the
+   input binding in ActionMapEntry (which says "incoming pitch X means this
+   action"). An action may have no output mapping at all (the entry can be
+   absent from `track.outputMap`); the engine then treats the action as a
+   no-emit binding. Channel is 1..16, pitch is 0..127. */
+export interface OutputMapping {
+  device: DeviceId;
+  channel: number;
+  pitch: number;
 }
 
 /* One occurrence of an action on the timeline. Structurally identical to

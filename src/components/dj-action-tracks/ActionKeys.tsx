@@ -11,6 +11,7 @@
 
 import { MSChip } from '../ms-chip/MSChip';
 import type { DJActionTrack } from '../../hooks/useDJActionTracks';
+import { useStage } from '../../hooks/useStage';
 
 interface ActionKeysProps {
   track: DJActionTrack;
@@ -19,6 +20,8 @@ interface ActionKeysProps {
 }
 
 export function ActionKeys({ track, onToggleRowMuted, onToggleRowSoloed }: ActionKeysProps) {
+  const { djActionSelection, setDJActionSelection } = useStage();
+
   /* Descending pitch order so DOM-first = top of the keys column. This
      matches ActionRoll, which places the highest pitch at top via absolute
      positioning. ActionKeys uses flex-column DOM order, so descending sort
@@ -27,19 +30,39 @@ export function ActionKeys({ track, onToggleRowMuted, onToggleRowSoloed }: Actio
     .map(Number)
     .sort((a, b) => b - a);
 
+  const selectRow = (pitch: number) => {
+    setDJActionSelection({ trackId: track.id, pitch });
+  };
+
   return (
     <div className="mr-djtrack__keys">
       {pitches.map((pitch) => {
         const action = track.actionMap[pitch];
         const muted = track.mutedRows.includes(pitch);
         const soloed = track.soloedRows.includes(pitch);
+        const selected =
+          djActionSelection?.trackId === track.id && djActionSelection.pitch === pitch;
         return (
           <div
             key={pitch}
             className="mr-actkey"
             title={action.label}
+            tabIndex={0}
             data-row-muted={muted ? 'true' : undefined}
             data-row-soloed={soloed ? 'true' : undefined}
+            data-selected={selected ? 'true' : undefined}
+            onClick={(e) => {
+              /* M/S chip clicks shouldn't change selection — the chip's own
+                 buttons handle toggle. */
+              if ((e.target as HTMLElement).closest('.mr-actkey__chip')) return;
+              selectRow(pitch);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectRow(pitch);
+              }
+            }}
           >
             <span className="mr-actkey__label">{action.short}</span>
             <div className="mr-actkey__chip">

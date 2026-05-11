@@ -274,6 +274,20 @@ The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colo
 
 **Status**: deviation — visual decision tied to the 56px keys column.
 
+## 19. Map Note editor's "Deck" select uses real device labels instead of the prototype's `A / B / —` placeholders
+
+**What changed**: The prototype's `MapNoteEditor` (`prototype/dj.jsx:253-258`) renders a "Deck" `<select>` with options `A`, `B`, `—` — a placeholder set that doesn't correspond to any field on `ActionMapEntry`. The codebase's `MapNoteEditor` renders a "Device" select populated from `DJ_DEVICES` keys (`Deck 1`, `Deck 2`, `Deck 3`, `Deck 4`, `FX 1`, `FX 2`, `Mixer`, `Global`), bound to `entry.device`.
+
+**Why**: `ActionMapEntry` has a `device: DeviceId` field and no `deck` field. The prototype's `A/B/—` set has no persistence target and can't actually re-route an action between controllers. Surfacing the real device list lets the editor mutate the live data model without inventing a parallel concept. Screenshot 07 happens to show "A" as the deck value, but that's a prototype artifact — the codebase swaps it for the device the action is actually bound to.
+
+**Where**:
+- `src/components/dj-map-editor/MapNoteEditor.tsx` — the Device `<select>` iterates `Object.keys(DJ_DEVICES)` and renders each option's `devLabel(...)`.
+- `openspec/changes/dj-map-editor/specs/dj-map-editor/spec.md` — the spec requires exactly 8 device options matching the `DJ_DEVICES` keys.
+
+**Recommendation**: Back-port the device select to the prototype's `MapNoteEditor` once the device routing UI is finalized. The prototype's `A/B/—` was always a placeholder, not a deliberate design choice.
+
+**Status**: deviation — replaces a prototype placeholder with the real data model.
+
 ---
 
 ## Summary table
@@ -298,3 +312,4 @@ The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colo
 | 16 | DJ action-track keys column is 56px (matches channel-track) instead of 192px | back-port — falls out of the per-track architecture | deviation |
 | 17 | DJ action-track row content is `action.short` (no truncation needed) + hover-revealed compact M/S; per-row M/S available on every track | back-port — pairs with #16 | deviation |
 | 18 | DJ action-track keys row drops the 3px device-color stripe; device color lives only in rendered notes | back-port — pairs with #16 | deviation |
+| 19 | Map Note editor's "Deck" select uses real device labels (`Deck 1`/`FX 1`/etc) instead of the prototype's `A / B / —` placeholders | back-port — prototype values were placeholders | deviation |

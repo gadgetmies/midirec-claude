@@ -1,4 +1,5 @@
 import { Panel } from './Panel';
+import { InputMappingPanel } from './InputMappingPanel';
 import { MicIcon, RouteIcon, FilterIcon } from '../icons/transport';
 import './Sidebar.css';
 
@@ -97,6 +98,8 @@ function RoutingRow({ label, row }: { label: string; row: readonly (0 | 1)[] }) 
 export function Sidebar() {
   return (
     <>
+      <InputMappingPanel />
+
       <Panel icon={<MicIcon />} title="MIDI Inputs" count="2 / 3">
         {INPUTS.map((d) => (
           <DeviceRow key={d.name} device={d} />

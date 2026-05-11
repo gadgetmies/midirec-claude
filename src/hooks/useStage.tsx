@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -25,6 +26,12 @@ import {
   type DJActionTrack,
   type DJTrackId,
 } from './useDJActionTracks';
+import type { ActionMapEntry, OutputMapping } from '../data/dj';
+
+export interface DJActionSelection {
+  trackId: DJTrackId;
+  pitch: number;
+}
 
 export interface ResolvedSelection {
   channelId: ChannelId;
@@ -55,6 +62,12 @@ export interface StageState {
   openExportDialog: () => void;
   closeExportDialog: () => void;
   djActionTracks: DJActionTrack[];
+  djActionSelection: DJActionSelection | null;
+  setDJActionSelection: (target: DJActionSelection | null) => void;
+  setActionEntry: (id: DJTrackId, pitch: number, entry: ActionMapEntry) => void;
+  deleteActionEntry: (id: DJTrackId, pitch: number) => void;
+  setOutputMapping: (id: DJTrackId, pitch: number, mapping: OutputMapping) => void;
+  deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
@@ -85,6 +98,41 @@ function useStageState(): StageState {
   const [dialogOpen, setDialogOpen] = useState(false);
   const openExportDialog = useCallback(() => setDialogOpen(true), []);
   const closeExportDialog = useCallback(() => setDialogOpen(false), []);
+
+  const [djActionSelection, setDJActionSelection] = useState<DJActionSelection | null>(null);
+
+  /* Blur the DJ action-row selection when the user clicks outside the
+     track or the side panels. Surfaces opt in by carrying
+     `data-mr-dj-selection-region="true"` (the sidebar Map Note panel and
+     the inspector Output panel do); the DJ track itself is identified by
+     `.mr-djtrack`. The listener is only active while a selection exists,
+     so the rest of the app pays nothing. */
+  useEffect(() => {
+    if (!djActionSelection) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (target.closest('.mr-djtrack')) return;
+      if (target.closest('[data-mr-dj-selection-region]')) return;
+      setDJActionSelection(null);
+    };
+    window.addEventListener('pointerdown', onDown);
+    return () => window.removeEventListener('pointerdown', onDown);
+  }, [djActionSelection]);
+
+  /* deleteActionEntry from useDJActionTracks prunes the actionMap (and the
+     pitch's outputMap/row state). We additionally clear djActionSelection
+     when it points at the just-deleted pitch so the sidebar/inspector
+     panels don't keep pointing at a now-missing entry. */
+  const deleteActionEntry = useCallback(
+    (id: DJTrackId, pitch: number) => {
+      djTracks.deleteActionEntry(id, pitch);
+      setDJActionSelection((cur) =>
+        cur && cur.trackId === id && cur.pitch === pitch ? null : cur,
+      );
+    },
+    [djTracks],
+  );
 
   const { demoMarquee, demoNote } = useMemo(() => {
     if (typeof window === 'undefined') return { demoMarquee: false, demoNote: false };
@@ -162,6 +210,12 @@ function useStageState(): StageState {
     toggleLaneSoloed: channels.toggleLaneSoloed,
     addParamLane: channels.addParamLane,
     djActionTracks: djTracks.djActionTracks,
+    djActionSelection,
+    setDJActionSelection,
+    setActionEntry: djTracks.setActionEntry,
+    deleteActionEntry,
+    setOutputMapping: djTracks.setOutputMapping,
+    deleteOutputMapping: djTracks.deleteOutputMapping,
     toggleDJTrackCollapsed: djTracks.toggleDJTrackCollapsed,
     toggleDJTrackMuted: djTracks.toggleDJTrackMuted,
     toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,

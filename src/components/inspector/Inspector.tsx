@@ -2,7 +2,24 @@ import { useState } from 'react';
 import { useStage } from '../../hooks/useStage';
 import type { Note } from '../piano-roll/notes';
 import { formatBBT, formatPitch, summarizeSelection } from './summary';
+import {
+  DJ_DEVICES,
+  devColor,
+  devLabel,
+  pitchLabel,
+  type ActionMapEntry,
+  type DeviceId,
+  type OutputMapping,
+} from '../../data/dj';
+import type { DJActionTrack } from '../../hooks/useDJActionTracks';
 import './Inspector.css';
+
+const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
+
+function clampInt(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
 
 type Tab = 'Note' | 'Pressure' | 'Channel';
 
@@ -42,7 +59,24 @@ export function Inspector() {
 }
 
 function NotePanel() {
-  const { resolvedSelection, rolls, channels } = useStage();
+  const { resolvedSelection, rolls, channels, djActionSelection, djActionTracks } = useStage();
+
+  /* DJ action-row selection takes precedence over channel/roll selection.
+     When set, the Inspector renders the Action panel and ignores
+     resolvedSelection. The Action panel handles missing entries (e.g.
+     after a Delete) by rendering an empty body. */
+  if (djActionSelection) {
+    const track = djActionTracks.find((t) => t.id === djActionSelection.trackId);
+    const entry = track?.actionMap[djActionSelection.pitch];
+    if (!track || !entry) return null;
+    return (
+      <ActionPanel
+        track={track}
+        pitch={djActionSelection.pitch}
+        entry={entry}
+      />
+    );
+  }
 
   if (!resolvedSelection || resolvedSelection.indexes.length === 0) {
     return null;
@@ -64,6 +98,114 @@ function NotePanel() {
       indexes={resolvedSelection.indexes}
       channelLabel={channel ? `CH ${channel.id}` : `CH ${resolvedSelection.channelId}`}
     />
+  );
+}
+
+function ActionPanel({
+  track,
+  pitch,
+  entry,
+}: {
+  track: DJActionTrack;
+  pitch: number;
+  entry: ActionMapEntry;
+}) {
+  const { setOutputMapping, deleteOutputMapping } = useStage();
+  const existing = track.outputMap[pitch];
+
+  /* Default the form values from either the existing mapping or sensible
+     defaults derived from the input binding (output device matches input
+     device; output pitch matches input pitch; output channel defaults to 1).
+     The form is auto-save: editing any field commits via setOutputMapping. */
+  const current: OutputMapping = existing ?? {
+    device: entry.device,
+    channel: 1,
+    pitch,
+  };
+
+  const commit = (next: Partial<OutputMapping>) => {
+    setOutputMapping(track.id, pitch, { ...current, ...next });
+  };
+
+  return (
+    <div data-mr-dj-selection-region="true" className="mr-insp__action-panel">
+      <div className="mr-insp__hd">
+        <div
+          className="mr-insp-swatch"
+          style={{ background: devColor(entry.device) }}
+        />
+        <div className="mr-insp__hd-meta">
+          <div className="mr-insp__hd-title">{entry.label}</div>
+          <div className="mr-insp__hd-sub">
+            in {pitchLabel(pitch)} · note {pitch}
+          </div>
+        </div>
+      </div>
+
+      <div className="mr-insp-eyebrow">Output</div>
+      {!existing && (
+        <div className="mr-insp__hint">
+          No output configured. Editing any field below will create the mapping.
+        </div>
+      )}
+
+      <div className="mr-kv">
+        <span className="mr-kv__k">Device</span>
+        <select
+          className="mr-select mr-insp__field"
+          value={current.device}
+          onChange={(e) => commit({ device: e.target.value as DeviceId })}
+        >
+          {DEVICE_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {devLabel(key)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="mr-kv">
+        <span className="mr-kv__k">Channel</span>
+        <input
+          type="number"
+          min={1}
+          max={16}
+          className="mr-input mr-insp__field"
+          value={current.channel}
+          onChange={(e) =>
+            commit({ channel: clampInt(e.target.valueAsNumber, 1, 16, current.channel) })
+          }
+        />
+      </div>
+      <div className="mr-kv">
+        <span className="mr-kv__k">Pitch</span>
+        <div className="mr-insp__pitch-row">
+          <input
+            type="number"
+            min={0}
+            max={127}
+            className="mr-input mr-insp__field"
+            value={current.pitch}
+            onChange={(e) =>
+              commit({ pitch: clampInt(e.target.valueAsNumber, 0, 127, current.pitch) })
+            }
+          />
+          <span className="mr-insp__pitch-label">{pitchLabel(current.pitch)}</span>
+        </div>
+      </div>
+
+      {existing && (
+        <div className="mr-insp__edit-action-row">
+          <button
+            type="button"
+            className="mr-btn"
+            data-danger="true"
+            onClick={() => deleteOutputMapping(track.id, pitch)}
+          >
+            Delete output
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

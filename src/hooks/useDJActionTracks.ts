@@ -13,6 +13,7 @@ import {
   DJ_DEVICES,
   type ActionEvent,
   type ActionMapEntry,
+  type OutputMapping,
 } from '../data/dj';
 import type { ChannelId } from './useChannels';
 
@@ -30,6 +31,11 @@ export interface DJActionTrack {
   name: string;
   color: string;
   actionMap: Record<number, ActionMapEntry>;
+  /* Per-pitch output mapping. Keyed by the input pitch (i.e. the same key
+     that drives actionMap). Entries are optional — a pitch may have an
+     actionMap entry but no outputMap entry yet (the action is configured
+     but not yet wired to an outgoing MIDI message). */
+  outputMap: Record<number, OutputMapping>;
   events: ActionEvent[];
   inputRouting: DJTrackRouting;
   outputRouting: DJTrackRouting;
@@ -47,6 +53,10 @@ export interface UseDJActionTracksReturn {
   toggleDJTrackSoloed: (id: DJTrackId) => void;
   toggleDJTrackRowMuted: (id: DJTrackId, pitch: number) => void;
   toggleDJTrackRowSoloed: (id: DJTrackId, pitch: number) => void;
+  setActionEntry: (id: DJTrackId, pitch: number, entry: ActionMapEntry) => void;
+  deleteActionEntry: (id: DJTrackId, pitch: number) => void;
+  setOutputMapping: (id: DJTrackId, pitch: number, mapping: OutputMapping) => void;
+  deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
 }
 
 /* The track's `actionMap` is the set of actions CONFIGURED on this track —
@@ -106,6 +116,7 @@ function seedDefault(): DJActionTrack[] {
       name: 'DJ',
       color: DJ_DEVICES.global.color,
       actionMap: seededActionMap,
+      outputMap: {},
       events: SEEDED_EVENTS,
       inputRouting: { channels: [] },
       outputRouting: { channels: [] },
@@ -169,6 +180,28 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     [flipRow],
   );
 
+  const setActionEntry = useCallback(
+    (id: DJTrackId, pitch: number, entry: ActionMapEntry) => {
+      setDJActionTracks((prev) => applySetActionEntry(prev, id, pitch, entry));
+    },
+    [],
+  );
+
+  const deleteActionEntry = useCallback((id: DJTrackId, pitch: number) => {
+    setDJActionTracks((prev) => applyDeleteActionEntry(prev, id, pitch));
+  }, []);
+
+  const setOutputMapping = useCallback(
+    (id: DJTrackId, pitch: number, mapping: OutputMapping) => {
+      setDJActionTracks((prev) => applySetOutputMapping(prev, id, pitch, mapping));
+    },
+    [],
+  );
+
+  const deleteOutputMapping = useCallback((id: DJTrackId, pitch: number) => {
+    setDJActionTracks((prev) => applyDeleteOutputMapping(prev, id, pitch));
+  }, []);
+
   return {
     djActionTracks,
     toggleDJTrackCollapsed,
@@ -176,7 +209,104 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     toggleDJTrackSoloed,
     toggleDJTrackRowMuted,
     toggleDJTrackRowSoloed,
+    setActionEntry,
+    deleteActionEntry,
+    setOutputMapping,
+    deleteOutputMapping,
   };
+}
+
+/* Pure: replace or insert `entry` at `pitch` on the track with the given
+   id. Returns the same array reference if the id is unknown so callers can
+   rely on `===` for change detection. */
+export function applySetActionEntry(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  entry: ActionMapEntry,
+): DJActionTrack[] {
+  const idx = tracks.findIndex((t) => t.id === id);
+  if (idx < 0) return tracks;
+  const track = tracks[idx];
+  const nextActionMap = { ...track.actionMap, [pitch]: entry };
+  const next = tracks.slice();
+  next[idx] = { ...track, actionMap: nextActionMap };
+  return next;
+}
+
+/* Pure: remove the pitch key from the named track's actionMap AND prune
+   it from mutedRows/soloedRows + outputMap if present. No-op (returns the
+   input reference) for unknown ids or already-absent pitches. */
+export function applyDeleteActionEntry(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+): DJActionTrack[] {
+  const idx = tracks.findIndex((t) => t.id === id);
+  if (idx < 0) return tracks;
+  const track = tracks[idx];
+  if (!Object.prototype.hasOwnProperty.call(track.actionMap, pitch)) return tracks;
+  const nextActionMap = { ...track.actionMap };
+  delete nextActionMap[pitch];
+  const nextOutputMap = Object.prototype.hasOwnProperty.call(track.outputMap, pitch)
+    ? (() => {
+        const m = { ...track.outputMap };
+        delete m[pitch];
+        return m;
+      })()
+    : track.outputMap;
+  const nextMutedRows = track.mutedRows.includes(pitch)
+    ? track.mutedRows.filter((p) => p !== pitch)
+    : track.mutedRows;
+  const nextSoloedRows = track.soloedRows.includes(pitch)
+    ? track.soloedRows.filter((p) => p !== pitch)
+    : track.soloedRows;
+  const next = tracks.slice();
+  next[idx] = {
+    ...track,
+    actionMap: nextActionMap,
+    outputMap: nextOutputMap,
+    mutedRows: nextMutedRows,
+    soloedRows: nextSoloedRows,
+  };
+  return next;
+}
+
+/* Pure: write `mapping` to the named track's outputMap[pitch]. Returns
+   the input reference for unknown ids. The pitch MAY be absent from
+   actionMap (output without an input binding is a valid state, e.g.
+   when the user pre-configures output before adding the action). */
+export function applySetOutputMapping(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  mapping: OutputMapping,
+): DJActionTrack[] {
+  const idx = tracks.findIndex((t) => t.id === id);
+  if (idx < 0) return tracks;
+  const track = tracks[idx];
+  const nextOutputMap = { ...track.outputMap, [pitch]: mapping };
+  const next = tracks.slice();
+  next[idx] = { ...track, outputMap: nextOutputMap };
+  return next;
+}
+
+/* Pure: remove the pitch key from the named track's outputMap. Returns
+   the input reference for unknown ids or already-absent pitches. */
+export function applyDeleteOutputMapping(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+): DJActionTrack[] {
+  const idx = tracks.findIndex((t) => t.id === id);
+  if (idx < 0) return tracks;
+  const track = tracks[idx];
+  if (!Object.prototype.hasOwnProperty.call(track.outputMap, pitch)) return tracks;
+  const nextOutputMap = { ...track.outputMap };
+  delete nextOutputMap[pitch];
+  const next = tracks.slice();
+  next[idx] = { ...track, outputMap: nextOutputMap };
+  return next;
 }
 
 /* True iff any dj-action-track has the track-level solo OR any per-row
