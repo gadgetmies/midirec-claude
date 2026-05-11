@@ -3,13 +3,15 @@
    NOT a MIDI capture or playback surface. See design/real-time-correctness.md:
    capture/playback timing belongs to the audio engine (Slice 10), not to React
    state. This hook only holds the track's user-configured shape — name, color,
-   action map, routing, M/S flags. Per-message MIDI events SHALL NOT flow
-   through `setState` here. */
+   action map, routing, M/S flags, per-row M/S, plus a synthetic events array
+   for visual demo. Per-message MIDI events SHALL NOT flow through `setState`
+   here. */
 
 import { useCallback, useMemo, useState } from 'react';
 import {
   DEFAULT_ACTION_MAP,
   DJ_DEVICES,
+  type ActionEvent,
   type ActionMapEntry,
 } from '../data/dj';
 import type { ChannelId } from './useChannels';
@@ -28,11 +30,14 @@ export interface DJActionTrack {
   name: string;
   color: string;
   actionMap: Record<number, ActionMapEntry>;
+  events: ActionEvent[];
   inputRouting: DJTrackRouting;
   outputRouting: DJTrackRouting;
   collapsed: boolean;
   muted: boolean;
   soloed: boolean;
+  mutedRows: number[];
+  soloedRows: number[];
 }
 
 export interface UseDJActionTracksReturn {
@@ -40,6 +45,8 @@ export interface UseDJActionTracksReturn {
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
   toggleDJTrackSoloed: (id: DJTrackId) => void;
+  toggleDJTrackRowMuted: (id: DJTrackId, pitch: number) => void;
+  toggleDJTrackRowSoloed: (id: DJTrackId, pitch: number) => void;
 }
 
 /* The track's `actionMap` is the set of actions CONFIGURED on this track —
@@ -47,14 +54,49 @@ export interface UseDJActionTracksReturn {
    src/data/dj.ts) is the picker source for the future routing UI; users
    add entries from there into a track's actionMap.
 
-   Default seed: 4 actions spanning 3 devices (Deck 1 transport + Hot Cue 1,
-   FX 1, Mixer) to give Slice 7b's per-action rendering a small but visually
-   diverse target. Empty by default would be valid too; the small seed exists
-   for demo purposes only. */
+   Default seed: 6 actions spanning 3 devices, chosen to exercise all three
+   render modes plus the fallback. The keys column shows each action's
+   `short` (PLAY, CUE, HC1, HC2, ON, X◀) — never `label` — so the row
+   identity fits in the 56px keys width without truncation. The full
+   `label` appears as a browser tooltip via `title`.
+   - 48 Play / Pause (PLAY) → trigger (transport, no pad, no pressure)
+   - 49 Cue          (CUE)  → trigger (cue, no pad, no pressure)
+   - 56 Hot Cue 1    (HC1)  → pressure-bearing (pressure: true)
+   - 57 Hot Cue 2    (HC2)  → velocity-sensitive (pad: true, no pressure)
+   - 60 FX 1 On      (ON)   → fallback (fx, no pad, no pressure)
+   - 71 Crossfade ◀  (X◀)  → fallback (mixer, no pad, no pressure)
+
+   Synthetic events are deterministic, scoped to musical bars 1–4, and
+   density-tuned to make the rendering modes visible without crowding. The
+   audio engine (Slice 10) does not consume this field; routing-derived
+   events from channel-track notes will replace it in a later slice. */
+const SEEDED_PITCHES = [48, 49, 56, 57, 60, 71];
+
+const SEEDED_EVENTS: ActionEvent[] = [
+  // 48 Play / Pause — trigger blips at bar 1 and bar 3.
+  { pitch: 48, t: 0.0, dur: 0.1, vel: 1.0 },
+  { pitch: 48, t: 8.0, dur: 0.1, vel: 1.0 },
+  // 49 Cue — trigger hits before each Play.
+  { pitch: 49, t: 7.5, dur: 0.1, vel: 0.9 },
+  { pitch: 49, t: 11.5, dur: 0.1, vel: 0.9 },
+  // 56 Hot Cue 1 (HC1) — pressure-bearing, two longer events with rich curves.
+  { pitch: 56, t: 1.5, dur: 1.5, vel: 0.85 },
+  { pitch: 56, t: 5.0, dur: 2.0, vel: 0.7 },
+  // 57 Hot Cue 2 (HC2) — velocity-sensitive pad, four hits with varied velocity.
+  { pitch: 57, t: 2.0, dur: 0.4, vel: 0.55 },
+  { pitch: 57, t: 4.5, dur: 0.4, vel: 0.85 },
+  { pitch: 57, t: 7.0, dur: 0.4, vel: 0.7 },
+  { pitch: 57, t: 10.5, dur: 0.4, vel: 0.95 },
+  // 60 FX 1 On (ON) — fallback bars showing on/off states.
+  { pitch: 60, t: 3.0, dur: 1.5, vel: 0.8 },
+  { pitch: 60, t: 9.0, dur: 2.0, vel: 0.8 },
+  // 71 Crossfade ◀ (X◀) — fallback, longer fade-style bar.
+  { pitch: 71, t: 6.0, dur: 3.0, vel: 0.8 },
+];
+
 function seedDefault(): DJActionTrack[] {
-  const seededPitches = [48, 56, 60, 71];
   const seededActionMap: Record<number, ActionMapEntry> = {};
-  for (const p of seededPitches) {
+  for (const p of SEEDED_PITCHES) {
     const entry = DEFAULT_ACTION_MAP[p];
     if (entry) seededActionMap[p] = entry;
   }
@@ -64,11 +106,14 @@ function seedDefault(): DJActionTrack[] {
       name: 'DJ',
       color: DJ_DEVICES.global.color,
       actionMap: seededActionMap,
+      events: SEEDED_EVENTS,
       inputRouting: { channels: [] },
       outputRouting: { channels: [] },
       collapsed: false,
       muted: false,
       soloed: false,
+      mutedRows: [],
+      soloedRows: [],
     },
   ];
 }
@@ -90,25 +135,82 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     [],
   );
 
+  /* Per-row toggle: flip the pitch's membership in `field` (mutedRows or
+     soloedRows). No-op if the trackId is unknown OR the pitch is not a key
+     in that track's actionMap. The no-op preserves referential identity
+     so callers can rely on `===` checks across renders. */
+  const flipRow = useCallback(
+    (id: DJTrackId, field: 'mutedRows' | 'soloedRows', pitch: number) => {
+      setDJActionTracks((prev) => {
+        const idx = prev.findIndex((t) => t.id === id);
+        if (idx < 0) return prev;
+        const track = prev[idx];
+        if (!Object.prototype.hasOwnProperty.call(track.actionMap, pitch)) return prev;
+        const current = track[field];
+        const has = current.includes(pitch);
+        const updated = has ? current.filter((p) => p !== pitch) : [...current, pitch];
+        const next = prev.slice();
+        next[idx] = { ...track, [field]: updated };
+        return next;
+      });
+    },
+    [],
+  );
+
   const toggleDJTrackCollapsed = useCallback((id: DJTrackId) => flip(id, 'collapsed'), [flip]);
   const toggleDJTrackMuted = useCallback((id: DJTrackId) => flip(id, 'muted'), [flip]);
   const toggleDJTrackSoloed = useCallback((id: DJTrackId) => flip(id, 'soloed'), [flip]);
+  const toggleDJTrackRowMuted = useCallback(
+    (id: DJTrackId, pitch: number) => flipRow(id, 'mutedRows', pitch),
+    [flipRow],
+  );
+  const toggleDJTrackRowSoloed = useCallback(
+    (id: DJTrackId, pitch: number) => flipRow(id, 'soloedRows', pitch),
+    [flipRow],
+  );
 
   return {
     djActionTracks,
     toggleDJTrackCollapsed,
     toggleDJTrackMuted,
     toggleDJTrackSoloed,
+    toggleDJTrackRowMuted,
+    toggleDJTrackRowSoloed,
   };
 }
 
-/** True iff any dj-action-track is soloed. */
+/* True iff any dj-action-track has the track-level solo OR any per-row
+   solo set. Both contribute to the session-wide `soloing` flag — see
+   design/real-time-correctness.md is unaffected (this is config state). */
 export function anyDJTrackSoloed(djActionTracks: DJActionTrack[]): boolean {
-  return djActionTracks.some((t) => t.soloed);
+  return djActionTracks.some((t) => t.soloed || t.soloedRows.length > 0);
 }
 
-/** True iff (track.soloed) OR (no solo anywhere across channels/dj-tracks). */
+/* Track-level audibility — used by AppShell to set `data-audible` on the
+   dj-action-track wrapper. Returns true iff there's no session-wide solo,
+   OR this track contributes to the solo (track-level OR a row inside it). */
 export function isDJTrackAudible(track: DJActionTrack, anySoloed: boolean): boolean {
   if (!anySoloed) return true;
-  return track.soloed;
+  return track.soloed || track.soloedRows.length > 0;
+}
+
+/* Row-level audibility — used by ActionRoll to set `data-audible` on each
+   `.mr-djtrack__lane`. Predicate from openspec/changes/dj-action-body/specs.
+
+   Cases (assuming the row is not muted):
+   - No session-wide solo: audible.
+   - Row is soloed: audible.
+   - Track is soloed AND no rows in this track are soloed: audible (the
+     track's solo bubbles down to all its rows).
+   - Otherwise: silent. */
+export function isDJRowAudible(
+  track: DJActionTrack,
+  pitch: number,
+  soloing: boolean,
+): boolean {
+  if (track.mutedRows.includes(pitch)) return false;
+  if (!soloing) return true;
+  if (track.soloedRows.includes(pitch)) return true;
+  if (track.soloed && track.soloedRows.length === 0) return true;
+  return false;
 }

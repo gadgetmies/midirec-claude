@@ -42,3 +42,18 @@
   border-color: var(--mr-solo);
   box-shadow: 0 0 5px color-mix(in oklab, var(--mr-solo) 40%, transparent);
 }
+
+/* xs size — for the 56px-wide ActionKeys row in dj-action-tracks. The 5-char
+   truncated action label takes most of the row's width, so the chip has to
+   be small. ~10x10px buttons, ~22px combined; no border-radius rounding hit. */
+.mr-ms[data-size="xs"] {
+  gap: 1px;
+}
+
+.mr-ms[data-size="xs"] .mr-ms__btn {
+  width: 10px;
+  height: 10px;
+  font-size: 7px;
+  letter-spacing: 0;
+  border-radius: 1px;
+}

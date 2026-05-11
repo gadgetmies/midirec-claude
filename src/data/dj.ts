@@ -39,6 +39,34 @@ export interface ActionMapEntry {
   pressure?: boolean;
 }
 
+/* One occurrence of an action on the timeline. Structurally identical to
+   `Note` from src/components/piano-roll/notes.ts — kept as a separate type
+   so the routing-derivation slice can diverge them later if needed. */
+export interface ActionEvent {
+  pitch: number;
+  t: number;
+  dur: number;
+  vel: number;
+}
+
+/* Render mode dispatched from an action's flags. Precedence (highest first):
+   pressure-bearing > velocity-sensitive > trigger > fallback.
+   - trigger: `cat ∈ {transport, cue, hotcue}` and not pressure-bearing.
+   - velocity-sensitive: `pad === true` and not pressure-bearing.
+   - pressure-bearing: `pressure === true`.
+   - fallback: anything else (e.g. mixer/loop without pad/pressure). */
+export type ActionMode = 'trigger' | 'velocity-sensitive' | 'pressure-bearing' | 'fallback';
+
+export function actionMode(action: ActionMapEntry): ActionMode {
+  if (action.pressure === true) return 'pressure-bearing';
+  if (action.pad === true) return 'velocity-sensitive';
+  if (action.cat === 'transport' || action.cat === 'cue' || action.cat === 'hotcue') {
+    return 'trigger';
+  }
+  return 'fallback';
+}
+
+
 /* Action categories — used for grouping/labeling only. */
 export const DJ_CATEGORIES: Record<CategoryId, { label: string }> = {
   transport: { label: 'Transport' },

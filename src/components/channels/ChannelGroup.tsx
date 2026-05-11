@@ -22,7 +22,8 @@ interface ChannelGroupProps {
   channel: Channel;
   roll: PianoRollTrack | undefined;
   lanes: ParamLaneType[];
-  state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLaneType[] };
+  channels: Channel[];
+  soloing: boolean;
   viewProps: TrackViewProps;
   isSelected: boolean;
   marquee: Marquee | null;
@@ -44,7 +45,8 @@ export function ChannelGroup({
   channel,
   roll,
   lanes,
-  state,
+  channels,
+  soloing,
   viewProps,
   isSelected,
   marquee,
@@ -66,7 +68,7 @@ export function ChannelGroup({
     onToggleChannelCollapsed();
   };
 
-  const channelAudible = isChannelAudible(channel, state);
+  const channelAudible = isChannelAudible(channel, soloing);
 
   return (
     <div
@@ -110,7 +112,7 @@ export function ChannelGroup({
               isSelected={isSelected}
               marquee={marquee}
               selectedIdx={selectedIdx}
-              audible={isRollAudible(roll, state)}
+              audible={isRollAudible(roll, channels, soloing)}
               onToggleCollapsed={onToggleRollCollapsed}
               onToggleMuted={onToggleRollMuted}
               onToggleSoloed={onToggleRollSoloed}
@@ -123,7 +125,7 @@ export function ChannelGroup({
               totalT={totalT}
               pxPerBeat={viewProps.pxPerBeat}
               playheadT={viewProps.playheadT}
-              audible={isLaneAudible(lane, state)}
+              audible={isLaneAudible(lane, channels, soloing)}
               onToggleCollapsed={() => onToggleLaneCollapsed(lane.kind, lane.cc)}
               onToggleMuted={() => onToggleLaneMuted(lane.kind, lane.cc)}
               onToggleSoloed={() => onToggleLaneSoloed(lane.kind, lane.cc)}

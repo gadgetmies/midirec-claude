@@ -68,6 +68,8 @@ export interface StageState {
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
   toggleDJTrackSoloed: (id: DJTrackId) => void;
+  toggleDJTrackRowMuted: (id: DJTrackId, pitch: number) => void;
+  toggleDJTrackRowSoloed: (id: DJTrackId, pitch: number) => void;
 }
 
 const TOTAL_T = 16;
@@ -163,6 +165,8 @@ function useStageState(): StageState {
     toggleDJTrackCollapsed: djTracks.toggleDJTrackCollapsed,
     toggleDJTrackMuted: djTracks.toggleDJTrackMuted,
     toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,
+    toggleDJTrackRowMuted: djTracks.toggleDJTrackRowMuted,
+    toggleDJTrackRowSoloed: djTracks.toggleDJTrackRowSoloed,
   };
 }
 

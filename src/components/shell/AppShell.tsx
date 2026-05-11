@@ -10,6 +10,10 @@ import { Toolstrip } from '../toolstrip/Toolstrip';
 import { ExportDialog } from '../dialog/ExportDialog';
 import { isDJTrackAudible } from '../../hooks/useDJActionTracks';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
+
+/* Dj-action-track row height in pixels — must match the `--mr-h-row` token
+   used by ActionKeys.css so the keys column and the lane area line up. */
+const DJ_ROW_HEIGHT = 22;
 import './AppShell.css';
 
 export function AppShell() {
@@ -21,8 +25,6 @@ export function AppShell() {
     totalT: stage.totalT,
     playheadT: stage.playheadT,
   };
-
-  const state = { channels: stage.channels, rolls: stage.rolls, lanes: stage.lanes };
 
   return (
     <div className="mr-shell">
@@ -53,7 +55,8 @@ export function AppShell() {
                     channel={channel}
                     roll={roll}
                     lanes={channelLanes}
-                    state={state}
+                    channels={stage.channels}
+                    soloing={stage.soloing}
                     viewProps={viewProps}
                     isSelected={isSelected}
                     marquee={isSelected ? stage.marquee : null}
@@ -77,9 +80,15 @@ export function AppShell() {
                   key={track.id}
                   track={track}
                   audible={isDJTrackAudible(track, stage.soloing)}
+                  soloing={stage.soloing}
+                  totalT={stage.totalT}
+                  pxPerBeat={DEFAULT_PX_PER_BEAT}
+                  rowHeight={DJ_ROW_HEIGHT}
                   onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
                   onToggleMuted={() => stage.toggleDJTrackMuted(track.id)}
                   onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}
+                  onToggleRowMuted={(pitch) => stage.toggleDJTrackRowMuted(track.id, pitch)}
+                  onToggleRowSoloed={(pitch) => stage.toggleDJTrackRowSoloed(track.id, pitch)}
                 />
               ))}
             </div>

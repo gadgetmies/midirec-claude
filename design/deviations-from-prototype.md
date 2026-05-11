@@ -226,6 +226,54 @@ The prototype's six-unit mock exists to compose screenshot 06's specific look �
 
 **Status**: deviation — intentional default-state difference, not a back-port target.
 
+## 16. DJ action-track keys column is 56px (matches channel-track), not 192px
+
+**What changed**: The DJ action-track's keys column (`<ActionKeys>` rendering `.mr-djtrack__keys`) is **56px wide** — identical to the channel-track's piano-keys column (`KEYS_COLUMN_WIDTH` from `src/components/piano-roll/PianoRoll.tsx`). The prototype's `ActionKeys` and `ActionRollUnit` use **192px**.
+
+**Why**: Channel-tracks and dj-action-tracks coexist inside the same `.mr-timeline__inner` container with a shared horizontal scroll axis. Beat 0 must land at the same x-coordinate in both kinds; otherwise the ruler ticks above won't line up with note positions in either. Aligning the keys-column width is the cheapest way to guarantee that. The prototype's 192px assumed a single-mode global view (`lanesMode: 'piano' | 'actions'`) — an architecture we already abandoned in deviation #14.
+
+**Where**:
+- `src/components/dj-action-tracks/ActionKeys.tsx` — uses the shared `KEYS_COLUMN_WIDTH = 56` value (literal in CSS for now; could be hoisted as a CSS variable later).
+- `src/components/dj-action-tracks/ActionKeys.css` — `.mr-djtrack__keys { width: 56px }`.
+
+**Recommendation**: Back-port to the prototype's `ActionKeys` / `ActionRollUnit` once the lanesMode toggle is dropped (per deviation #14). The 192px assumption goes away with the global toggle.
+
+**Status**: deviation — falls out of the per-track architecture in deviation #14.
+
+## 17. DJ action-track row content is `action.short` + hover-reveal compact M/S
+
+**What changed**: Each `.mr-actkey` row in the DJ action-track keys column shows **only**:
+- The action's `short` code (PLAY, CUE, HC1, HC2, ON, X◀, etc.) — the 2–4-character compact identifier that fits the 56px row without truncation. The full `action.label` (e.g. "Hot Cue 1", "Crossfade ◀") is surfaced via the row's `title` attribute as a browser tooltip.
+- A compact M/S chip (`MSChip` size="xs", ~22px combined width) wired to per-row mute/solo. The chip is **hidden at rest** (`opacity: 0; pointer-events: none`) and **revealed on hover or keyboard focus-within** (`.mr-actkey:hover .mr-actkey__chip { opacity: 1 }`), overlaying the right side of the row via absolute positioning. Per-row muted/soloed state stays visible at rest via label color/opacity styling (dim text for muted, accent color for soloed) — hover only reveals the controls, not the state.
+
+The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colored short code (PLAY, HC1, …), the full label, and the row's note name (C3, F#3, …); per-row M/S only appears on Deck 1 (`perRowMS={true}`).
+
+**Why**: At 56px (deviation #16), the prototype's three-group layout doesn't fit. Two earlier iterations were considered and rejected: (a) showing `action.label` truncated to 5 chars with a JS-added ellipsis — but the truncation lost informative chars without buying meaningful clarity over the prototype's existing `short` code; (b) showing the M/S chip always-visible alongside the label — but its presence ate into the row's identity width and made the resting state feel busy. Settling on `action.short` gives row identity at-a-glance without any truncation, frees the entire row width to be all-identity-no-controls at rest, and surfaces the full long-form label via the existing `title` tooltip. Hover-reveal for M/S preserves discoverability (the buttons appear when needed) while keeping the resting state uncluttered. Per-row M/S is available on every dj-action-track, not just Deck 1 — the prototype's Deck-only flag was a special case for screenshot density, not a workflow distinction.
+
+**Where**:
+- `src/components/dj-action-tracks/ActionKeys.tsx` — renders `<span>{action.short}</span>` per row + an absolute-positioned `<div className="mr-actkey__chip">` wrapping the xs-size MSChip.
+- `src/components/dj-action-tracks/ActionKeys.css` — `.mr-actkey__label` carries CSS `text-overflow: ellipsis` as a defensive fallback (no visible truncation for the seeded 2–4-char codes); `.mr-actkey__chip` is `opacity: 0; pointer-events: none` at rest and `opacity: 1; pointer-events: auto` under `:hover` / `:focus-within`.
+- `src/components/ms-chip/MSChip.tsx` + `MSChip.css` — `size="xs"` variant for the row chip.
+
+**Recommendation**: Back-port to the prototype's `ActionKeys` once the keys column shrinks to 56px (per deviation #16). The full label and the row's note name remain useful elsewhere (Inspector "Action" tab, ActionMapPanel) but don't belong in the per-row keys.
+
+**Status**: deviation — falls out of the keys-column width change in #16.
+
+## 18. DJ action-track keys row drops the 3px device-color stripe
+
+**What changed**: `.mr-actkey` rows do **not** carry a `border-left: 3px solid devColor(action.device)` stripe. The prototype's `ActionKeys` and `ActionRollUnit` render this stripe as the device-color anchor for each row.
+
+**Why**: Two reasons. First, at 56px wide (deviation #16), every pixel is dear; a 3px stripe consumes ~5% of the row's content width before the truncated label even starts. Second, device color survives in the **rendered notes** themselves (each note's background is `color-mix(in oklab, devColor(action.device) ..., transparent)`) — so device identity is still legible when the user scans a row's events. Dropping the stripe doesn't lose the signal, just relocates it from a static label to the dynamic content that's already there.
+
+**Where**:
+- `src/components/dj-action-tracks/ActionKeys.tsx` — no inline border-left style; comment marks the deviation.
+- `src/components/dj-action-tracks/ActionKeys.css` — `.mr-actkey` carries no `border-left` rule.
+- `src/components/dj-action-tracks/ActionRoll.tsx` — note backgrounds set inline using `devColor(action.device)`, preserving device identity in events.
+
+**Recommendation**: Back-port to the prototype's `ActionKeys` only after deviations #16 and #17 (the stripe makes more sense in a 192px row with a richer keys layout; in a 56px row it's just clutter).
+
+**Status**: deviation — visual decision tied to the 56px keys column.
+
 ---
 
 ## Summary table
@@ -247,3 +295,6 @@ The prototype's six-unit mock exists to compose screenshot 06's specific look �
 | 13 | Export Dialog adds Range + Tracks rows, widens to 480px, classifies format cards | back-port — refresh prototype dialog to match | deviation |
 | 14 | DJ mode is a per-track kind, not a global `lanesMode` toggle | back-port — drop the lanesMode toggle, model dj-action-tracks per-track | deviation, architectural |
 | 15 | Default seeded session has one "DJ" dj-action-track (empty routing) instead of the prototype's six per-device units | no back-port — intentional default-state difference | deviation |
+| 16 | DJ action-track keys column is 56px (matches channel-track) instead of 192px | back-port — falls out of the per-track architecture | deviation |
+| 17 | DJ action-track row content is `action.short` (no truncation needed) + hover-revealed compact M/S; per-row M/S available on every track | back-port — pairs with #16 | deviation |
+| 18 | DJ action-track keys row drops the 3px device-color stripe; device color lives only in rendered notes | back-port — pairs with #16 | deviation |

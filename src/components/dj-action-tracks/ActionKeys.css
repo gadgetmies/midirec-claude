@@ -1,0 +1,86 @@
+/* Sticky-left keys column for the dj-action-track body — 56px wide so the
+   time origin at x=KEYS_COLUMN_WIDTH lines up with the channel-track
+   piano-roll. Each row shows the action label (CSS truncates with
+   ellipsis only when the label overflows pixel-wise) plus a compact M/S
+   chip that's hidden at rest and overlays on hover/focus-within. */
+
+.mr-djtrack__keys {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--mr-bg-panel-2);
+  border-right: var(--mr-bw-1) solid var(--mr-line-2);
+}
+
+.mr-actkey {
+  position: relative;
+  height: var(--mr-h-row);
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  border-bottom: var(--mr-bw-1) solid color-mix(in oklab, var(--mr-line-2) 35%, transparent);
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  color: var(--mr-text-2);
+  /* No left border-stripe — device color survives only in the rendered
+     notes inside the lanes. See deviation #18. */
+}
+
+.mr-actkey:last-of-type {
+  border-bottom: 0;
+}
+
+.mr-actkey__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+/* M/S chip — hidden at rest, overlays on the right when the row is hovered
+   or focused. Absolute positioning keeps the label's natural width at rest
+   (no reserved space) and lets the chip float on top without reflowing the
+   label. Per-row muted/soloed state is still visible at rest via the label
+   color rules below.
+
+   The wrapper carries a solid panel-2 background so the chip occludes the
+   label text underneath when shown — without this the M/S buttons (which
+   are themselves transparent) would visually blend into a long label. A
+   thin left-edge gradient softens the seam between label and chip. */
+.mr-actkey__chip {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 2px 0 6px;
+  background: var(--mr-bg-panel-2);
+  /* Soft 4px fade on the left edge so the chip doesn't slam into the label. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--mr-bg-panel-2) 4px);
+          mask-image: linear-gradient(to right, transparent 0, var(--mr-bg-panel-2) 4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.08s;
+}
+
+.mr-actkey:hover .mr-actkey__chip,
+.mr-actkey:focus-within .mr-actkey__chip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mr-actkey[data-row-muted="true"] .mr-actkey__label {
+  color: var(--mr-text-3);
+  opacity: 0.55;
+}
+
+.mr-actkey[data-row-soloed="true"] .mr-actkey__label {
+  color: var(--mr-solo);
+}

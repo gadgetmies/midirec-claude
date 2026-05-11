@@ -1,28 +1,41 @@
 import { type MouseEvent } from 'react';
 import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
+import { ActionKeys } from './ActionKeys';
+import { ActionRoll } from './ActionRoll';
 import type { DJActionTrack as DJActionTrackData } from '../../hooks/useDJActionTracks';
 import './DJActionTrack.css';
+import './ActionKeys.css';
+import './ActionRoll.css';
 
 interface DJActionTrackProps {
   track: DJActionTrackData;
   audible: boolean;
+  soloing: boolean;
+  totalT: number;
+  pxPerBeat: number;
+  rowHeight: number;
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
+  onToggleRowMuted: (pitch: number) => void;
+  onToggleRowSoloed: (pitch: number) => void;
 }
 
 export function DJActionTrack({
   track,
   audible,
+  soloing,
+  totalT,
+  pxPerBeat,
+  rowHeight,
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
+  onToggleRowMuted,
+  onToggleRowSoloed,
 }: DJActionTrackProps) {
   const rowCount = Object.keys(track.actionMap).length;
-  const placeholderRows = Object.keys(track.actionMap)
-    .map((p) => Number(p))
-    .sort((a, b) => a - b);
 
   const headerClick = (event: MouseEvent<HTMLDivElement>) => {
     event.stopPropagation();
@@ -63,18 +76,18 @@ export function DJActionTrack({
       </div>
       {!track.collapsed && (
         <div className="mr-djtrack__body">
-          {/* Sticky-left keys-spacer mirrors the 56px keys column used by
-              Track / ParamLane (see KEYS_COLUMN_WIDTH in PianoRoll.tsx).
-              Empty in 7a — placeholder for the ActionKeys column in 7b. */}
-          <div className="mr-djtrack__keys-spacer" />
-          <div className="mr-djtrack__rows">
-            {placeholderRows.map((pitch) => (
-              <div key={pitch} className="mr-djtrack__row" />
-            ))}
-            {rowCount > 0 && (
-              <div className="mr-djtrack__placeholder">Action body — Slice 7b</div>
-            )}
-          </div>
+          <ActionKeys
+            track={track}
+            onToggleRowMuted={onToggleRowMuted}
+            onToggleRowSoloed={onToggleRowSoloed}
+          />
+          <ActionRoll
+            track={track}
+            soloing={soloing}
+            totalT={totalT}
+            pxPerBeat={pxPerBeat}
+            rowHeight={rowHeight}
+          />
         </div>
       )}
     </div>

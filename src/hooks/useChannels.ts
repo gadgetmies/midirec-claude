@@ -210,25 +210,31 @@ export function anySoloed(state: { channels: Channel[]; rolls: PianoRollTrack[];
   );
 }
 
-/** True iff (channel.soloed) OR (no solo anywhere). */
-export function isChannelAudible(channel: Channel, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
-  if (!anySoloed(state)) return true;
+/* The audibility predicates take `soloing` (the session-wide solo flag from
+   useStage) rather than recomputing it from local state, so that solo on a
+   dj-action-track (track-level OR row-level) correctly dims channel-tracks.
+   The earlier per-helper `anySoloed(state)` call was kind-scoped and missed
+   solo state held in `state.djActionTracks`. */
+
+/** True iff (channel.soloed) OR (no session-wide solo). */
+export function isChannelAudible(channel: Channel, soloing: boolean): boolean {
+  if (!soloing) return true;
   return channel.soloed;
 }
 
-/** True iff (roll.soloed) OR (parent channel.soloed) OR (no solo anywhere). */
-export function isRollAudible(roll: PianoRollTrack, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
-  if (!anySoloed(state)) return true;
+/** True iff (roll.soloed) OR (parent channel.soloed) OR (no session-wide solo). */
+export function isRollAudible(roll: PianoRollTrack, channels: Channel[], soloing: boolean): boolean {
+  if (!soloing) return true;
   if (roll.soloed) return true;
-  const channel = state.channels.find((c) => c.id === roll.channelId);
+  const channel = channels.find((c) => c.id === roll.channelId);
   return !!channel?.soloed;
 }
 
-/** True iff (lane.soloed) OR (parent channel.soloed) OR (no solo anywhere). */
-export function isLaneAudible(lane: ParamLane, state: { channels: Channel[]; rolls: PianoRollTrack[]; lanes: ParamLane[] }): boolean {
-  if (!anySoloed(state)) return true;
+/** True iff (lane.soloed) OR (parent channel.soloed) OR (no session-wide solo). */
+export function isLaneAudible(lane: ParamLane, channels: Channel[], soloing: boolean): boolean {
+  if (!soloing) return true;
   if (lane.soloed) return true;
-  const channel = state.channels.find((c) => c.id === lane.channelId);
+  const channel = channels.find((c) => c.id === lane.channelId);
   return !!channel?.soloed;
 }
 

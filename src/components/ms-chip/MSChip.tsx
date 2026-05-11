@@ -6,7 +6,7 @@ interface MSChipProps {
   soloed: boolean;
   onMute?: () => void;
   onSolo?: () => void;
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
 }
 
 function stop(callback?: () => void) {
