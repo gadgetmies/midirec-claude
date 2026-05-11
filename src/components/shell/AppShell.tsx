@@ -4,6 +4,7 @@ import { DJActionTrack } from '../dj-action-tracks/DJActionTrack';
 import { Inspector } from '../inspector/Inspector';
 import { Ruler } from '../ruler/Ruler';
 import { Sidebar } from '../sidebar/Sidebar';
+import { Statusbar } from '../statusbar/Statusbar';
 import { Titlebar } from '../titlebar/Titlebar';
 import { ToastViewport } from '../toast/Toast';
 import { Toolstrip } from '../toolstrip/Toolstrip';
@@ -99,7 +100,7 @@ export function AppShell() {
         </aside>
       </div>
       <footer className="mr-statusbar">
-        <span className="mr-stub">Statusbar</span>
+        <Statusbar />
       </footer>
       <ToastViewport />
       {stage.dialogOpen && <ExportDialog />}

@@ -288,6 +288,34 @@ The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colo
 
 **Status**: deviation — replaces a prototype placeholder with the real data model.
 
+## 20. Statusbar = live incoming-MIDI cluster; clock source moves to Titlebar; MIDI IN LED becomes activity-driven
+
+**What changed**: A three-surface reshape relative to the prototype's bottom strip + meta row:
+
+1. **Statusbar (`src/components/statusbar/Statusbar.tsx`, new)** — a single cluster: activity LED + device name + channel chip showing where the most recent incoming MIDI message came from. No spacer, no second cluster. Empty state (no MIDI yet) reads `Awaiting MIDI` with a dim LED. The prototype's three-zone Statusbar (`Left: CPU meter, RAM meter · Center: sample rate · buffer size · MIDI in · Right: clock state · BPM`) is collapsed: CPU, RAM, sample rate, buffer size are dropped permanently; clock state and BPM move to the Titlebar (see #2 below).
+
+2. **Titlebar meta row gains a `Clk` cell** between `BPM` and `Sig`. The meta row is now `Bar / BPM / Clk / Sig` (was `Bar / BPM / Sig`). The `Clk` value is a compact 3-letter code from `useTransport().clockSource`: `internal → Int`, `external-clock → Ext`, `external-mtc → MTC`. Clock source belongs with BPM because the two are tied (an external clock owns BPM, making it derived rather than user-set).
+
+3. **Titlebar `MIDI IN` LED becomes activity-driven**. Previously hardcoded to `data-state="midi"` (always lit, always animating via `mrLed`). Now binds to `useStatusbar().active`: `data-state="midi"` when MIDI is flowing, no `data-state` (dim) when idle. The `MIDI IN` text label is persistent regardless of activity.
+
+**Why**: Three motivating facts:
+
+- **This is a MIDI-only tool.** It captures, edits, and routes MIDI; it never synthesizes audio. CPU/RAM meters in the prototype are audio-engine load indicators with no signal to report. Sample rate and buffer size are audio-output configuration with no meaning here. Surfacing them as "0%" or "—" would be visual noise that misleads the user.
+- **Each surface should answer a distinct question.** The Sidebar answers "what MIDI inputs are enumerated?" (catalog). The Titlebar's LED answers "is MIDI flowing right now?" (binary pip). The Titlebar's Clk + BPM cells answer "where does timing come from, and at what tempo?". The Statusbar answers "which device + channel did the most recent message come from?" (live flow). A first-pass design put the input cluster AND the clock source in the Statusbar; design review surfaced that the input cluster duplicated the Sidebar and the clock source belonged with BPM.
+- **The MIDI IN LED that was always lit was misleading**. A hardcoded `data-state="midi"` made the LED look like a real activity indicator while reporting nothing. Binding it to `useStatusbar().active` makes the pip meaningful: when there's activity, it lights; when there isn't, it goes dim.
+
+**Where**:
+- JSX: `src/components/statusbar/Statusbar.tsx` — single cluster wrapped in an inert `<button>` (`data-pickable="false"`, `tabIndex={-1}`) reserved for future picker UX.
+- CSS: `src/components/statusbar/Statusbar.css`.
+- Hook: `src/hooks/useStatusbar.ts` — returns `{ lastInput: MidiInput | null; active: boolean }`. Stubbed for this slice (Korg minilogue xd · CH 1, active=true). No Web MIDI / CoreMIDI wiring; that lands in a separate change.
+- Titlebar: `src/components/titlebar/Titlebar.tsx` — added `Clk` meta cell, bound the MIDI IN LED's `data-state` to `useStatusbar().active`.
+- Transport: `src/hooks/useTransport.tsx` — added `ClockSource` type and `clockSource: ClockSource` field on `TransportState` (default `'internal'`); no actions yet (switching clock source is a future-slice concern).
+- AppShell: `src/components/shell/AppShell.tsx` — `<Statusbar />` replaces the `.mr-stub` placeholder; `.mr-stub` rule deleted from `AppShell.css`.
+
+**Recommendation**: Back-port to `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` (Slice 10) and the handoff README. The corrected scope is "Statusbar = single live incoming-MIDI cluster; Titlebar carries clock source + activity LED; no audio-engine surfaces". Slice 10 should be retitled (the audio-engine wiring portion is dropped permanently).
+
+**Status**: deviation — MIDI-only scope; permanent (not a deferral). Awaiting impl-plan and README refresh.
+
 ---
 
 ## Summary table
@@ -313,3 +341,4 @@ The prototype's `.mr-actkey` row shows three groups in a wider 192px row: a colo
 | 17 | DJ action-track row content is `action.short` (no truncation needed) + hover-revealed compact M/S; per-row M/S available on every track | back-port — pairs with #16 | deviation |
 | 18 | DJ action-track keys row drops the 3px device-color stripe; device color lives only in rendered notes | back-port — pairs with #16 | deviation |
 | 19 | Map Note editor's "Deck" select uses real device labels (`Deck 1`/`FX 1`/etc) instead of the prototype's `A / B / —` placeholders | back-port — prototype values were placeholders | deviation |
+| 20 | Statusbar = live incoming-MIDI cluster; clock source moves to Titlebar `Clk` cell; MIDI IN LED becomes activity-driven; CPU/RAM/sample-rate/buffer-size dropped permanently | back-port — refresh impl plan + README to reflect MIDI-only scope | deviation, MIDI-only |

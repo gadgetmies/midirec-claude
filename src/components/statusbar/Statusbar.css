@@ -1,0 +1,49 @@
+.mr-statusbar__cluster {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Cluster button — inert in this slice, reserved for picker UX. Visually flat:
+   no border, no hover/focus affordance, no pointer cursor. The data-pickable
+   attribute is the flip we'll use later to turn this into a real picker. */
+.mr-statusbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mr-sp-3);
+  height: 100%;
+  padding: 0 var(--mr-sp-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  outline: none;
+}
+
+.mr-statusbar__btn:focus,
+.mr-statusbar__btn:focus-visible,
+.mr-statusbar__btn:hover {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.mr-statusbar__name {
+  font-size: var(--mr-fs-11);
+}
+
+.mr-statusbar__name[data-active='true'] {
+  color: var(--mr-text-2);
+}
+
+.mr-statusbar__name[data-active='false'] {
+  color: var(--mr-text-3);
+}
+
+/* Matches .mr-dev__ch in the Sidebar so the channel chip reads identically
+   in both places. Keep these two rules visually equivalent. */
+.mr-statusbar__ch {
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+}

@@ -13,6 +13,8 @@ export type TransportMode = 'idle' | 'play' | 'record';
 
 export type QuantizeGrid = '1/4' | '1/8' | '1/16' | '1/32';
 
+export type ClockSource = 'internal' | 'external-clock' | 'external-mtc';
+
 export interface TransportState {
   mode: TransportMode;
   playing: boolean;
@@ -25,6 +27,7 @@ export interface TransportState {
   bar: string;
   bpm: number;
   sig: string;
+  clockSource: ClockSource;
 }
 
 export interface TransportActions {
@@ -60,6 +63,7 @@ interface InternalState {
   timecodeMs: number;
   bpm: number;
   sig: string;
+  clockSource: ClockSource;
 }
 
 const initialState: InternalState = {
@@ -71,6 +75,7 @@ const initialState: InternalState = {
   timecodeMs: 0,
   bpm: 124,
   sig: '4/4',
+  clockSource: 'internal',
 };
 
 function reducer(state: InternalState, action: Action): InternalState {
@@ -181,6 +186,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       bar: bbsFromMs(state.timecodeMs, state.bpm, state.sig),
       bpm: state.bpm,
       sig: state.sig,
+      clockSource: state.clockSource,
       play,
       pause,
       stop,

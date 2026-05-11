@@ -66,6 +66,11 @@ A pragmatic order for shipping this design. Each slice is a complete, demoable c
 - **Done when** screenshot 09 (DJ pressure editor) matches.
 
 ## Slice 10 — Statusbar + audio engine wiring (1+ day, scope-dependent)
+
+> **SUPERSEDED** — this project is MIDI-only (no audio engine). The audio portion of this slice is dropped permanently; the Statusbar visual shipped as the `statusbar-shell` change; the picker work is now tracked in `BACKLOG.md` ("Pickers for MIDI input and clock source"). See `design/deviations-from-prototype.md` #20 for the rationale.
+
+Original text retained for history:
+
 - CPU / RAM meters.
 - MIDI input device picker; clock source.
 - Real MIDI capture + playback (Web MIDI in browser, CoreMIDI / WinMM via your shell).

@@ -1,4 +1,5 @@
-import { useTransport } from '../../hooks/useTransport';
+import { useStatusbar } from '../../hooks/useStatusbar';
+import { useTransport, type ClockSource } from '../../hooks/useTransport';
 import { useToast } from '../toast/Toast';
 import {
   ChevDownIcon,
@@ -16,8 +17,15 @@ import {
 import { formatBig, formatMs } from './format';
 import './Titlebar.css';
 
+const CLOCK_LABEL: Record<ClockSource, string> = {
+  internal: 'Int',
+  'external-clock': 'Ext',
+  'external-mtc': 'MTC',
+};
+
 export function Titlebar() {
   const transport = useTransport();
+  const { active: midiActive } = useStatusbar();
   const toast = useToast();
 
   const {
@@ -31,6 +39,7 @@ export function Titlebar() {
     bar,
     bpm,
     sig,
+    clockSource,
   } = transport;
 
   const handlePlay = () => {
@@ -136,6 +145,10 @@ export function Titlebar() {
           <span className="mr-meta__val mr-mono">{bpm}</span>
         </div>
         <div className="mr-meta">
+          <span className="mr-meta__lbl">Clk</span>
+          <span className="mr-meta__val mr-mono">{CLOCK_LABEL[clockSource]}</span>
+        </div>
+        <div className="mr-meta">
           <span className="mr-meta__lbl">Sig</span>
           <span className="mr-meta__val mr-mono">{sig}</span>
         </div>
@@ -197,7 +210,7 @@ export function Titlebar() {
           {statusLabel}
         </span>
         <span className="mr-status__sep mr-mono">·</span>
-        <span className="mr-led" data-state="midi" />
+        <span className="mr-led" {...(midiActive ? { 'data-state': 'midi' } : {})} />
         <span className="mr-status__label mr-mono">MIDI IN</span>
       </div>
     </div>

@@ -118,15 +118,7 @@
   display: flex;
   align-items: center;
   height: var(--mr-h-row);
+  padding: 0 var(--mr-sp-3);
   background: var(--mr-bg-panel);
   border-top: var(--mr-bw-1) solid var(--mr-line-2);
-}
-
-.mr-stub {
-  font-family: var(--mr-font-mono);
-  font-size: var(--mr-fs-10);
-  color: var(--mr-text-3);
-  padding: var(--mr-sp-3);
-  text-transform: uppercase;
-  letter-spacing: var(--mr-tracking-cap);
 }

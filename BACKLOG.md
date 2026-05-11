@@ -256,6 +256,45 @@ This affects the `piano-roll` and `tracks` capabilities. It does NOT affect dj-a
 
 **Status**: pending. Surfaced during dj-mode-shell (Slice 7a) review as a separate concern from the dj-action-track row-count fix.
 
+### Pickers for MIDI input and clock source
+
+**Why**: The `statusbar-shell` slice landed two ambient readouts — the Statusbar's incoming-MIDI cluster and the Titlebar's `Clk` meta cell — but both are inert. The Statusbar cluster is a `<button>` with `data-pickable="false"` and `tabIndex={-1}`; the `Clk` cell is a plain `.mr-meta` value. `useTransport().clockSource` is read-only state; there is no `setClockSource` action. `useStatusbar()` returns only `lastInput` and `active`; there is no list of available inputs or a selector. Users can see the current source and the most recent input but cannot change either.
+
+The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` bundled "MIDI input device picker; clock source" with audio-engine wiring. The audio half is permanently dropped (`design/deviations-from-prototype.md` #20 — MIDI-only tool); the picker work needs its own home, which is here.
+
+**Scope**:
+
+- **`useTransport`**: add `setClockSource(source: ClockSource)` action. No validation needed — the union type guarantees the value. Modify the `transport-titlebar` capability's "useTransport hook is the single source of transport state" requirement to list the new action; add an ADDED requirement covering picker behaviour.
+- **`useStatusbar`**: add `inputs: MidiInput[]` (the enumerated list — three stubbed entries matching the Sidebar's `MIDI Inputs` panel) and `setSelectedInputId(id: string)` action. Selection state lives on the hook (replace the constant stub with a small reducer). Modify the `statusbar` capability accordingly.
+- **Clock-source picker**: opens from the Titlebar's `Clk` cell. Popover anchored below the cell. Radio group of three options: `Internal` / `External · MIDI Clock In` / `External · MTC`. Click an option → `setClockSource(...)` → close. Esc and click-outside dismiss without changing.
+- **MIDI-input picker**: opens from the Statusbar cluster button. Popover anchored above the button (it's the bottom of the shell — `bottom: calc(100% + 4px)`). Lists the stubbed inputs with their LED state and channel. Click an input → `setSelectedInputId(...)` → close.
+- **Markup change**: flip `data-pickable="false"` to `data-pickable="true"` on the Statusbar button; attach `onClick` and open/close state. Add hover / focus-ring affordances under the `[data-pickable="true"]` selector (CSS-only — `cursor: pointer`, `:hover` background change, `:focus-visible` ring). Change `tabIndex` from `-1` to default. The `Clk` cell currently isn't a button — promote it to a `<button>` with the same `data-pickable` flag pattern, keeping the meta-row's visual layout.
+- **Popover primitive**: we don't have a generic one. `AddParamLanePopover` exists but has a known z-index issue (see backlog entry "Keys-spacer paints over the + Add Lane popover"). Two options:
+  - Hoist a generic `<Popover>` primitive that both pickers consume (and the future `+ Add Channel` picker from the channels backlog entry). Half a day of upfront work; pays off across three callers.
+  - Inline the popover per call site; cheaper now, but we'll have three different implementations to maintain.
+  Recommend hoisting.
+- **Spec deltas**:
+  - `transport-titlebar`: MODIFIED `useTransport hook is the single source of transport state` to add `setClockSource`; ADDED `Clk cell is interactive and opens a clock-source picker` with open/select/dismiss scenarios; ADDED `setClockSource updates clockSource state` with scenarios.
+  - `statusbar`: MODIFIED `useStatusbar hook returns lastInput and active flag` → returns `inputs`, `selectedInputId`, `lastInput`, `active`, plus `setSelectedInputId`; ADDED `Statusbar cluster is interactive and opens an input picker` with scenarios.
+
+- **NOT in scope**: real Web MIDI / CoreMIDI / WinMM enumeration. The pickers feed from stubbed input lists; turning that into OS-level enumeration is a separate, larger change tracked elsewhere when scoped.
+
+**Verification**:
+
+- Click the `Clk` cell → popover opens with three radio options, current source pre-selected. Click `External · MIDI Clock In` → cell now reads `Ext`, popover closes.
+- Click the Statusbar cluster → popover opens above it listing the three stubbed inputs. Click `Arturia KeyStep Pro` → Statusbar cluster updates to show `Arturia KeyStep Pro · CH·1–4`.
+- Esc dismisses either popover without changing state.
+- Click outside the popover dismisses it.
+- Tab order now includes both buttons; Enter on a focused button opens its popover; arrow keys move within the popover.
+- The Sidebar's `MIDI Inputs` panel and the Statusbar's input cluster stay in sync (both reflect the same `inputs[]` and `selectedInputId`).
+- `yarn typecheck` clean; `openspec validate --strict` clean for the deltas.
+
+**Dependencies**: none. Lands independently of real-MIDI runtime work.
+
+**Estimated effort**: 1 day if reusing the existing `AddParamLanePopover` pattern (accepting its z-index quirk). 1.5 days if hoisting a generic `<Popover>` primitive first — the saner long-term choice given three eventual callers. The hook deltas, spec updates, and visual review take ~half a day combined; the popover primitive is the variable.
+
+**Status**: pending. Surfaced during `statusbar-shell` slice planning — the `clockSource` field on `useTransport`, the `data-pickable="false"` flag on the Statusbar button, and the inert `Clk` cell are anchors waiting for this work.
+
 ## Done
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->
