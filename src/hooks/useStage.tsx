@@ -26,11 +26,24 @@ import {
   type DJActionTrack,
   type DJTrackId,
 } from './useDJActionTracks';
-import type { ActionMapEntry, OutputMapping } from '../data/dj';
+import type {
+  ActionMapEntry,
+  OutputMapping,
+  PressurePoint,
+  PressureRenderMode,
+} from '../data/dj';
 
 export interface DJActionSelection {
   trackId: DJTrackId;
   pitch: number;
+}
+
+export interface DJEventSelection {
+  trackId: DJTrackId;
+  pitch: number;
+  /* Index into `track.events`. Fragile to future reorder/insert operations;
+     migrate to a stable event id when capture lands in Slice 10. */
+  eventIdx: number;
 }
 
 export interface ResolvedSelection {
@@ -64,10 +77,16 @@ export interface StageState {
   djActionTracks: DJActionTrack[];
   djActionSelection: DJActionSelection | null;
   setDJActionSelection: (target: DJActionSelection | null) => void;
+  djEventSelection: DJEventSelection | null;
+  setDJEventSelection: (target: DJEventSelection | null) => void;
+  pressureRenderMode: PressureRenderMode;
+  setPressureRenderMode: (mode: PressureRenderMode) => void;
   setActionEntry: (id: DJTrackId, pitch: number, entry: ActionMapEntry) => void;
   deleteActionEntry: (id: DJTrackId, pitch: number) => void;
   setOutputMapping: (id: DJTrackId, pitch: number, mapping: OutputMapping) => void;
   deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
+  setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
+  clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
@@ -100,34 +119,42 @@ function useStageState(): StageState {
   const closeExportDialog = useCallback(() => setDialogOpen(false), []);
 
   const [djActionSelection, setDJActionSelection] = useState<DJActionSelection | null>(null);
+  const [djEventSelection, setDJEventSelection] = useState<DJEventSelection | null>(null);
+  const [pressureRenderMode, setPressureRenderMode] = useState<PressureRenderMode>('curve');
 
-  /* Blur the DJ action-row selection when the user clicks outside the
+  /* Blur both DJ selections (row + event) when the user clicks outside the
      track or the side panels. Surfaces opt in by carrying
-     `data-mr-dj-selection-region="true"` (the sidebar Map Note panel and
-     the inspector Output panel do); the DJ track itself is identified by
-     `.mr-djtrack`. The listener is only active while a selection exists,
-     so the rest of the app pays nothing. */
+     `data-mr-dj-selection-region="true"` (the sidebar Map Note panel, the
+     inspector Action+Output panel, and the Inspector pressure section
+     inside it); the DJ track itself is identified by `.mr-djtrack`. The
+     listener is only active while at least one selection exists. The two
+     selections clear atomically — both setters fire in the same handler
+     tick, and React batches the resulting renders. */
   useEffect(() => {
-    if (!djActionSelection) return;
+    if (!djActionSelection && !djEventSelection) return;
     const onDown = (e: PointerEvent) => {
       const target = e.target as Element | null;
       if (!target) return;
       if (target.closest('.mr-djtrack')) return;
       if (target.closest('[data-mr-dj-selection-region]')) return;
       setDJActionSelection(null);
+      setDJEventSelection(null);
     };
     window.addEventListener('pointerdown', onDown);
     return () => window.removeEventListener('pointerdown', onDown);
-  }, [djActionSelection]);
+  }, [djActionSelection, djEventSelection]);
 
   /* deleteActionEntry from useDJActionTracks prunes the actionMap (and the
      pitch's outputMap/row state). We additionally clear djActionSelection
-     when it points at the just-deleted pitch so the sidebar/inspector
-     panels don't keep pointing at a now-missing entry. */
+     and djEventSelection when they point at the just-deleted pitch so the
+     sidebar/inspector panels don't keep pointing at a now-missing entry. */
   const deleteActionEntry = useCallback(
     (id: DJTrackId, pitch: number) => {
       djTracks.deleteActionEntry(id, pitch);
       setDJActionSelection((cur) =>
+        cur && cur.trackId === id && cur.pitch === pitch ? null : cur,
+      );
+      setDJEventSelection((cur) =>
         cur && cur.trackId === id && cur.pitch === pitch ? null : cur,
       );
     },
@@ -212,10 +239,16 @@ function useStageState(): StageState {
     djActionTracks: djTracks.djActionTracks,
     djActionSelection,
     setDJActionSelection,
+    djEventSelection,
+    setDJEventSelection,
+    pressureRenderMode,
+    setPressureRenderMode,
     setActionEntry: djTracks.setActionEntry,
     deleteActionEntry,
     setOutputMapping: djTracks.setOutputMapping,
     deleteOutputMapping: djTracks.deleteOutputMapping,
+    setEventPressure: djTracks.setEventPressure,
+    clearEventPressure: djTracks.clearEventPressure,
     toggleDJTrackCollapsed: djTracks.toggleDJTrackCollapsed,
     toggleDJTrackMuted: djTracks.toggleDJTrackMuted,
     toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,

@@ -4,21 +4,30 @@
    don't match any of the three predicates (e.g. mixer/loop without pad
    or pressure flags).
 
-   Pressure curves are synthesized at render time from a deterministic
-   seed (pitch-based) per the prototype's pattern in
-   design_handoff_midi_recorder/prototype/dj.jsx ActionRollUnit ~440-460.
-   The real pressure data model is owned by Slice 9's Pressure Editor.
+   Pressure curves: events with stored `event.pressure` render from that
+   array; otherwise the per-event `perPitchIndex` flows into
+   `synthesizePressure` (Slice 9). Click an event to set
+   `djEventSelection` and open the Inspector's pressure editor.
 
    NOTE: the dynamic per-note `style={{ background: ... }}` is unavoidable
    here — `devColor()` returns a per-action OKLCH string that has to flow
    through `color-mix(...)`, which CSS variables can't compose at this
    density. The static `box-shadow` colors do come from tokens. */
 
-import { actionMode, devColor, type ActionMapEntry } from '../../data/dj';
+import type { MouseEvent } from 'react';
+import {
+  actionMode,
+  devColor,
+  type ActionMapEntry,
+  type PressurePoint,
+  type PressureRenderMode,
+} from '../../data/dj';
 import {
   isDJRowAudible,
   type DJActionTrack,
 } from '../../hooks/useDJActionTracks';
+import { useStage } from '../../hooks/useStage';
+import { rasterizePressure, synthesizePressure } from '../../data/pressure';
 
 const PRESSURE_CELLS = 14;
 
@@ -37,6 +46,8 @@ export function ActionRoll({
   pxPerBeat,
   rowHeight,
 }: ActionRollProps) {
+  const { djEventSelection, setDJEventSelection, djActionSelection, setDJActionSelection, pressureRenderMode } =
+    useStage();
   /* Pitches descending top-to-bottom (high pitch at top, matching the
      channel-track piano-roll convention and the prototype's ActionRollUnit
      row order). */
@@ -87,23 +98,65 @@ export function ActionRoll({
 
   /* Per-pitch event indices, used to vary the pressure-curve shape across
      repeated events on the same row (e === 0 → arch, e === 1 → rising,
-     etc — matching the prototype). */
+     etc — matching the prototype). The same value is fed to
+     `synthesizePressure` so editor and lane render the same untouched
+     curve. We also need the original event index inside `track.events`
+     (NOT the filtered index) so click handlers can set
+     `djEventSelection.eventIdx` correctly even when some events are
+     filtered out. */
   const perPitchIndex = new Map<number, number>();
 
-  const noteEls: JSX.Element[] = track.events
-    .filter((event) => Object.prototype.hasOwnProperty.call(track.actionMap, event.pitch))
-    .map((event, globalIndex) => {
-      const action = track.actionMap[event.pitch];
-      const e = perPitchIndex.get(event.pitch) ?? 0;
-      perPitchIndex.set(event.pitch, e + 1);
-      const top = topForPitch(event.pitch) + 1;
-      const left = event.t * pxPerBeat;
-      const noteH = Math.max(5, rowHeight - 2);
-      const color = devColor(action.device);
-      const mode = actionMode(action);
-      const audible = isDJRowAudible(track, event.pitch, soloing);
-      return renderNote(globalIndex, event.pitch, e, mode, action, color, top, left, noteH, event.dur, event.vel, pxPerBeat, audible);
-    });
+  const noteEls: JSX.Element[] = [];
+  for (let originalIdx = 0; originalIdx < track.events.length; originalIdx++) {
+    const event = track.events[originalIdx];
+    if (!Object.prototype.hasOwnProperty.call(track.actionMap, event.pitch)) continue;
+    const action = track.actionMap[event.pitch];
+    const e = perPitchIndex.get(event.pitch) ?? 0;
+    perPitchIndex.set(event.pitch, e + 1);
+    const top = topForPitch(event.pitch) + 1;
+    const left = event.t * pxPerBeat;
+    const noteH = Math.max(5, rowHeight - 2);
+    const color = devColor(action.device);
+    const mode = actionMode(action);
+    const audible = isDJRowAudible(track, event.pitch, soloing);
+    const selected =
+      djEventSelection !== null &&
+      djEventSelection.trackId === track.id &&
+      djEventSelection.pitch === event.pitch &&
+      djEventSelection.eventIdx === originalIdx;
+    const onClick = (ev: MouseEvent) => {
+      ev.stopPropagation();
+      setDJEventSelection({ trackId: track.id, pitch: event.pitch, eventIdx: originalIdx });
+      if (
+        !djActionSelection ||
+        djActionSelection.trackId !== track.id ||
+        djActionSelection.pitch !== event.pitch
+      ) {
+        setDJActionSelection({ trackId: track.id, pitch: event.pitch });
+      }
+    };
+    noteEls.push(
+      renderNote(
+        originalIdx,
+        event.pitch,
+        e,
+        mode,
+        action,
+        color,
+        top,
+        left,
+        noteH,
+        event.dur,
+        event.vel,
+        pxPerBeat,
+        audible,
+        selected,
+        onClick,
+        event.pressure,
+        pressureRenderMode,
+      ),
+    );
+  }
 
   return (
     <div className="mr-djtrack__lanes" style={{ width: lanesWidth, height: totalH }}>
@@ -128,9 +181,14 @@ function renderNote(
   vel: number,
   pxPerBeat: number,
   audible: boolean,
+  selected: boolean,
+  onClick: (e: MouseEvent) => void,
+  storedPressure: PressurePoint[] | undefined,
+  pressureRenderMode: PressureRenderMode,
 ): JSX.Element {
   const titleText = `${action.label} · ${action.short}`;
   const audibleAttr = audible ? 'true' : 'false';
+  const selectedAttr = selected ? 'true' : undefined;
 
   if (mode === 'trigger') {
     const w = 6;
@@ -140,6 +198,8 @@ function renderNote(
         className="mr-djtrack__note mr-djtrack__note--trigger"
         title={titleText}
         data-audible={audibleAttr}
+        data-selected={selectedAttr}
+        onClick={onClick}
         style={{
           top,
           left,
@@ -162,6 +222,8 @@ function renderNote(
         className="mr-djtrack__note mr-djtrack__note--velocity"
         title={titleText}
         data-audible={audibleAttr}
+        data-selected={selectedAttr}
+        onClick={onClick}
         style={{
           top,
           left,
@@ -180,23 +242,25 @@ function renderNote(
 
   if (mode === 'pressure-bearing') {
     /* Width derived from the deterministic seed (matching the prototype's
-       `80 + (seed % 40)`). Pressure curve shape varies by per-pitch event
-       index — arch, rise, or center-peak. */
+       `80 + (seed % 40)`). When stored pressure exists, the curve is
+       sourced from it (rasterised to PRESSURE_CELLS bins); otherwise the
+       synthesised curve from src/data/pressure.ts is used — same logic
+       feeds the Inspector editor so the two visuals stay in lockstep. */
     const seed = (pitch * 13 + 7) % 100;
     const w = Math.max(60, 80 + (seed % 40));
     const cellW = w / PRESSURE_CELLS;
+    let pressureValues: number[];
+    if (storedPressure === undefined) {
+      const synth = synthesizePressure({ pitch, t: 0, dur, vel }, perPitchIndex);
+      pressureValues = synth.map((p) => p.v);
+    } else if (storedPressure.length === 0) {
+      pressureValues = new Array(PRESSURE_CELLS).fill(0);
+    } else {
+      pressureValues = rasterizePressure(storedPressure, PRESSURE_CELLS);
+    }
     const innerBars: JSX.Element[] = [];
     for (let pi = 0; pi < PRESSURE_CELLS; pi++) {
-      const u = pi / (PRESSURE_CELLS - 1);
-      let pVal: number;
-      if (perPitchIndex === 0) {
-        pVal = Math.sin(u * Math.PI) * 0.85;
-      } else if (perPitchIndex === 1) {
-        pVal = 0.2 + u * 0.7;
-      } else {
-        pVal = 0.6 - Math.abs(u - 0.5) * 0.8;
-      }
-      pVal = Math.min(1, Math.max(0.05, pVal));
+      const pVal = Math.min(1, Math.max(0.05, pressureValues[pi]));
       const barH = pVal * (noteH * 0.55);
       innerBars.push(
         <rect
@@ -216,6 +280,9 @@ function renderNote(
         className="mr-djtrack__note mr-djtrack__note--pressure"
         title={titleText}
         data-audible={audibleAttr}
+        data-selected={selectedAttr}
+        data-pressure-mode={pressureRenderMode}
+        onClick={onClick}
         style={{
           top,
           left,
@@ -247,6 +314,8 @@ function renderNote(
       className="mr-djtrack__note mr-djtrack__note--fallback"
       title={titleText}
       data-audible={audibleAttr}
+      data-selected={selectedAttr}
+      onClick={onClick}
       style={{
         top,
         left,

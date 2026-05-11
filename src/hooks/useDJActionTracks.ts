@@ -14,6 +14,7 @@ import {
   type ActionEvent,
   type ActionMapEntry,
   type OutputMapping,
+  type PressurePoint,
 } from '../data/dj';
 import type { ChannelId } from './useChannels';
 
@@ -57,6 +58,8 @@ export interface UseDJActionTracksReturn {
   deleteActionEntry: (id: DJTrackId, pitch: number) => void;
   setOutputMapping: (id: DJTrackId, pitch: number, mapping: OutputMapping) => void;
   deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
+  setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
+  clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
 }
 
 /* The track's `actionMap` is the set of actions CONFIGURED on this track —
@@ -202,6 +205,20 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     setDJActionTracks((prev) => applyDeleteOutputMapping(prev, id, pitch));
   }, []);
 
+  const setEventPressure = useCallback(
+    (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => {
+      setDJActionTracks((prev) => applySetEventPressure(prev, id, pitch, eventIdx, points));
+    },
+    [],
+  );
+
+  const clearEventPressure = useCallback(
+    (id: DJTrackId, pitch: number, eventIdx: number) => {
+      setDJActionTracks((prev) => applySetEventPressure(prev, id, pitch, eventIdx, []));
+    },
+    [],
+  );
+
   return {
     djActionTracks,
     toggleDJTrackCollapsed,
@@ -213,6 +230,8 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     deleteActionEntry,
     setOutputMapping,
     deleteOutputMapping,
+    setEventPressure,
+    clearEventPressure,
   };
 }
 
@@ -306,6 +325,31 @@ export function applyDeleteOutputMapping(
   delete nextOutputMap[pitch];
   const next = tracks.slice();
   next[idx] = { ...track, outputMap: nextOutputMap };
+  return next;
+}
+
+/* Pure: write `points` to `track.events[eventIdx].pressure` when the event
+   exists AND its pitch matches the supplied pitch. No-op (returns the
+   input reference) for unknown track ids, out-of-range eventIdx, or pitch
+   mismatches — same conventions as the other apply* helpers. */
+export function applySetEventPressure(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  eventIdx: number,
+  points: PressurePoint[],
+): DJActionTrack[] {
+  const trackIdx = tracks.findIndex((t) => t.id === id);
+  if (trackIdx < 0) return tracks;
+  const track = tracks[trackIdx];
+  if (eventIdx < 0 || eventIdx >= track.events.length) return tracks;
+  const event = track.events[eventIdx];
+  if (event.pitch !== pitch) return tracks;
+  const nextEvent: ActionEvent = { ...event, pressure: points };
+  const nextEvents = track.events.slice();
+  nextEvents[eventIdx] = nextEvent;
+  const next = tracks.slice();
+  next[trackIdx] = { ...track, events: nextEvents };
   return next;
 }
 

@@ -112,3 +112,14 @@
 .mr-djtrack__note[data-audible="false"] {
   opacity: 0.4;
 }
+
+/* Event selection highlight — mirrors the row-level `data-selected` from
+   Slice 8 (see ActionKeys.css) but tuned for the smaller note element:
+   an inset accent border with a soft accent glow. The shadow stacks on
+   top of the existing inset chrome by adding a second layer. */
+.mr-djtrack__note[data-selected="true"] {
+  box-shadow:
+    inset 0 0 0 1px var(--mr-accent),
+    0 0 0 1px color-mix(in oklab, var(--mr-accent) 45%, transparent);
+  z-index: 1;
+}

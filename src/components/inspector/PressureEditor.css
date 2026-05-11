@@ -1,0 +1,91 @@
+/* Inspector PRESSURE section. Layout follows the prototype's
+   dj.jsx:927-982 — eyebrow, bar graph, summary readout, bulk-ops row,
+   mode toggle. Action color is plumbed in via the `--action-color`
+   custom property set on the `.mr-pressure` root by PressureEditor.tsx
+   so the bars/dots can pick it up via `color-mix(...)` without inline
+   styles on every rect. */
+
+.mr-pressure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  border-top: var(--mr-bw-hair) solid var(--mr-line-2);
+  margin-top: 8px;
+}
+
+.mr-pressure__eyebrow {
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mr-text-3);
+}
+
+.mr-pressure__graph {
+  display: flex;
+  width: 100%;
+}
+
+.mr-pressure__graph svg {
+  display: block;
+  width: 100%;
+  height: 56px;
+}
+
+.mr-pressure__bar {
+  fill: color-mix(in oklab, var(--action-color, var(--mr-accent)) 85%, transparent);
+}
+
+.mr-pressure__dot {
+  fill: color-mix(in oklab, var(--action-color, var(--mr-accent)) 100%, transparent);
+}
+
+.mr-pressure__summary {
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  color: var(--mr-text-3);
+  letter-spacing: 0.02em;
+}
+
+.mr-pressure__bulk {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.mr-pressure__bulk .mr-btn {
+  height: 22px;
+  font-size: 9px;
+}
+
+.mr-pressure__mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.mr-pressure__mode-chip {
+  height: 22px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--mr-text-2);
+  background: var(--mr-bg-panel-2);
+  border: var(--mr-bw-hair) solid var(--mr-line-2);
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+
+.mr-pressure__mode-chip:hover {
+  color: var(--mr-text-1);
+  background: color-mix(in oklab, var(--mr-bg-panel-2) 70%, var(--mr-accent) 30%);
+}
+
+.mr-pressure__mode-chip[data-on="true"] {
+  color: var(--mr-text-1);
+  background: color-mix(in oklab, var(--mr-accent) 18%, var(--mr-bg-panel-2));
+  border-color: color-mix(in oklab, var(--mr-accent) 55%, transparent);
+}

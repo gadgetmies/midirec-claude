@@ -53,14 +53,36 @@ export interface OutputMapping {
   pitch: number;
 }
 
-/* One occurrence of an action on the timeline. Structurally identical to
-   `Note` from src/components/piano-roll/notes.ts — kept as a separate type
-   so the routing-derivation slice can diverge them later if needed. */
+/* A single aftertouch sample on a pressure-bearing action event. `t` is
+   note-relative in [0,1] (0 = note-on, 1 = note-off) so curves survive note
+   shifts without re-mapping. `v` is [0,1]; the audio engine maps this to
+   MIDI 0..127 at emit time. Owned by Slice 9. */
+export interface PressurePoint {
+  t: number;
+  v: number;
+}
+
+/* How the per-event pressure curve is rendered, both in the action-track
+   lane body and in the Inspector's pressure editor. A user preference, not
+   a data transformation. */
+export type PressureRenderMode = 'curve' | 'step';
+
+/* One occurrence of an action on the timeline. Structurally a superset of
+   `Note` from src/components/piano-roll/notes.ts — adds an optional
+   `pressure` curve for aftertouch-bearing actions.
+
+   The `pressure` field has three meaningful states:
+   - `undefined` — never edited; renderers synthesise from
+     `synthesizePressure(event)`.
+   - `[]` — explicitly cleared; renderers draw no aftertouch.
+   - non-empty — stored points; renderers rasterise via
+     `rasterizePressure(...)`. */
 export interface ActionEvent {
   pitch: number;
   t: number;
   dur: number;
   vel: number;
+  pressure?: PressurePoint[];
 }
 
 /* Render mode dispatched from an action's flags. Precedence (highest first):

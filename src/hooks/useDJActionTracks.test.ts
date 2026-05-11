@@ -7,6 +7,7 @@ import {
   applyDeleteActionEntry,
   applySetOutputMapping,
   applyDeleteOutputMapping,
+  applySetEventPressure,
   type DJActionTrack,
 } from './useDJActionTracks';
 import {
@@ -250,6 +251,51 @@ describe('applyDeleteOutputMapping', () => {
   test('is a no-op (same reference) when the pitch is already absent', () => {
     const tracks = [baseTrack()];
     const next = applyDeleteOutputMapping(tracks, 'dj1', 99);
+    expect(next).toBe(tracks);
+  });
+});
+
+describe('applySetEventPressure', () => {
+  test('writes the points array to events[eventIdx].pressure', () => {
+    const before = baseTrack({
+      events: [
+        { pitch: 56, t: 1, dur: 1, vel: 0.8 },
+        { pitch: 56, t: 3, dur: 1, vel: 0.7 },
+      ],
+    });
+    const points = [
+      { t: 0, v: 0.5 },
+      { t: 1, v: 0.9 },
+    ];
+    const next = applySetEventPressure([before], 'dj1', 56, 1, points);
+    expect(next[0].events[1].pressure).toEqual(points);
+    /* Untouched event keeps its original pressure (undefined). */
+    expect(next[0].events[0].pressure).toBeUndefined();
+  });
+
+  test('empty array materialises an explicit Clear', () => {
+    const before = baseTrack({
+      events: [{ pitch: 56, t: 1, dur: 1, vel: 0.8 }],
+    });
+    const next = applySetEventPressure([before], 'dj1', 56, 0, []);
+    expect(next[0].events[0].pressure).toEqual([]);
+  });
+
+  test('is a no-op (same reference) for unknown track id', () => {
+    const tracks = [baseTrack({ events: [{ pitch: 56, t: 0, dur: 1, vel: 1 }] })];
+    const next = applySetEventPressure(tracks, 'nonexistent', 56, 0, []);
+    expect(next).toBe(tracks);
+  });
+
+  test('is a no-op (same reference) for out-of-range eventIdx', () => {
+    const tracks = [baseTrack({ events: [{ pitch: 56, t: 0, dur: 1, vel: 1 }] })];
+    const next = applySetEventPressure(tracks, 'dj1', 56, 99, []);
+    expect(next).toBe(tracks);
+  });
+
+  test('is a no-op (same reference) when pitch does not match event', () => {
+    const tracks = [baseTrack({ events: [{ pitch: 56, t: 0, dur: 1, vel: 1 }] })];
+    const next = applySetEventPressure(tracks, 'dj1', 48, 0, []);
     expect(next).toBe(tracks);
   });
 });

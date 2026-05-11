@@ -12,6 +12,7 @@ import {
   type OutputMapping,
 } from '../../data/dj';
 import type { DJActionTrack } from '../../hooks/useDJActionTracks';
+import { PressureEditor } from './PressureEditor';
 import './Inspector.css';
 
 const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
@@ -110,8 +111,21 @@ function ActionPanel({
   pitch: number;
   entry: ActionMapEntry;
 }) {
-  const { setOutputMapping, deleteOutputMapping } = useStage();
+  const { setOutputMapping, deleteOutputMapping, djEventSelection } = useStage();
   const existing = track.outputMap[pitch];
+
+  /* Pressure section is gated on: an event selection that matches this
+     row, the action having pressure capability, and the referenced event
+     still existing on the track. Any mismatch and we render only the
+     Output rows above. */
+  const showPressure =
+    djEventSelection !== null &&
+    djEventSelection.trackId === track.id &&
+    djEventSelection.pitch === pitch &&
+    entry.pressure === true &&
+    djEventSelection.eventIdx >= 0 &&
+    djEventSelection.eventIdx < track.events.length &&
+    track.events[djEventSelection.eventIdx].pitch === pitch;
 
   /* Default the form values from either the existing mapping or sensible
      defaults derived from the input binding (output device matches input
@@ -204,6 +218,15 @@ function ActionPanel({
             Delete output
           </button>
         </div>
+      )}
+
+      {showPressure && djEventSelection && (
+        <PressureEditor
+          track={track}
+          pitch={pitch}
+          eventIdx={djEventSelection.eventIdx}
+          entry={entry}
+        />
       )}
     </div>
   );
