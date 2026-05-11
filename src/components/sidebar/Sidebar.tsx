@@ -1,25 +1,15 @@
 import { Panel } from './Panel';
 import { InputMappingPanel } from './InputMappingPanel';
 import { MicIcon, RouteIcon, FilterIcon } from '../icons/transport';
+import { MidiPermissionBanner } from '../midi-runtime/MidiPermissionBanner';
+import { useMidiInputs, useMidiOutputs } from '../../midi/MidiRuntimeProvider';
+import type { MidiDevice } from '../../midi/access';
 import './Sidebar.css';
 
-/* Fixture data — mirrors design_handoff_midi_recorder/prototype/components.jsx
-   Sidebar() (lines 144–239). Slice 10 will replace these with live Web MIDI
-   enumeration; until then keep them in sync with the prototype. */
-
-type LedState = 'midi' | 'play' | 'rec' | 'off';
-type Device = { name: string; channel: string; led: LedState; active: boolean };
-
-const INPUTS: Device[] = [
-  { name: 'Korg minilogue xd', channel: 'CH·1', led: 'midi', active: true },
-  { name: 'Arturia KeyStep Pro', channel: 'CH·1–4', led: 'midi', active: true },
-  { name: 'IAC Driver Bus 1', channel: '—', led: 'off', active: false },
-];
-
-const OUTPUTS: Device[] = [
-  { name: 'Logic Pro · Track 4', channel: 'CH·1', led: 'play', active: true },
-  { name: 'Korg minilogue xd', channel: 'CH·1', led: 'off', active: false },
-];
+/* Filter switches and channel chips are still hardcoded — mirrors
+   design_handoff_midi_recorder/prototype/components.jsx Sidebar()
+   (lines 144–239). Device data (inputs, outputs, routing labels) is
+   sourced from the Web MIDI runtime via useMidiInputs/useMidiOutputs. */
 
 const FILTERS: { label: string; on: boolean }[] = [
   { label: 'Notes', on: true },
@@ -39,56 +29,61 @@ const CHANNEL_CHIPS: { label: string; on: boolean }[] = [
   { label: '+10', on: false },
 ];
 
-const ROUTING = {
-  inputs: ['minilogue', 'KeyStep', 'IAC 1'],
-  outputs: ['Logic Tr 4', 'minilogue', 'File'],
-  // grid[input][output] — 1 means routed, 0 means not.
-  grid: [
-    [1, 0, 0],
-    [1, 1, 0],
-    [0, 0, 1],
-  ] as const,
-};
+function countString(devices: MidiDevice[]): string {
+  const connected = devices.filter((d) => d.state === 'connected').length;
+  return `${connected} / ${devices.length}`;
+}
 
-function DeviceRow({ device }: { device: Device }) {
+function DeviceRow({ device }: { device: MidiDevice }) {
+  const active = device.state === 'connected';
   return (
-    <div className="mr-dev" data-active={device.active ? 'true' : undefined}>
-      <span className="mr-led" {...(device.led !== 'off' ? { 'data-state': device.led } : {})} />
+    <div className="mr-dev" data-active={active ? 'true' : undefined}>
+      <span className="mr-led" />
       <span className="mr-dev__name">{device.name}</span>
-      <span className="mr-dev__ch">{device.channel}</span>
+      <span className="mr-dev__ch">—</span>
     </div>
   );
 }
 
-function RoutingMatrix() {
+function EmptyDeviceHint({ message }: { message: string }) {
   return (
-    <div className="mr-routing">
+    <div className="mr-dev mr-dev--empty">
+      <span className="mr-dev__name">{message}</span>
+    </div>
+  );
+}
+
+function RoutingMatrix({ inputs, outputs }: { inputs: MidiDevice[]; outputs: MidiDevice[] }) {
+  if (inputs.length === 0 || outputs.length === 0) {
+    return (
+      <div className="mr-routing__hint">
+        Routing unavailable — connect MIDI devices to configure routes.
+      </div>
+    );
+  }
+  const columns = `70px repeat(${outputs.length}, 1fr)`;
+  return (
+    <div className="mr-routing" style={{ gridTemplateColumns: columns }}>
       <div className="mr-routing__cell mr-routing__corner" />
-      {ROUTING.outputs.map((out) => (
-        <div key={out} className="mr-routing__cell mr-routing__hdr">
-          {out}
+      {outputs.map((out) => (
+        <div key={out.id} className="mr-routing__cell mr-routing__hdr">
+          {out.name}
         </div>
       ))}
-      {ROUTING.inputs.map((label, ri) => (
-        <RoutingRow key={label} label={label} row={ROUTING.grid[ri]} />
+      {inputs.map((input) => (
+        <RoutingRow key={input.id} input={input} outputCount={outputs.length} />
       ))}
     </div>
   );
 }
 
-function RoutingRow({ label, row }: { label: string; row: readonly (0 | 1)[] }) {
+function RoutingRow({ input, outputCount }: { input: MidiDevice; outputCount: number }) {
   return (
     <>
-      <div className="mr-routing__cell mr-routing__lbl">{label}</div>
-      {row.map((on, ci) => (
+      <div className="mr-routing__cell mr-routing__lbl">{input.name}</div>
+      {Array.from({ length: outputCount }, (_, ci) => (
         <div key={ci} className="mr-routing__cell">
-          <div className="mr-routing__cb" data-on={on === 1 ? 'true' : 'false'}>
-            {on === 1 && (
-              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6l2 2 4-5" />
-              </svg>
-            )}
-          </div>
+          <div className="mr-routing__cb" data-on="false" />
         </div>
       ))}
     </>
@@ -96,20 +91,28 @@ function RoutingRow({ label, row }: { label: string; row: readonly (0 | 1)[] }) 
 }
 
 export function Sidebar() {
+  const { inputs } = useMidiInputs();
+  const { outputs } = useMidiOutputs();
+
   return (
     <>
+      <MidiPermissionBanner />
       <InputMappingPanel />
 
-      <Panel icon={<MicIcon />} title="MIDI Inputs" count="2 / 3">
-        {INPUTS.map((d) => (
-          <DeviceRow key={d.name} device={d} />
-        ))}
+      <Panel icon={<MicIcon />} title="MIDI Inputs" count={countString(inputs)}>
+        {inputs.length === 0 ? (
+          <EmptyDeviceHint message="No MIDI inputs" />
+        ) : (
+          inputs.map((d) => <DeviceRow key={d.id} device={d} />)
+        )}
       </Panel>
 
-      <Panel icon={<RouteIcon />} title="MIDI Outputs" count="1">
-        {OUTPUTS.map((d) => (
-          <DeviceRow key={d.name} device={d} />
-        ))}
+      <Panel icon={<RouteIcon />} title="MIDI Outputs" count={countString(outputs)}>
+        {outputs.length === 0 ? (
+          <EmptyDeviceHint message="No MIDI outputs" />
+        ) : (
+          outputs.map((d) => <DeviceRow key={d.id} device={d} />)
+        )}
       </Panel>
 
       <Panel icon={<FilterIcon />} title="Record Filter">
@@ -140,7 +143,7 @@ export function Sidebar() {
       </Panel>
 
       <Panel icon={<RouteIcon />} title="Routing">
-        <RoutingMatrix />
+        <RoutingMatrix inputs={inputs} outputs={outputs} />
       </Panel>
     </>
   );

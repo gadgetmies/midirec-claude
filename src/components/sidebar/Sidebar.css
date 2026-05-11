@@ -130,6 +130,21 @@
   color: var(--mr-text-3);
 }
 
+.mr-dev--empty {
+  cursor: default;
+  color: var(--mr-text-3);
+}
+
+.mr-dev--empty:hover {
+  background: transparent;
+}
+
+.mr-routing__hint {
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-3);
+  line-height: var(--mr-lh-body);
+}
+
 /* ── Channel chip strip ── */
 
 .mr-sidebar__chip-strip {

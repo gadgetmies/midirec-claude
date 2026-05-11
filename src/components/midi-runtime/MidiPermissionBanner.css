@@ -1,0 +1,50 @@
+.mr-midi-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--mr-sp-3);
+  padding: var(--mr-sp-3) var(--mr-sp-5);
+  border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
+  background: var(--mr-bg-panel-2);
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-2);
+}
+
+.mr-midi-banner[data-status='denied'] {
+  color: var(--mr-text-1);
+  border-bottom-color: var(--mr-warn);
+}
+
+.mr-midi-banner[data-status='unsupported'] {
+  color: var(--mr-text-3);
+}
+
+.mr-midi-banner__msg {
+  flex: 1;
+  min-width: 0;
+  line-height: var(--mr-lh-tight);
+}
+
+.mr-midi-banner__retry {
+  appearance: none;
+  height: var(--mr-h-control);
+  padding: 0 var(--mr-sp-4);
+  background: transparent;
+  border: var(--mr-bw-1) solid var(--mr-line-3);
+  color: var(--mr-text-1);
+  font: inherit;
+  font-size: var(--mr-fs-10);
+  font-weight: var(--mr-fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--mr-tracking-cap);
+  cursor: pointer;
+}
+
+.mr-midi-banner__retry:hover {
+  background: var(--mr-bg-panel);
+  border-color: var(--mr-line-strong);
+}
+
+.mr-midi-banner__retry:focus-visible {
+  outline: var(--mr-bw-2) solid var(--mr-accent);
+  outline-offset: var(--mr-bw-1);
+}
