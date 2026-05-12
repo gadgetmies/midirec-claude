@@ -144,6 +144,14 @@ When `mode !== 'idle'` AND `looping === true` AND `loopRegion != null`, the rAF 
 
 `TransportState` SHALL include a `recordingStartedAt: number | null` field. The default value SHALL be `null`. The reducer SHALL set `recordingStartedAt = performance.now()` when transitioning into `'record'` mode from a non-record mode (the same transition that today also resets `timecodeMs` to `0` when entering from `'idle'`). The reducer SHALL clear `recordingStartedAt` back to `null` when `stop()` or `pause()` runs. Re-entering `'record'` from `'record'` (no-op today) SHALL NOT change `recordingStartedAt`. Switching from `'record'` to `'play'` is not a supported transition in this slice; if it occurs, `recordingStartedAt` SHALL be cleared.
 
+`play()` and `stop()` SHALL drive the outbound MIDI scheduler (see the `midi-playback` capability) as observable side effects of the `mode` transition. The `useTransport` reducer itself SHALL NOT call `MIDIOutput.send` or any other side-effecting Web MIDI API — the scheduler subscribes to `mode` transitions externally. The reducer's contract for `play()` SHALL remain: set `mode = 'play'` (from any prior mode), preserve `timecodeMs` (do NOT reset to 0 — `play()` resumes from the current playhead), and trigger the rAF loop. The reducer's contract for `stop()` SHALL remain: set `mode = 'idle'`, reset `timecodeMs` to `0`, clear `recordingStartedAt`. The reducer's contract for `pause()` SHALL remain: set `mode = 'idle'`, preserve `timecodeMs`, clear `recordingStartedAt`.
+
+The OBSERVABLE behavior of `play()` and `stop()` — beyond the reducer-level state changes above — SHALL be:
+
+- `play()` from any non-`'play'` mode SHALL cause the scheduler to snapshot `bpm` and the first available output, emit a toast describing the situation (either `'No output device available'` if no output, or `'Playing to <output.name>'` if one is present), and begin dispatching note-on / note-off pairs through `MIDIOutput.send` according to the `midi-playback` capability's contracts. These observable behaviors SHALL hold regardless of which UI element triggered `play()` (Titlebar play button, programmatic test invocation, future keyboard shortcut).
+- `stop()` from `'play'` mode SHALL cause the scheduler to emit panic — explicit note-off messages for every still-dispatched note-on without a delivered note-off, plus an All Notes Off CC (`#123`, `0x7B`) on every channelByte that produced activity during the play session, sent to the output snapshotted at the prior `play()` — before the reducer resets `timecodeMs`.
+- `stop()` from `'record'` mode SHALL not trigger playback panic (no playback was running); the reducer's recording-side state changes (clearing `recordingStartedAt`, resetting `timecodeMs`) are unchanged.
+
 #### Scenario: Playing advances timecode
 
 - **WHEN** `play()` is called and ~500ms elapses
@@ -234,6 +242,49 @@ When `mode !== 'idle'` AND `looping === true` AND `loopRegion != null`, the rAF 
 - **WHEN** `pause()` is called
 - **THEN** `recordingStartedAt` SHALL be `null`
 - **AND** `timecodeMs` SHALL be preserved (not reset)
+
+#### Scenario: Play from idle resumes from current playhead, not zero
+
+- **GIVEN** `mode === 'idle'`, `timecodeMs === 4250` (after a prior pause), and a non-empty channel
+- **WHEN** `play()` is called
+- **THEN** `mode` SHALL transition to `'play'`
+- **AND** `timecodeMs` SHALL remain `4250` at the moment of the transition (no implicit reset to 0)
+- **AND** the next rAF tick SHALL advance `timecodeMs` past `4250`
+
+#### Scenario: Play triggers the scheduler to dispatch notes
+
+- **GIVEN** the transport is in `mode === 'idle'`, at least one MIDIOutput is connected, and the active channel contains a note that falls within the first 100 ms of playback
+- **WHEN** `play()` is called
+- **THEN** the scheduler SHALL invoke `MIDIOutput.send` for that note's note-on within one rAF tick of the mode transition
+- **AND** the scheduler SHALL invoke a matching note-off `MIDIOutput.send` whose timestamp resolves to `(t + dur) * (60000 / bpm)` ms after the play started
+
+#### Scenario: Play with no output emits a no-output toast
+
+- **GIVEN** `useMidiOutputs().outputs.length === 0`
+- **WHEN** `play()` is called
+- **THEN** `useToast().show` SHALL have been called exactly once with `'No output device available'`
+- **AND** `mode` SHALL still transition to `'play'`
+- **AND** `timecodeMs` SHALL advance as usual
+
+#### Scenario: Play with an output emits a playing-to toast
+
+- **GIVEN** `useMidiOutputs().outputs[0].name === 'MicroFreak'`
+- **WHEN** `play()` is called
+- **THEN** `useToast().show` SHALL have been called exactly once with `'Playing to MicroFreak'`
+
+#### Scenario: Stop from play emits panic before resetting timecode
+
+- **GIVEN** `mode === 'play'`, the scheduler has dispatched at least one note-on whose matching note-off is in the future, and at least one channelByte has produced activity during the session
+- **WHEN** `stop()` is called
+- **THEN** the scheduler SHALL emit the explicit note-offs followed by All Notes Off CCs (`0xB0 | byte, 0x7B, 0x00`) for every active channelByte
+- **AND** the reducer SHALL then set `mode = 'idle'` and `timecodeMs = 0`
+
+#### Scenario: Stop from record does not emit playback panic
+
+- **GIVEN** `mode === 'record'` (no playback in progress)
+- **WHEN** `stop()` is called
+- **THEN** the scheduler SHALL NOT emit any note-off, All Notes Off, or other outbound MIDI messages
+- **AND** the reducer's recording-side state SHALL clear as documented (`recordingStartedAt = null`, `timecodeMs = 0`)
 
 ### Requirement: Record button disabled when input or channel is missing
 
