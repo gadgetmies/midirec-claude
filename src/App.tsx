@@ -4,6 +4,7 @@ import { StageProvider } from './hooks/useStage';
 import { TransportProvider } from './hooks/useTransport';
 import { MidiRuntimeProvider } from './midi/MidiRuntimeProvider';
 import { MidiRecorderRunner } from './midi/recorder';
+import { MidiSchedulerRunner } from './midi/scheduler';
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
           <MidiRuntimeProvider>
             <StageProvider>
               <MidiRecorderRunner />
+              <MidiSchedulerRunner />
               <AppShell />
             </StageProvider>
           </MidiRuntimeProvider>

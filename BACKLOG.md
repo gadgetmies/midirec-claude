@@ -398,6 +398,33 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 
 **Status**: pending. **Third of three core slices** for end-to-end MIDI recording and playback. Together with the previous two, closes the E2E loop.
 
+### DJ action track playback
+
+**Why**: The just-archived `play-channel-notes` slice closed the channel-roll → output loop, but DJ action tracks remain mute. They render in the timeline, the playhead crosses them, and each pitch carries an `ActionMapEntry` plus an `OutputMapping` (output device + MIDI channel + CC# or note + pressure mapping). For these to actually do something during playback, the scheduler needs to walk DJ track events the same way it walks `PianoRollTrack.notes`, but emit the message type the action's `OutputMapping` describes (note-on/off with the row's pitch, or CC# with a value derived from the event's pressure curve / fixed value, etc.). Without this, DJ action tracks are decorative — visible but inert.
+
+**Scope**:
+
+- Extend the scheduler to read `useStage().djActionTracks` alongside channels. For each DJ track that passes the track-level audibility check (`isDJTrackAudible(track, soloing)`), walk every pitch row that's not row-muted (and is row-soloed when the track has any row-solo, per `useDJActionTracks`'s composition rules).
+- For each event in the row, look up the row's `OutputMapping` (output device id, MIDI channel byte, message kind). Emit a message at `event.t * msPerBeat` using the scheduler's existing lookahead logic. Pressure curves (a `PressurePoint[]` per event) get sampled at lookahead-window boundaries and emitted as a sequence of CC messages along the event's duration — separate dispatch path from the discrete channel-roll note-ons. (Pressure sampling cadence: open question — likely one CC per ~10ms or one per pressure-point, whichever is sparser. Decide in the change's `design.md`.)
+- Output selection: resolve `mapping.outputId` against `useMidiOutputs().outputs` at `play()` time, alongside the channel-roll's `outputs[0]` snapshot. A DJ track row routed to an unavailable output is silently dropped (Statusbar/toast may surface a warning per row — defer to grooming).
+- Panic on stop: the scheduler's `activeNoteOns` map (already keyed by `(outputId, channelByte, pitch)`) absorbs DJ track note-ons without schema change. CCs don't need panic — they're stateless from the synth's perspective.
+
+**Verification**:
+
+- Map a DJ row to "Note 60 on output X, channel 1". Press play → row events emit note-on/off on output X.
+- Map a DJ row to "CC#74 on output X, channel 1" with a pressure curve. Press play → CC#74 messages stream along the event's duration, tracking the curve.
+- Mute the DJ track mid-playback → its events stop emitting within one frame; channel rolls unaffected.
+- Solo a DJ row → only that row's events fire; the track's other rows are dropped.
+- `yarn typecheck` clean.
+
+**Spec deltas**: `midi-playback` — gain DJ-track scheduling requirements. `dj-action-tracks` — likely no change (the data shape already exists); audit during the change's proposal.
+
+**Dependencies**: E2E core (playback slice required). Independent of the per-channel routing slice — DJ tracks already carry their own per-row output mapping, so they don't need the Routing matrix.
+
+**Estimated effort**: 1.5–2 days. The pressure-curve CC sampling path is the bulk; the discrete note path mirrors the existing scheduler logic with a different audibility composition.
+
+**Status**: pending. Surfaced during manual verification of the `play-channel-notes` slice — user noticed DJ tracks have no playback cursor and emit no MIDI.
+
 ### Multi-channel record routing by incoming MIDI channel byte
 
 **Why**: The initial recording slice routes every incoming note to `selectedChannelId`. Real controllers and split keyboards send on multiple MIDI channels (left hand on ch1, right hand on ch2; drum machine on ch10). To capture a multi-channel performance the recorder must route by the incoming MIDI channel byte — a note arriving on MIDI channel N lands in the internal channel with id N.
@@ -506,7 +533,7 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 
 ### Loop playback over a time range
 
-**Why**: Producers loop a bar or chorus during overdubs and creative iteration. Today playback runs once from the playhead to the end and stops. This slice adds a loop range that the playhead wraps around indefinitely.
+**Why**: Producers loop a bar or chorus during overdubs and creative iteration. Today playback runs once from the playhead to the end and stops. This slice adds a loop range that the playhead wraps around indefinitely. Closing this also fixes the playback-slice's documented "~100ms boundary tail bleed" — the third E2E slice (archived as `play-channel-notes`) intentionally did not clip its 100ms lookahead at `loopRegion.end`, so notes whose start lands in `[end − 100ms, end)` already have a future-timestamped note-off queued past the wrap. The scheduler change below (lookahead clipped to `min(playhead + 100ms, t1)`, panic note-offs at wrap for sustained notes) closes that gap. Also note: no UI currently lets the user set `loopRegion` — this entry adds it (toggle + ruler band), so the tail bleed is observable today only via programmatic `setLoopRegion`.
 
 **Scope**:
 

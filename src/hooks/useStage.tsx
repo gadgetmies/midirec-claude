@@ -112,7 +112,11 @@ const DEMO_NOTE_IDX = 3;
 
 function useStageState(): StageState {
   const { timecodeMs, bpm } = useTransport();
-  const channels = useChannels(TOTAL_T);
+  const demoClean = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.location.search.includes('demo=clean');
+  }, []);
+  const channels = useChannels(TOTAL_T, demoClean);
   const djTracks = useDJActionTracks();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -184,7 +188,7 @@ function useStageState(): StageState {
     : demoNote
       ? [DEMO_NOTE_IDX]
       : [];
-  const selectedChannelId: ChannelId | null = demoMarquee || demoNote ? 1 : null;
+  const selectedChannelId: ChannelId | null = demoMarquee || demoNote || demoClean ? 1 : null;
 
   const resolvedSelection = useMemo<ResolvedSelection | null>(() => {
     if (selectedChannelId === null) return null;
