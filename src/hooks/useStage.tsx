@@ -5,7 +5,9 @@ import {
   useEffect,
   useMemo,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import type { Marquee, Note } from '../components/piano-roll/notes';
 import { notesInMarquee } from '../components/piano-roll/notes';
@@ -81,7 +83,7 @@ export interface StageState {
   closeExportDialog: () => void;
   djActionTracks: DJActionTrack[];
   djActionSelection: DJActionSelection | null;
-  setDJActionSelection: (target: DJActionSelection | null) => void;
+  setDJActionSelection: Dispatch<SetStateAction<DJActionSelection | null>>;
   djEventSelection: DJEventSelection | null;
   setDJEventSelection: (target: DJEventSelection | null) => void;
   pressureRenderMode: PressureRenderMode;
@@ -106,6 +108,7 @@ export interface StageState {
   addChannel: (id: ChannelId, name?: string, color?: string) => void;
   selectedTimelineTrack: TimelineTrackSelection | null;
   setSelectedTimelineTrack: (s: TimelineTrackSelection | null) => void;
+  selectDJTimelineTrack: (trackId: DJTrackId) => void;
   setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
   setDJTrackDefaultMidiInputDevice: (trackId: DJTrackId, inputDeviceId: string) => void;
   appendDJActionEvent: (trackId: DJTrackId, event: ActionEvent) => void;
@@ -139,6 +142,12 @@ function useStageState(): StageState {
   const [pressureRenderMode, setPressureRenderMode] = useState<PressureRenderMode>('curve');
   const [selectedTimelineTrack, setSelectedTimelineTrack] = useState<TimelineTrackSelection | null>(null);
 
+  const selectDJTimelineTrack = useCallback((trackId: DJTrackId) => {
+    setSelectedTimelineTrack({ kind: 'dj', trackId });
+    setDJActionSelection(null);
+    setDJEventSelection(null);
+  }, []);
+
   useEffect(() => {
     if (!selectedTimelineTrack) return;
     const onDown = (e: PointerEvent) => {
@@ -158,7 +167,7 @@ function useStageState(): StageState {
     return () => window.removeEventListener('pointerdown', onDown);
   }, [selectedTimelineTrack]);
 
-  /* Blur both DJ selections (row + event) when the user clicks outside the
+  /* Clear both DJ selections (row + event) when the user clicks outside the
      track or the side panels. Surfaces opt in by carrying
      `data-mr-dj-selection-region="true"` (the sidebar Map Note panel, the
      inspector Action+Output panel, and the Inspector pressure section
@@ -277,6 +286,7 @@ function useStageState(): StageState {
     addChannel: channels.addChannel,
     selectedTimelineTrack,
     setSelectedTimelineTrack,
+    selectDJTimelineTrack,
     setChannelInputSourceChannels: channels.setChannelInputSourceChannels,
     setDJTrackDefaultMidiInputDevice: djTracks.setDJTrackDefaultMidiInputDevice,
     appendDJActionEvent: djTracks.appendDJActionEvent,

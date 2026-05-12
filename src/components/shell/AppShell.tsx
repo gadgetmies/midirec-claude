@@ -100,9 +100,7 @@ export function AppShell() {
                     onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}
                     onToggleRowMuted={(pitch) => stage.toggleDJTrackRowMuted(track.id, pitch)}
                     onToggleRowSoloed={(pitch) => stage.toggleDJTrackRowSoloed(track.id, pitch)}
-                    onSelectTimelineTrack={() =>
-                      stage.setSelectedTimelineTrack({ kind: 'dj', trackId: track.id })
-                    }
+                    onSelectTimelineTrack={() => stage.selectDJTimelineTrack(track.id)}
                     timelineHeaderSelected={djTlSelected}
                   />
                 );
