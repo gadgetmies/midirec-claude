@@ -5,7 +5,7 @@ TBD - created by archiving change dj-map-editor. Update Purpose after archive.
 ## Requirements
 ### Requirement: Sidebar exposes a Map Note panel for the selected DJ action row
 
-The codebase SHALL expose an `<InputMappingPanel>` React component at `src/components/sidebar/InputMappingPanel.tsx`. The component SHALL be mounted exactly once, from `Sidebar.tsx`, as the **first child** of the sidebar (above the existing MIDI Inputs / Outputs / Record Filter / Routing sections).
+The codebase SHALL expose an `<InputMappingPanel>` React component at `src/components/sidebar/InputMappingPanel.tsx`. The component SHALL be mounted exactly once, from `Sidebar.tsx`, after `TrackInputMappingPanel` in the authored JSX order (below track-input surfaces).
 
 The panel SHALL render only when ALL of the following hold:
 
@@ -23,7 +23,6 @@ The panel SHALL use the existing `<Panel>` primitive (`src/components/sidebar/Pa
 
 - **WHEN** `useStage().djActionSelection === null`
 - **THEN** there SHALL be no element with class `.mr-map-form` anywhere in the Sidebar
-- **AND** the Sidebar SHALL still render the four existing panels (MIDI Inputs / Outputs / Record Filter / Routing)
 
 #### Scenario: Panel mounts when a DJ action row is selected
 
