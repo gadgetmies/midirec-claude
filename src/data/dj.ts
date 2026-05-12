@@ -40,6 +40,12 @@ export interface ActionMapEntry {
   pad?: boolean;
   pressure?: boolean;
   trigger?: TriggerMode;
+  /** Web MIDI port ids. Non-empty = listen only on these ports (same note/channel). Empty/omitted = DJ track default port, or any subscribed port when track default is also empty. */
+  midiInputDeviceIds?: string[];
+  /** MIDI wire channel 1–16 for incoming notes; defaults to 1 when unset. */
+  midiInputChannel?: number;
+  /** Incoming note 0–127; defaults to the action row pitch when unset. */
+  midiInputNote?: number;
 }
 
 /* The MIDI emitted on playback when an action fires. Distinct from the

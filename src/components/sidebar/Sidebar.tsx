@@ -1,5 +1,6 @@
 import { Panel } from './Panel';
 import { InputMappingPanel } from './InputMappingPanel';
+import { TrackInputMappingPanel } from './TrackInputMappingPanel';
 import { MicIcon, RouteIcon, FilterIcon } from '../icons/transport';
 import { MidiPermissionBanner } from '../midi-runtime/MidiPermissionBanner';
 import { useMidiInputs, useMidiOutputs } from '../../midi/MidiRuntimeProvider';
@@ -97,6 +98,7 @@ export function Sidebar() {
   return (
     <>
       <MidiPermissionBanner />
+      <TrackInputMappingPanel />
       <InputMappingPanel />
 
       <Panel icon={<MicIcon />} title="MIDI Inputs" count={countString(inputs)}>

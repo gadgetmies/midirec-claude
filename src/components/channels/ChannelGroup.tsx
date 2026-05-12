@@ -39,6 +39,8 @@ interface ChannelGroupProps {
   onToggleLaneMuted: (kind: ParamLaneKind, cc?: number) => void;
   onToggleLaneSoloed: (kind: ParamLaneKind, cc?: number) => void;
   onAddParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  onSelectTimelineChannel?: () => void;
+  timelineHeaderSelected?: boolean;
 }
 
 export function ChannelGroup({
@@ -62,8 +64,15 @@ export function ChannelGroup({
   onToggleLaneMuted,
   onToggleLaneSoloed,
   onAddParamLane,
+  onSelectTimelineChannel,
+  timelineHeaderSelected,
 }: ChannelGroupProps) {
-  const headerClick = (event: MouseEvent<HTMLDivElement>) => {
+  const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    onSelectTimelineChannel?.();
+  };
+
+  const chevronToggle = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     onToggleChannelCollapsed();
   };
@@ -79,17 +88,28 @@ export function ChannelGroup({
       data-soloed={channel.soloed ? 'true' : 'false'}
       data-audible={channelAudible ? 'true' : 'false'}
     >
-      <div className="mr-channel__hdr" onClick={headerClick}>
+      <div
+        className="mr-channel__hdr"
+        onClick={selectHeader}
+        data-timeline-selected={timelineHeaderSelected ? 'true' : undefined}
+      >
         <div className="mr-channel__hdr-left">
-          <span className="mr-channel__chev">
-            <ChevDownIcon />
-          </span>
+          <button
+            type="button"
+            className="mr-channel__chev-btn"
+            aria-expanded={!channel.collapsed}
+            aria-label={channel.collapsed ? 'Expand channel' : 'Collapse channel'}
+            onClick={chevronToggle}
+          >
+            <span className="mr-channel__chev">
+              <ChevDownIcon />
+            </span>
+          </button>
           <span
             className="mr-channel__swatch"
             style={{ background: channel.color, color: channel.color }}
           />
           <span className="mr-channel__name">{channel.name}</span>
-          <span className="mr-channel__sub">CH {channel.id}</span>
         </div>
         <div className="mr-channel__hdr-spacer" />
         <div className="mr-channel__hdr-right">
@@ -116,6 +136,8 @@ export function ChannelGroup({
               onToggleCollapsed={onToggleRollCollapsed}
               onToggleMuted={onToggleRollMuted}
               onToggleSoloed={onToggleRollSoloed}
+              onSelectTimelineChannel={onSelectTimelineChannel}
+              trackHeaderSelected={timelineHeaderSelected}
             />
           )}
           {lanes.map((lane) => (

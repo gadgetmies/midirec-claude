@@ -28,6 +28,8 @@ interface TrackProps {
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
+  onSelectTimelineChannel?: () => void;
+  trackHeaderSelected?: boolean;
 }
 
 export function Track({
@@ -41,8 +43,15 @@ export function Track({
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
+  onSelectTimelineChannel,
+  trackHeaderSelected,
 }: TrackProps) {
-  const headerClick = (event: MouseEvent<HTMLDivElement>) => {
+  const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    onSelectTimelineChannel?.();
+  };
+
+  const chevronToggle = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     onToggleCollapsed();
   };
@@ -55,11 +64,23 @@ export function Track({
       data-soloed={roll.soloed ? 'true' : 'false'}
       data-audible={audible ? 'true' : 'false'}
     >
-      <div className="mr-track__hdr" onClick={headerClick}>
+      <div
+        className="mr-track__hdr"
+        onClick={selectHeader}
+        data-timeline-selected={trackHeaderSelected ? 'true' : undefined}
+      >
         <div className="mr-track__hdr-left">
-          <span className="mr-track__chev">
-            <ChevDownIcon />
-          </span>
+          <button
+            type="button"
+            className="mr-track__chev-btn"
+            aria-expanded={!roll.collapsed}
+            aria-label={roll.collapsed ? 'Expand notes track' : 'Collapse notes track'}
+            onClick={chevronToggle}
+          >
+            <span className="mr-track__chev">
+              <ChevDownIcon />
+            </span>
+          </button>
           <span className="mr-track__name">Notes</span>
           <span className="mr-track__sub">{roll.notes.length} notes</span>
         </div>

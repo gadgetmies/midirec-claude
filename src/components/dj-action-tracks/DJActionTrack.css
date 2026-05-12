@@ -28,7 +28,7 @@
 }
 
 .mr-djtrack__hdr:hover {
-  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+  background: var(--mr-bg-hdr-hover);
 }
 
 .mr-djtrack__hdr-left {
@@ -39,7 +39,6 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 8px;
-  background: var(--mr-bg-panel-2);
   flex-shrink: 0;
 }
 
@@ -50,13 +49,39 @@
   display: flex;
   align-items: center;
   padding: 0 10px 0 8px;
-  background: var(--mr-bg-panel-2);
   flex-shrink: 0;
 }
 
 .mr-djtrack__hdr-spacer {
   flex: 1;
   min-width: 0;
+}
+
+.mr-djtrack__chev-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  margin-left: -6px;
+  padding: 0;
+  width: 28px;
+  height: var(--mr-h-row);
+  border: 0;
+  border-radius: var(--mr-radius-sm, 3px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.mr-djtrack__chev-btn:hover {
+  background: color-mix(in oklab, var(--mr-text-1) 8%, transparent);
+}
+
+.mr-djtrack__chev-btn:focus-visible {
+  outline: 1px solid var(--mr-accent);
+  outline-offset: 1px;
 }
 
 .mr-djtrack__chev {
@@ -68,6 +93,7 @@
   color: var(--mr-text-3);
   transition: transform 0.12s;
   font-size: 9px;
+  pointer-events: none;
 }
 
 .mr-djtrack[data-track-collapsed="true"] .mr-djtrack__chev {

@@ -11,6 +11,7 @@
   --mr-bg-app:        #0a0b0d;   /* page / behind everything */
   --mr-bg-panel:      #111316;   /* sidebar, transport, inspector */
   --mr-bg-panel-2:    #16191d;   /* nested rows, list items */
+  --mr-bg-hdr-hover:  #1b2029;   /* opaque timeline header row hover */
   --mr-bg-input:      #0d0f12;   /* form fields, dropdowns */
   --mr-bg-timeline:   #0c0d0f;   /* canvas behind notes */
   --mr-bg-lane-odd:   #0e1013;   /* alternating piano-roll rows */
@@ -127,7 +128,6 @@
   --mr-w-inspector:  320px;
   --mr-h-param-lane:    72px;
   --mr-h-ruler:      28px;
-  --mr-h-track-hdr:  24px;
 
   /* ── Motion ─────────────────────────────────────────────────────────── */
   --mr-dur-fast:    100ms;

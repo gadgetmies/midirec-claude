@@ -51,12 +51,11 @@
 }
 
 .mr-track__hdr:hover {
-  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+  background: var(--mr-bg-hdr-hover);
 }
 
 /* Sticky-left label zone (chev + swatch + name + sub) stays visible at the
-   visible left edge of .mr-timeline at every horizontal scroll offset.
-   The panel-2 background matches the header so it masks anything beneath. */
+   visible left edge of .mr-timeline at every horizontal scroll offset. */
 .mr-track__hdr-left {
   position: sticky;
   left: 0;
@@ -65,7 +64,6 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 8px;
-  background: var(--mr-bg-panel-2);
   flex-shrink: 0;
 }
 
@@ -86,6 +84,33 @@
   min-width: 0;
 }
 
+.mr-track__chev-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  margin-left: -6px;
+  padding: 0;
+  width: 28px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--mr-radius-sm, 3px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.mr-track__chev-btn:hover {
+  background: color-mix(in oklab, var(--mr-text-1) 8%, transparent);
+}
+
+.mr-track__chev-btn:focus-visible {
+  outline: 1px solid var(--mr-accent);
+  outline-offset: 1px;
+}
+
 .mr-track__chev {
   width: 10px;
   height: 10px;
@@ -95,6 +120,7 @@
   color: var(--mr-text-3);
   transition: transform 0.12s;
   font-size: 9px;
+  pointer-events: none;
 }
 
 [data-track-collapsed="true"] .mr-track__chev {

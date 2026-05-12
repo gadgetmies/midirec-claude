@@ -57,7 +57,7 @@
 }
 
 .mr-param-lane__hdr:hover {
-  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 4%);
+  background: var(--mr-bg-hdr-hover);
 }
 
 .mr-param-lane__hdr-left {
@@ -68,7 +68,6 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px;
-  background: var(--mr-bg-panel-2);
   flex-shrink: 0;
 }
 
@@ -85,7 +84,6 @@
   align-items: center;
   padding: 0 10px 0 8px;
   flex-shrink: 0;
-  background: var(--mr-bg-panel-2);
 }
 
 .mr-param-lane__chev {

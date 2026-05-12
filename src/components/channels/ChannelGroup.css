@@ -26,7 +26,7 @@
 }
 
 .mr-channel__hdr:hover {
-  background: color-mix(in oklab, var(--mr-bg-panel) 80%, var(--mr-text-1) 5%);
+  background: var(--mr-bg-hdr-hover);
 }
 
 /* Sticky-left label zone (chev + swatch + name + sub) stays visible at the
@@ -39,7 +39,6 @@
   align-items: center;
   gap: 8px;
   padding: 0 10px 0 8px;
-  background: var(--mr-bg-panel);
   flex-shrink: 0;
 }
 
@@ -59,6 +58,33 @@
   flex-shrink: 0;
 }
 
+.mr-channel__chev-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  margin-left: -6px;
+  padding: 0;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--mr-radius-sm, 3px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.mr-channel__chev-btn:hover {
+  background: color-mix(in oklab, var(--mr-text-1) 8%, transparent);
+}
+
+.mr-channel__chev-btn:focus-visible {
+  outline: 1px solid var(--mr-accent);
+  outline-offset: 1px;
+}
+
 .mr-channel__chev {
   width: 10px;
   height: 10px;
@@ -68,6 +94,7 @@
   color: var(--mr-text-3);
   transition: transform 0.12s;
   font-size: 9px;
+  pointer-events: none;
 }
 
 .mr-channel[data-channel-collapsed="true"] .mr-channel__chev {
@@ -86,14 +113,6 @@
   font-size: 12px;
   font-weight: var(--mr-fw-semibold);
   color: var(--mr-text-1);
-}
-
-.mr-channel__sub {
-  font-family: var(--mr-font-mono);
-  font-size: 9px;
-  color: var(--mr-text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 /* Session-global solo dim. Lives here (channels capability) rather than in

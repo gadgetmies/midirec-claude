@@ -19,6 +19,7 @@ import './AppShell.css';
 
 export function AppShell() {
   const stage = useStage();
+  const tl = stage.selectedTimelineTrack;
 
   const viewProps = {
     lo: stage.lo,
@@ -50,6 +51,8 @@ export function AppShell() {
                 const roll = stage.rolls.find((r) => r.channelId === channel.id);
                 const channelLanes = stage.lanes.filter((l) => l.channelId === channel.id);
                 const isSelected = stage.selectedChannelId === channel.id;
+                const channelTlSelected =
+                  tl?.kind === 'channel' && tl.channelId === channel.id;
                 return (
                   <ChannelGroup
                     key={channel.id}
@@ -73,26 +76,37 @@ export function AppShell() {
                     onToggleLaneMuted={(kind, cc) => stage.toggleLaneMuted(channel.id, kind, cc)}
                     onToggleLaneSoloed={(kind, cc) => stage.toggleLaneSoloed(channel.id, kind, cc)}
                     onAddParamLane={stage.addParamLane}
+                    onSelectTimelineChannel={() =>
+                      stage.setSelectedTimelineTrack({ kind: 'channel', channelId: channel.id })
+                    }
+                    timelineHeaderSelected={channelTlSelected}
                   />
                 );
               })}
-              {stage.djActionTracks.map((track) => (
-                <DJActionTrack
-                  key={track.id}
-                  track={track}
-                  audible={isDJTrackAudible(track, stage.soloing)}
-                  soloing={stage.soloing}
-                  totalT={stage.totalT}
-                  pxPerBeat={DEFAULT_PX_PER_BEAT}
-                  rowHeight={DJ_ROW_HEIGHT}
-                  playheadT={stage.playheadT}
-                  onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
-                  onToggleMuted={() => stage.toggleDJTrackMuted(track.id)}
-                  onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}
-                  onToggleRowMuted={(pitch) => stage.toggleDJTrackRowMuted(track.id, pitch)}
-                  onToggleRowSoloed={(pitch) => stage.toggleDJTrackRowSoloed(track.id, pitch)}
-                />
-              ))}
+              {stage.djActionTracks.map((track) => {
+                const djTlSelected = tl?.kind === 'dj' && tl.trackId === track.id;
+                return (
+                  <DJActionTrack
+                    key={track.id}
+                    track={track}
+                    audible={isDJTrackAudible(track, stage.soloing)}
+                    soloing={stage.soloing}
+                    totalT={stage.totalT}
+                    pxPerBeat={DEFAULT_PX_PER_BEAT}
+                    rowHeight={DJ_ROW_HEIGHT}
+                    playheadT={stage.playheadT}
+                    onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
+                    onToggleMuted={() => stage.toggleDJTrackMuted(track.id)}
+                    onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}
+                    onToggleRowMuted={(pitch) => stage.toggleDJTrackRowMuted(track.id, pitch)}
+                    onToggleRowSoloed={(pitch) => stage.toggleDJTrackRowSoloed(track.id, pitch)}
+                    onSelectTimelineTrack={() =>
+                      stage.setSelectedTimelineTrack({ kind: 'dj', trackId: track.id })
+                    }
+                    timelineHeaderSelected={djTlSelected}
+                  />
+                );
+              })}
             </div>
           </div>
         </main>

@@ -1,30 +1,8 @@
 # Backlog
 
-Small, scoped tasks that aren't tied to an in-flight slice or OpenSpec change. Each entry should be concrete enough to start without further discovery; if a task needs design alignment or a spec, escalate it to an OpenSpec proposal in `openspec/changes/` instead.
+Small, scoped tasks that aren't tied to an in-flight slice or OpenSpec change. **Work with an active OpenSpec change lives under `openspec/changes/<name>/` and is summarized only by pointer here, not duplicated as full backlog entries.** Each backlog entry should be concrete enough to start without further discovery; if a task needs design alignment or a spec, escalate it to an OpenSpec change in `openspec/changes/` instead.
 
 ## Open
-
-### Remove the `N SELECTED` count badge from the marquee
-
-**Why**: After Slice 2 review the badge was deemed redundant — the dashed marquee rectangle plus the orange-red highlight on selected notes already communicate "these are selected", and the count will be available in the Inspector's multi-select panel from Slice 5 onwards. Today the badge sits to the upper-right of the marquee rectangle, occupies a chunk of lane space, and is the only thing in the renderer that requires a JS-side count.
-
-**Scope**:
-
-- `src/components/piano-roll/PianoRoll.tsx` — remove the `marqueeBadge` JSX block; the SVG marquee + selection-coloring on notes are kept.
-- `src/components/piano-roll/PianoRoll.css` — remove the `.mr-marquee__badge`, `.mr-marquee__count`, and `.mr-marquee__lbl` rules.
-- `openspec/specs/piano-roll/spec.md` — drop the badge requirements/scenarios from the *Marquee renders dashed rect with badge* requirement (rename it to *Marquee renders dashed rect* or similar). The marquee rectangle itself stays.
-- `design/deviations-from-prototype.md` — add a new entry (or extend the existing marquee entry #2/#3) recording the badge removal as another back-port-recommended deviation from the prototype, with rationale "selection count is shown in the Inspector multi-select panel from Slice 5 onwards".
-- `design/README.md` — the deviations table at the bottom gets a new row.
-
-**Verification**:
-
-- `?demo=marquee` URL renders the dashed marquee with selected notes in `--mr-note-sel`, but no badge element. The 7 selected notes are still visibly distinct via color.
-- `yarn typecheck` clean.
-- `grep -r 'mr-marquee__badge\|mr-marquee__count\|mr-marquee__lbl' src/` returns zero matches.
-
-**Estimated effort**: 30 minutes — one focused edit pass + spec update + design-doc note.
-
-**Status**: pending. Not blocking any other slice.
 
 ### M/S chip jumps 1px to the left at the end of horizontal scroll
 
@@ -430,9 +408,9 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 **Scope**:
 
 - **`useTransport`**: add `setClockSource(source: ClockSource)` action. No validation needed — the union type guarantees the value. Modify the `transport-titlebar` capability's "useTransport hook is the single source of transport state" requirement to list the new action; add an ADDED requirement covering picker behaviour.
-- **`useStatusbar`**: add `inputs: MidiInput[]` (the enumerated list — three stubbed entries matching the Sidebar's `MIDI Inputs` panel) and `setSelectedInputId(id: string)` action. Selection state lives on the hook (replace the constant stub with a small reducer). Modify the `statusbar` capability accordingly.
+- **`useStatusbar`**: add `inputs: MidiInput[]` mirroring the enumerated list from `useMidiInputs()` (or a shared selector) and `setSelectedInputId(id: string)` action. Selection state lives on the hook (replace the constant stub with a small reducer). Modify the `statusbar` capability accordingly.
 - **Clock-source picker**: opens from the Titlebar's `Clk` cell. Popover anchored below the cell. Radio group of three options: `Internal` / `External · MIDI Clock In` / `External · MTC`. Click an option → `setClockSource(...)` → close. Esc and click-outside dismiss without changing.
-- **MIDI-input picker**: opens from the Statusbar cluster button. Popover anchored above the button (it's the bottom of the shell — `bottom: calc(100% + 4px)`). Lists the stubbed inputs with their LED state and channel. Click an input → `setSelectedInputId(...)` → close.
+- **MIDI-input picker**: opens from the Statusbar cluster button. Popover anchored above the button (it's the bottom of the shell — `bottom: calc(100% + 4px)`). Lists available inputs with their LED state and channel. Click an input → `setSelectedInputId(...)` → close.
 - **Markup change**: flip `data-pickable="false"` to `data-pickable="true"` on the Statusbar button; attach `onClick` and open/close state. Add hover / focus-ring affordances under the `[data-pickable="true"]` selector (CSS-only — `cursor: pointer`, `:hover` background change, `:focus-visible` ring). Change `tabIndex` from `-1` to default. The `Clk` cell currently isn't a button — promote it to a `<button>` with the same `data-pickable` flag pattern, keeping the meta-row's visual layout.
 - **Popover primitive**: we don't have a generic one. `AddParamLanePopover` exists but has a known z-index issue (see backlog entry "Keys-spacer paints over the + Add Lane popover"). Two options:
   - Hoist a generic `<Popover>` primitive that both pickers consume (and the future `+ Add Channel` picker from the channels backlog entry). Half a day of upfront work; pays off across three callers.
@@ -442,12 +420,12 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
   - `transport-titlebar`: MODIFIED `useTransport hook is the single source of transport state` to add `setClockSource`; ADDED `Clk cell is interactive and opens a clock-source picker` with open/select/dismiss scenarios; ADDED `setClockSource updates clockSource state` with scenarios.
   - `statusbar`: MODIFIED `useStatusbar hook returns lastInput and active flag` → returns `inputs`, `selectedInputId`, `lastInput`, `active`, plus `setSelectedInputId`; ADDED `Statusbar cluster is interactive and opens an input picker` with scenarios.
 
-- **NOT in scope**: real Web MIDI / CoreMIDI / WinMM enumeration. The pickers feed from stubbed input lists; turning that into OS-level enumeration is a separate, larger change tracked elsewhere when scoped.
+- **NOT in scope**: platform drivers beyond Web MIDI; this slice only adds **selection UX** and state — device enumeration is already live via `useMidiInputs()` / `MidiRuntimeProvider`.
 
 **Verification**:
 
 - Click the `Clk` cell → popover opens with three radio options, current source pre-selected. Click `External · MIDI Clock In` → cell now reads `Ext`, popover closes.
-- Click the Statusbar cluster → popover opens above it listing the three stubbed inputs. Click `Arturia KeyStep Pro` → Statusbar cluster updates to show `Arturia KeyStep Pro · CH·1–4`.
+- Click the Statusbar cluster → popover opens above it listing connected inputs (or an empty state). Pick one → Statusbar cluster updates to show its label.
 - Esc dismisses either popover without changing state.
 - Click outside the popover dismisses it.
 - Tab order now includes both buttons; Enter on a focused button opens its popover; arrow keys move within the popover.
@@ -459,92 +437,6 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 **Estimated effort**: 1 day if reusing the existing `AddParamLanePopover` pattern (accepting its z-index quirk). 1.5 days if hoisting a generic `<Popover>` primitive first — the saner long-term choice given three eventual callers. The hook deltas, spec updates, and visual review take ~half a day combined; the popover primitive is the variable.
 
 **Status**: pending. Surfaced during `statusbar-shell` slice planning — the `clockSource` field on `useTransport`, the `data-pickable="false"` flag on the Statusbar button, and the inert `Clk` cell are anchors waiting for this work.
-
-### Web MIDI access and real device enumeration
-
-**Why**: Every MIDI device list in the app is stubbed today — `useStatusbar().inputs`, the `MIDI Inputs` panel, the `MIDI Outputs` panel, the Routing matrix's device column, the (pending) input/clock-source pickers — all feed from a hardcoded array. To do anything real (monitoring, recording, playback) the app first needs to talk to the user's actual hardware via the Web MIDI API. This entry is the foundation: replace stubs with `navigator.requestMIDIAccess()` results, surface permission state, react to hotplug. It is the first of an end-to-end recording/playback chain (this slice → record → play); the chain is laid out across the next several backlog entries.
-
-**Scope**:
-
-- New module `src/midi/access.ts`: thin wrapper around `navigator.requestMIDIAccess({ sysex: false })` returning a singleton `MIDIAccess`, plus a `subscribe(listener)` for `statechange` events. All other modules go through this wrapper rather than touching `navigator.requestMIDIAccess` directly.
-- Permission flow: a small banner / inline UI in the left sidebar (or a one-time toast) requests MIDI access on first load. Memoize the granted state so subsequent navigations don't re-prompt. Denied state shows a retry control. Browsers without Web MIDI support (Firefox without flag, Safari prior to its support landing) get a "MIDI not available" banner instead of an error.
-- `useStatusbar().inputs`: replace the stubbed array with `Array.from(access.inputs.values()).map(toMidiInput)`. The `toMidiInput` helper builds the existing input-shape from a `MIDIInput` (id, name, manufacturer → label). LED/active state still derives from runtime message activity (next slice).
-- `useOutputs` (whichever hook backs the `MIDI Outputs` panel): same treatment — real outputs from `access.outputs`.
-- Hotplug: subscribe to `statechange` and refresh both `inputs` and `outputs` arrays in their hooks when a device is added / removed / disconnected. Keep `selectedInputId` stable across hotplug events; clear it only if the selected device disappears.
-- The Routing matrix's device column reads from the same outputs list.
-- The pending "Pickers for MIDI input and clock source" entry consumes the same hooks unchanged, so its popovers list real devices automatically once both this slice and the pickers slice land.
-
-**Verification**:
-
-- Open the app with a real MIDI keyboard connected → keyboard appears in the `MIDI Inputs` sidebar panel, in the Statusbar cluster's picker (once pickers slice lands), and in the Routing matrix.
-- Open the app with no MIDI device → lists render their existing empty states; no console errors.
-- Plug a device in while the app is running → device appears without a reload.
-- Unplug the currently selected input → selection clears; no errors.
-- Deny the permission prompt → banner explains the state; lists are empty; no errors.
-- Open the app in a browser without Web MIDI support → "not available" banner; no errors.
-- `yarn typecheck` clean.
-
-**Spec deltas**: minor — `statusbar` (and wherever outputs live) modify the source of `inputs`/`outputs` from a constant to a live hook-backed array. No new capability needed yet; runtime MIDI plumbing is implementation detail, not a user-facing capability with its own spec.
-
-**Dependencies**: none. Pairs naturally with the pending "Pickers for MIDI input and clock source" entry but doesn't require it.
-
-**Estimated effort**: 0.5–1 day. Wrapper is ~50 LOC; the bulk of the time is wiring it into 4–5 hooks/components without breaking the consumer shape, plus the permission UX.
-
-**Status**: pending. **First of three core slices** for end-to-end MIDI recording and playback.
-
-### Play back channel notes to an output device
-
-**Why**: With device enumeration and recording in place, the app captures notes but can't play them back. This slice closes the loop: press play, pre-scheduled MIDI note-on/note-off messages stream to a real output device with sub-ms hardware-level timing via the Web MIDI API's timestamp argument. Single hardcoded output (first available) in this slice — per-channel routing via the Routing matrix comes later.
-
-**Scope**:
-
-- New module `src/midi/scheduler.ts`: classic lookahead scheduler (Chris Wilson, "A Tale of Two Clocks"). A `requestAnimationFrame` loop ticks every frame. Each tick walks every channel's note list, finds notes whose start (`t * msPerBeat`) falls within `[playheadMs, playheadMs + lookaheadMs)`, and pre-emits `MIDIOutput.send([0x90 | ch, pitch, vel], targetTimestamp)` plus the matching `0x80` note-off at `(t + dur) * msPerBeat`. Lookahead ~100ms absorbs frame skips; the Web MIDI timestamp delivers sample-accurate hardware scheduling.
-- `useTransport.play()` / `stop()`: `play` starts the scheduler from the current playhead; `stop` halts it AND emits panic — explicit note-off for every note the scheduler has dispatched a note-on for but not yet a note-off, plus an `All Notes Off` CC (`0xB0 | ch, 0x7B, 0x00`) on every channel that has emitted activity in the current play session.
-- Output selection: pick the first output from `useOutputs().outputs`. The Routing matrix is **not** consulted in this slice — per-channel routing is slice 6. Outgoing MIDI channel byte is the internal channel id (1..16) clipped to 0..15.
-- `play` with no available output: toast/Statusbar message "No output device available"; button stays enabled (a no-op).
-- Tempo change mid-playback: out of scope; the scheduler captures `tempo` at `play` time. Acceptable to break or no-op for now.
-- Loop / count-in / pre-roll: out of scope (separate backlog entries).
-
-**Verification**:
-
-- Record a short phrase (using the recording slice), press stop, press play with an output device connected → phrase plays back through the output at correct pitches, velocities, timing.
-- Press stop mid-playback → all sounding notes go silent within a frame (panic note-offs).
-- Press play with no output → no errors; toast/Statusbar explains.
-- `yarn typecheck` clean.
-
-**Spec deltas**: `transport-titlebar` — flesh out `play`/`stop` action contracts to drive the scheduler. Probably bundled with the recording slice's OpenSpec proposal.
-
-**Dependencies**: requires "Web MIDI access and real device enumeration." Independent of the recording slice — could land first, but easiest to test once recording exists.
-
-**Estimated effort**: 1–1.5 days. Scheduler is ~80 LOC of careful code; panic ~30 LOC; the rest is action wiring and output selection.
-
-**Status**: pending. **Third of three core slices** for end-to-end MIDI recording and playback. Together with the previous two, closes the E2E loop.
-
-### Multi-channel record routing by incoming MIDI channel byte
-
-**Why**: The initial recording slice routes every incoming note to `selectedChannelId`. Real controllers and split keyboards send on multiple MIDI channels (left hand on ch1, right hand on ch2; drum machine on ch10). To capture a multi-channel performance the recorder must route by the incoming MIDI channel byte — a note arriving on MIDI channel N lands in the internal channel with id N.
-
-**Scope**:
-
-- Recorder change: extract MIDI channel from the status byte (`status & 0x0F`); route the captured note to internal channel `chanByte + 1` (Web MIDI is 0-indexed; our internal channel ids are 1-indexed).
-- Auto-add channels: if a note arrives on a MIDI channel with no matching internal channel, call `addChannel(id)` from the pending "Add/remove affordances" backlog entry before appending. Either depend on that entry landing first, or include a stripped-down inline `addChannel` here.
-- Per-channel record-arm: each channel header gets a small record-arm indicator (red dot when armed). During recording only armed channels receive notes; notes on non-armed channels are dropped. Default: every channel in the session is auto-armed at record-start. UI: clicking the dot toggles arm. Decision deferred to grooming: should auto-created channels (from incoming-channel-not-yet-in-state) be auto-armed? Recommend yes — if they're new, the user wants to capture them.
-- `selectedChannelId` no longer affects record routing — the MIDI channel byte does.
-
-**Verification**:
-
-- Use a controller sending on multiple MIDI channels → notes on ch1 land in internal channel 1, ch2 in channel 2, etc., simultaneously.
-- Disarm channel 2 → notes on MIDI ch2 are dropped; channel 1 unaffected.
-- Send a note on MIDI ch5 with no internal channel 5 in the session → channel 5 auto-created and capture continues there.
-- `yarn typecheck` clean.
-
-**Spec deltas**: `channels` — add `armed: boolean` field and toggle action; modify recording requirements in `transport-titlebar` (or wherever recording lives). Likely an OpenSpec proposal.
-
-**Dependencies**: E2E core (recording slice). Couples with "Add/remove affordances for channels and tracks" — share `addChannel`.
-
-**Estimated effort**: 0.5–1 day.
-
-**Status**: pending.
 
 ### Per-channel output routing in playback (Routing matrix becomes live)
 
@@ -576,29 +468,31 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 
 **Status**: pending.
 
-### Input mapping rules — device + MIDI channel → internal channel
+### Per-track input mapping (timeline selection + sidebar panel)
 
-**Why**: Multi-channel record routing (previous entry) uses the raw MIDI channel byte. That breaks when two devices both send on MIDI channel 1 — the user can't keep them in separate internal channels. The `InputMappingPanel` in the sidebar is the UI for this: explicit rules of `{deviceId, fromChannel} → toChannel`.
+**Why**: Multi-channel byte routing lands every message on the internal channel matching the wire channel, and the recorder still defaults to a single enumerated input. Users need to direct **specific hardware inputs and MIDI channels** into **a specific timeline target** (instrument channel-roll or DJ action track) so two controllers on the same wire channel, or one controller split across tracks, records into the right place.
 
-**Scope**:
+**Scope** (implemented via OpenSpec change `per-track-input-mapping`; see `openspec/changes/per-track-input-mapping/`):
 
-- `useInputMapping` hook: state is an array of `{ inputDeviceId, fromChannel, toChannel }` rules. Recording looks up the matching rule on each incoming event; falls back to identity routing (the previous slice's default) if no rule matches.
-- `InputMappingPanel` UI: list rules with add/remove/edit. Each rule row shows `<device picker> <channel 1-16> → <channel 1-16>`. Empty state hint: "No mapping rules — incoming MIDI uses its channel byte."
-- Out of scope: wildcards (`fromChannel: '*'` matching any channel from a device), velocity curves, pitch transposition. Defer; revisit if asked.
+- **Timeline selection**: Clicking an instrument channel header / track header or a DJ action **track** header sets `selectedTimelineTrack` (`channel` or `dj`); this is distinct from DJ **row** selection (`InputMappingPanel` / action map) which continues to edit per-pitch DJ semantics.
+- **Left sidebar panel**: `TrackInputMappingPanel` lists real inputs from `useMidiInputs()`. For each device, the user can enable listening and tick **one or more** of CH 1–16. Channel checklists are **scoped per device** (editing device B does not change device A’s set). Multiple devices MAY be enabled for the same track.
+- **State**: Each `Channel` and each `DJActionTrack` owns `inputSources: { inputDeviceId, channels[] }[]`. Setters on `useStage` / `useChannels` persist edits.
+- **Recorder**: Union of configured `inputDeviceId` values receives `onmidimessage` handlers while recording; when no row has non-empty `channels`, fall back to `inputs[0]` only (legacy). Match `(portId, midiChannel)` against the selected target’s rows to override internal routing; DJ capture appends `ActionEvent`s when the DJ track claims the message. Full precedence is in `design.md`.
 
-**Verification**:
+**Verification**: Follow `tasks.md` in the OpenSpec change and delta specs (`track-input-mapping`, `midi-recording`, `channels`, `dj-action-tracks`, `sidebar`).
 
-- Two devices A and B both sending on MIDI channel 1. Add rules `{A, 1, 1}` and `{B, 1, 9}` → A's notes land in channel 1, B's in channel 9.
-- Remove the rule for B → B's notes fall back to identity routing (channel 1).
-- `yarn typecheck` clean.
+**Dependencies**: Web MIDI runtime + record + playback slices (shipped). Supersedes the older brainstorm below.
 
-**Spec deltas**: new `input-mapping` capability or extend `sidebar`.
+**Estimated effort**: See tasks in `per-track-input-mapping` (multi-file recorder + UI).
 
-**Dependencies**: "Multi-channel record routing by incoming MIDI channel byte" (previous entry).
+**Status**: **OpenSpec in progress** — `openspec/changes/per-track-input-mapping/`.
 
-**Estimated effort**: 0.5–1 day.
+<details>
+<summary>Superseded sketch (global rule list)</summary>
 
-**Status**: pending.
+Earlier note: a global `useInputMapping` list of `{device, fromChannel → toChannel}` rows. That model is **replaced** by per-track, per-device multi-select in the sidebar panel above.
+
+</details>
 
 ### CC and pitch-bend capture during recording
 
@@ -743,7 +637,7 @@ Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pres
 
 ### Session save / load to a `.midirec` file
 
-**Why**: Everything is in volatile React state today — refresh and your recording is gone. To make the tool usable across sittings, the app must serialize state to a file the user owns. Recommended format: a zipped `.midirec` archive containing a Standard MIDI File (notes + CC + pitch-bend, one track per internal channel) **plus** a sidecar `session.json` carrying app-only state (channel colors, param-lane configs, routing, tempo, time signature, lo/hi pitch windows, input-mapping rules). Renaming `.midirec` → `.zip` lets users extract the SMF for use in any DAW.
+**Why**: Everything is in volatile React state today — refresh and your recording is gone. To make the tool usable across sittings, the app must serialize state to a file the user owns. Recommended format: a zipped `.midirec` archive containing a Standard MIDI File (notes + CC + pitch-bend, one track per internal channel) **plus** a sidecar `session.json` carrying app-only state (channel colors, param-lane configs, routing, tempo, time signature, lo/hi pitch windows, per-track `inputSources`, DJ track data). Renaming `.midirec` → `.zip` lets users extract the SMF for use in any DAW.
 
 **Scope**:
 
@@ -771,5 +665,9 @@ Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pres
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->
 
+- **2026-05-12** · `92bde7c` — **Play back channel notes**. Closes the core E2E loop’s playback leg: lookahead rAF scheduler, `MIDIOutput.send` with timestamps, panic on stop. Single-output routing initially. See archived change `2026-05-12-play-channel-notes`.
+- **2026-05-12** · `1f9baa6` — **Multi-channel record routing**. Routes by incoming MIDI channel nibble, composite active-note keys, `addChannel` / `flushSync` when a message arrives on a missing internal channel; record enabled when any input exists. See archived change `2026-05-12-multi-channel-record-routing`.
 - **2026-05-12** · pending archive — **DJ action track playback**. Unifies channel-roll and DJ-track dispatch into a SINGLE loop in `src/midi/scheduler.ts` walking all playable sources via a shared `emitNoteEvent` helper (note-on/note-off + optional channel-aftertouch curve). Adds `midiChannel: number` to `DJActionTrack` (seed: 16) — events emit by default on `track.midiChannel` with `event.pitch` as the output pitch, mirroring how channel-rolls emit on `Channel.id` with `Note.pitch`. `outputMap[pitch]` becomes an OPTIONAL override (channel + pitch) instead of a required prerequisite. Pressure-bearing rows additionally emit `0xD0` from `event.pressure` (or `synthesizePressure(event, perPitchIndex)` when undefined), throttled to a minimum 10 ms gap on the same channelByte; pressure points emit in the dispatch tick with future timestamps (mirrors the channel-roll's future-timestamped note-off). All DJ events share the channel-roll's single `outputSnapshot`; the `activeNoteOns` and `channelsActivated` maps absorb DJ note-ons unchanged so panic-on-stop covers the envelopes. Solo composition: any DJ track or row soloed flips the session-wide `data-soloing` flag and silences un-soloed channel-rolls. Deferred to follow-up slices: configurable CC# emission (needs an `OutputMapping.cc?` field), per-track real-output routing (the `device: DeviceId` field is label-only here), polyphonic key pressure, an editor UI for `midiChannel`. See archived change `2026-05-12-dj-action-track-playback`.
 - **2026-05-12** · `f588865` — **Record incoming MIDI to the active channel**. Second of three core E2E slices. Adds `useMidiRecorder` (active-note map keyed by pitch, rAF-coalesced dispatch, hung-note finalization, chain-forward `onmidimessage`), `useTransport.recordingStartedAt`, `useChannels.appendNote`, and the record-button disabled state in the Titlebar. Single-channel routing only (`selectedChannelId`); multi-channel routing, CC/PB capture, reversible pause, and live MIDI-IN LED tap are separate backlog entries. Manual verification surfaced two pre-existing bugs that were folded into the slice: stop-while-holding extended notes back to `t=0` (origin not captured at effect setup) and the non-looping playhead wrapped at `TOTAL_T`. See archived change `2026-05-12-record-incoming-midi`.
+- **2026-05-11** · `20061e0` — **Web MIDI access and device enumeration**. `navigator.requestMIDIAccess`, permission banner, hotplug, `useMidiInputs` / `useMidiOutputs` feeding the Sidebar device lists. First of the three core E2E slices. See archived change `2026-05-11-web-midi-access`.
+- **2026-05-11** · `e7f35ce` — **Remove N SELECTED marquee badge**. Drops `marqueeBadge` from `PianoRoll.tsx` and badge CSS from `PianoRoll.css`; dashed marquee + per-note selection coloring unchanged. Specs and `design/deviations-from-prototype.md` now document rectangle-only marquee and Inspector as the selection-count surface. See archived change `2026-05-11-remove-marquee-badge`.

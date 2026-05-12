@@ -35,6 +35,7 @@ const baseTrack = (over: Partial<DJActionTrack> = {}): DJActionTrack => ({
   soloed: false,
   mutedRows: [],
   soloedRows: [],
+  defaultMidiInputDeviceId: '',
   ...over,
 });
 

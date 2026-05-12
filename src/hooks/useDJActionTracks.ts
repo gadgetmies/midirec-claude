@@ -54,6 +54,8 @@ export interface DJActionTrack {
   soloed: boolean;
   mutedRows: number[];
   soloedRows: number[];
+  /** Web MIDI port id used when an action omits `midiInputDeviceIds`. Empty = first available port at record time. */
+  defaultMidiInputDeviceId: string;
 }
 
 export interface UseDJActionTracksReturn {
@@ -69,6 +71,8 @@ export interface UseDJActionTracksReturn {
   deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
   setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
   clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
+  setDJTrackDefaultMidiInputDevice: (id: DJTrackId, inputDeviceId: string) => void;
+  appendDJActionEvent: (id: DJTrackId, event: ActionEvent) => void;
 }
 
 /* The track's `actionMap` is the set of actions CONFIGURED on this track —
@@ -138,6 +142,7 @@ function seedDefault(): DJActionTrack[] {
       soloed: false,
       mutedRows: [],
       soloedRows: [],
+      defaultMidiInputDeviceId: '',
     },
   ];
 }
@@ -229,6 +234,27 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     [],
   );
 
+  const setDJTrackDefaultMidiInputDevice = useCallback((id: DJTrackId, inputDeviceId: string) => {
+    setDJActionTracks((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx < 0) return prev;
+      const next = prev.slice();
+      next[idx] = { ...next[idx]!, defaultMidiInputDeviceId: inputDeviceId };
+      return next;
+    });
+  }, []);
+
+  const appendDJActionEvent = useCallback((id: DJTrackId, event: ActionEvent) => {
+    setDJActionTracks((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx < 0) return prev;
+      const track = prev[idx];
+      const next = prev.slice();
+      next[idx] = { ...track, events: [...track.events, event] };
+      return next;
+    });
+  }, []);
+
   return {
     djActionTracks,
     toggleDJTrackCollapsed,
@@ -242,6 +268,8 @@ export function useDJActionTracks(): UseDJActionTracksReturn {
     deleteOutputMapping,
     setEventPressure,
     clearEventPressure,
+    setDJTrackDefaultMidiInputDevice,
+    appendDJActionEvent,
   };
 }
 

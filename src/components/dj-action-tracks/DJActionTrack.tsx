@@ -21,6 +21,8 @@ interface DJActionTrackProps {
   onToggleSoloed: () => void;
   onToggleRowMuted: (pitch: number) => void;
   onToggleRowSoloed: (pitch: number) => void;
+  onSelectTimelineTrack?: () => void;
+  timelineHeaderSelected?: boolean;
 }
 
 export function DJActionTrack({
@@ -36,10 +38,17 @@ export function DJActionTrack({
   onToggleSoloed,
   onToggleRowMuted,
   onToggleRowSoloed,
+  onSelectTimelineTrack,
+  timelineHeaderSelected,
 }: DJActionTrackProps) {
   const rowCount = Object.keys(track.actionMap).length;
 
-  const headerClick = (event: MouseEvent<HTMLDivElement>) => {
+  const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    onSelectTimelineTrack?.();
+  };
+
+  const chevronToggle = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     onToggleCollapsed();
   };
@@ -52,11 +61,23 @@ export function DJActionTrack({
       data-soloed={track.soloed ? 'true' : 'false'}
       data-audible={audible ? 'true' : 'false'}
     >
-      <div className="mr-djtrack__hdr" onClick={headerClick}>
+      <div
+        className="mr-djtrack__hdr"
+        onClick={selectHeader}
+        data-timeline-selected={timelineHeaderSelected ? 'true' : undefined}
+      >
         <div className="mr-djtrack__hdr-left">
-          <span className="mr-djtrack__chev">
-            <ChevDownIcon />
-          </span>
+          <button
+            type="button"
+            className="mr-djtrack__chev-btn"
+            aria-expanded={!track.collapsed}
+            aria-label={track.collapsed ? 'Expand DJ track' : 'Collapse DJ track'}
+            onClick={chevronToggle}
+          >
+            <span className="mr-djtrack__chev">
+              <ChevDownIcon />
+            </span>
+          </button>
           <span
             className="mr-djtrack__swatch"
             style={{ background: track.color, color: track.color }}

@@ -13,6 +13,8 @@ import { useMemo } from 'react';
 import { Panel } from './Panel';
 import { FilterIcon } from '../icons/transport';
 import { useStage } from '../../hooks/useStage';
+import { useMidiInputs } from '../../midi/MidiRuntimeProvider';
+import type { MidiDevice } from '../../midi/access';
 import {
   DEFAULT_ACTION_MAP,
   DJ_CATEGORIES,
@@ -25,6 +27,30 @@ import {
   type DeviceId,
   type TriggerMode,
 } from '../../data/dj';
+
+function clampMidiChannel(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.min(16, Math.round(n)));
+}
+
+function clampMidiNote(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(127, Math.round(n)));
+}
+
+function normalizeMidiInputDeviceIds(ids: string[] | undefined): string[] {
+  if (!ids?.length) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
 
 const CATEGORY_KEYS = Object.keys(DJ_CATEGORIES) as CategoryId[];
 const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
@@ -42,6 +68,7 @@ function firstActionInCategory(cat: CategoryId): ActionMapEntry | undefined {
 
 export function InputMappingPanel() {
   const stage = useStage();
+  const { inputs } = useMidiInputs();
   const { djActionSelection, djActionTracks, setActionEntry, deleteActionEntry } = stage;
 
   if (!djActionSelection) return null;
@@ -64,7 +91,15 @@ export function InputMappingPanel() {
     if (cat === entry.cat) return;
     const first = firstActionInCategory(cat);
     if (!first) {
-      writeEntry({ cat, id: '', label: '', short: '' });
+      writeEntry({
+        cat,
+        id: '',
+        label: '',
+        short: '',
+        midiInputDeviceIds: entry.midiInputDeviceIds,
+        midiInputChannel: entry.midiInputChannel,
+        midiInputNote: entry.midiInputNote,
+      });
       return;
     }
     writeEntry({
@@ -72,15 +107,24 @@ export function InputMappingPanel() {
       id: first.id,
       label: first.label,
       short: first.short,
+      device: first.device,
       pad: first.pad,
       pressure: first.pressure,
+      midiInputDeviceIds: entry.midiInputDeviceIds,
+      midiInputChannel: entry.midiInputChannel,
+      midiInputNote: entry.midiInputNote,
     });
   };
 
   const handleAction = (id: string) => {
     const found = actionsInCategory(entry.cat).find((r) => r.entry.id === id);
     if (!found) {
-      writeEntry({ id });
+      writeEntry({
+        id,
+        midiInputDeviceIds: entry.midiInputDeviceIds,
+        midiInputChannel: entry.midiInputChannel,
+        midiInputNote: entry.midiInputNote,
+      });
       return;
     }
     writeEntry({
@@ -90,6 +134,9 @@ export function InputMappingPanel() {
       device: found.entry.device,
       pad: found.entry.pad,
       pressure: found.entry.pressure,
+      midiInputDeviceIds: entry.midiInputDeviceIds,
+      midiInputChannel: entry.midiInputChannel,
+      midiInputNote: entry.midiInputNote,
     });
   };
 
@@ -99,6 +146,8 @@ export function InputMappingPanel() {
         <Form
           entry={entry}
           pitch={pitch}
+          midiInputs={inputs}
+          commitPartial={writeEntry}
           onCategory={handleCategory}
           onAction={handleAction}
           onDevice={(d) => writeEntry({ device: d })}
@@ -113,6 +162,8 @@ export function InputMappingPanel() {
 interface FormProps {
   entry: ActionMapEntry;
   pitch: number;
+  midiInputs: MidiDevice[];
+  commitPartial: (next: Partial<ActionMapEntry>) => void;
   onCategory: (cat: CategoryId) => void;
   onAction: (id: string) => void;
   onDevice: (device: DeviceId) => void;
@@ -120,8 +171,19 @@ interface FormProps {
   onDelete: () => void;
 }
 
-function Form({ entry, pitch, onCategory, onAction, onDevice, onTrigger, onDelete }: FormProps) {
+function Form({
+  entry,
+  pitch,
+  midiInputs,
+  commitPartial,
+  onCategory,
+  onAction,
+  onDevice,
+  onTrigger,
+  onDelete,
+}: FormProps) {
   const filtered = useMemo(() => actionsInCategory(entry.cat), [entry.cat]);
+  const captureNote = entry.midiInputNote ?? pitch;
   return (
     <div className="mr-map-form">
       <div className="mr-map-form__hd">
@@ -132,7 +194,7 @@ function Form({ entry, pitch, onCategory, onAction, onDevice, onTrigger, onDelet
         <div className="mr-map-form__hd-meta">
           <div className="mr-map-form__hd-title">{entry.label || '— unmapped —'}</div>
           <div className="mr-map-form__hd-sub">
-            {pitchLabel(pitch)} · note {pitch}
+            listens {pitchLabel(captureNote)} · note {captureNote} · row {pitch}
           </div>
         </div>
       </div>
@@ -185,7 +247,7 @@ function Form({ entry, pitch, onCategory, onAction, onDevice, onTrigger, onDelet
 
       <div className="mr-map-form__grid">
         <div className="mr-map-form__section">
-          <span className="mr-map-form__lbl">Device</span>
+          <span className="mr-map-form__lbl">Surface (color)</span>
           <select
             className="mr-select"
             value={entry.device}
@@ -208,6 +270,80 @@ function Form({ entry, pitch, onCategory, onAction, onDevice, onTrigger, onDelet
             <option value="momentary">momentary</option>
             <option value="toggle">toggle</option>
           </select>
+        </div>
+      </div>
+
+      <div className="mr-map-form__section">
+        <span className="mr-map-form__lbl">MIDI in · devices</span>
+        {midiInputs.length === 0 ? (
+          <p className="mr-map-form__note">No MIDI inputs — grant access to choose ports.</p>
+        ) : (
+          <>
+            <p className="mr-map-form__note">
+              All off uses the DJ track default (Track input). Enable one or more ports so this action listens on
+              the same note from each of them.
+            </p>
+            <div className="mr-map-form__midi-devs">
+              {midiInputs.map((d) => {
+                const cur = normalizeMidiInputDeviceIds(entry.midiInputDeviceIds);
+                const on = cur.includes(d.id);
+                return (
+                  <div key={d.id} className="mr-row mr-map-form__midi-dev">
+                    <span className="mr-row-lbl">{d.name}</span>
+                    <button
+                      type="button"
+                      className="mr-switch"
+                      data-on={on ? 'true' : 'false'}
+                      aria-pressed={on}
+                      aria-label={`Listen on ${d.name} for this action`}
+                      onClick={() => {
+                        const next = on ? cur.filter((x) => x !== d.id) : [...cur, d.id];
+                        commitPartial({
+                          midiInputDeviceIds: next.length > 0 ? next : undefined,
+                        });
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="mr-map-form__grid">
+        <div className="mr-map-form__section">
+          <span className="mr-map-form__lbl">MIDI in · ch</span>
+          <input
+            type="number"
+            min={1}
+            max={16}
+            className="mr-input"
+            value={entry.midiInputChannel ?? 1}
+            onChange={(e) =>
+              commitPartial({
+                midiInputChannel: clampMidiChannel(
+                  e.target.valueAsNumber,
+                  entry.midiInputChannel ?? 1,
+                ),
+              })
+            }
+          />
+        </div>
+        <div className="mr-map-form__section">
+          <span className="mr-map-form__lbl">MIDI in · note</span>
+          <input
+            type="number"
+            min={0}
+            max={127}
+            className="mr-input"
+            value={captureNote}
+            onChange={(e) =>
+              commitPartial({
+                midiInputNote: clampMidiNote(e.target.valueAsNumber, captureNote),
+              })
+            }
+          />
         </div>
       </div>
 

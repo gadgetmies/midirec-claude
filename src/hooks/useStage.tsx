@@ -27,6 +27,7 @@ import {
   type DJTrackId,
 } from './useDJActionTracks';
 import type {
+  ActionEvent,
   ActionMapEntry,
   OutputMapping,
   PressurePoint,
@@ -45,6 +46,10 @@ export interface DJEventSelection {
      migrate to a stable event id when capture lands in Slice 10. */
   eventIdx: number;
 }
+
+export type TimelineTrackSelection =
+  | { kind: 'channel'; channelId: ChannelId }
+  | { kind: 'dj'; trackId: DJTrackId };
 
 export interface ResolvedSelection {
   channelId: ChannelId;
@@ -99,6 +104,11 @@ export interface StageState {
   addParamLane: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   appendNote: (id: ChannelId, note: Note) => void;
   addChannel: (id: ChannelId, name?: string, color?: string) => void;
+  selectedTimelineTrack: TimelineTrackSelection | null;
+  setSelectedTimelineTrack: (s: TimelineTrackSelection | null) => void;
+  setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
+  setDJTrackDefaultMidiInputDevice: (trackId: DJTrackId, inputDeviceId: string) => void;
+  appendDJActionEvent: (trackId: DJTrackId, event: ActionEvent) => void;
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
   toggleDJTrackSoloed: (id: DJTrackId) => void;
@@ -127,6 +137,26 @@ function useStageState(): StageState {
   const [djActionSelection, setDJActionSelection] = useState<DJActionSelection | null>(null);
   const [djEventSelection, setDJEventSelection] = useState<DJEventSelection | null>(null);
   const [pressureRenderMode, setPressureRenderMode] = useState<PressureRenderMode>('curve');
+  const [selectedTimelineTrack, setSelectedTimelineTrack] = useState<TimelineTrackSelection | null>(null);
+
+  useEffect(() => {
+    if (!selectedTimelineTrack) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (!target.closest('.mr-timeline')) return;
+      if (
+        target.closest('.mr-channel__hdr') ||
+        target.closest('.mr-track__hdr') ||
+        target.closest('.mr-djtrack__hdr')
+      ) {
+        return;
+      }
+      setSelectedTimelineTrack(null);
+    };
+    window.addEventListener('pointerdown', onDown);
+    return () => window.removeEventListener('pointerdown', onDown);
+  }, [selectedTimelineTrack]);
 
   /* Blur both DJ selections (row + event) when the user clicks outside the
      track or the side panels. Surfaces opt in by carrying
@@ -245,6 +275,11 @@ function useStageState(): StageState {
     addParamLane: channels.addParamLane,
     appendNote: channels.appendNote,
     addChannel: channels.addChannel,
+    selectedTimelineTrack,
+    setSelectedTimelineTrack,
+    setChannelInputSourceChannels: channels.setChannelInputSourceChannels,
+    setDJTrackDefaultMidiInputDevice: djTracks.setDJTrackDefaultMidiInputDevice,
+    appendDJActionEvent: djTracks.appendDJActionEvent,
     djActionTracks: djTracks.djActionTracks,
     djActionSelection,
     setDJActionSelection,
