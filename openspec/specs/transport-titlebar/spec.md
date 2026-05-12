@@ -142,6 +142,8 @@ When `mode !== 'idle'` AND `looping === true` AND `loopRegion != null`, the rAF 
 
 `TransportState` SHALL include a `clockSource: 'internal' | 'external-clock' | 'external-mtc'` field. The default value SHALL be `'internal'`. No public action for changing `clockSource` is required in this slice (real clock-source switching lands with the MIDI runtime); the field SHALL be exposed on the returned value so the Titlebar can read it.
 
+`TransportState` SHALL include a `recordingStartedAt: number | null` field. The default value SHALL be `null`. The reducer SHALL set `recordingStartedAt = performance.now()` when transitioning into `'record'` mode from a non-record mode (the same transition that today also resets `timecodeMs` to `0` when entering from `'idle'`). The reducer SHALL clear `recordingStartedAt` back to `null` when `stop()` or `pause()` runs. Re-entering `'record'` from `'record'` (no-op today) SHALL NOT change `recordingStartedAt`. Switching from `'record'` to `'play'` is not a supported transition in this slice; if it occurs, `recordingStartedAt` SHALL be cleared.
+
 #### Scenario: Playing advances timecode
 
 - **WHEN** `play()` is called and ~500ms elapses
@@ -206,6 +208,67 @@ When `mode !== 'idle'` AND `looping === true` AND `loopRegion != null`, the rAF 
 
 - **WHEN** two components both call `useTransport()`
 - **THEN** their `clockSource` values SHALL be identical at any commit
+
+#### Scenario: Default recordingStartedAt is null
+
+- **WHEN** the TransportProvider is freshly mounted
+- **THEN** `recordingStartedAt` SHALL be `null`
+
+#### Scenario: Entering record from idle stamps recordingStartedAt
+
+- **GIVEN** `mode === 'idle'` and `recordingStartedAt === null`
+- **WHEN** `record()` is called at `performance.now() === T`
+- **THEN** `recordingStartedAt` SHALL be approximately `T` (the value of `performance.now()` at the moment the reducer runs)
+- **AND** `mode` SHALL be `'record'`
+
+#### Scenario: Stop from record clears recordingStartedAt
+
+- **GIVEN** `mode === 'record'` and `recordingStartedAt !== null`
+- **WHEN** `stop()` is called
+- **THEN** `recordingStartedAt` SHALL be `null`
+- **AND** `timecodeMs` SHALL be `0`
+
+#### Scenario: Pause from record clears recordingStartedAt
+
+- **GIVEN** `mode === 'record'` and `recordingStartedAt !== null` and `timecodeMs > 0`
+- **WHEN** `pause()` is called
+- **THEN** `recordingStartedAt` SHALL be `null`
+- **AND** `timecodeMs` SHALL be preserved (not reset)
+
+### Requirement: Record button disabled when input or channel is missing
+
+The record button in the Titlebar transport group SHALL be `disabled` when EITHER of the following is true:
+
+- `useMidiInputs().inputs.length === 0` (no MIDI input device available — runtime ungranted, unsupported, or zero connected inputs)
+- `useStage().selectedChannelId === null` (no channel selected to record into)
+
+When disabled, the button SHALL render a tooltip explaining the cause. If no input is available, the tooltip SHALL read `No MIDI input available`. If an input is available but no channel is selected, the tooltip SHALL read `Select a channel to record into`. If both conditions are true, the input-missing tooltip wins.
+
+When enabled, the button SHALL behave as today: clicking dispatches `record()`, the `mrPulse` animation engages while armed, and the timecode color flips to `var(--mr-rec)`.
+
+#### Scenario: No input available disables the record button with tooltip
+
+- **WHEN** `useMidiInputs().inputs.length === 0`
+- **THEN** the record button SHALL carry the `disabled` attribute
+- **AND** its tooltip / `title` SHALL read `No MIDI input available`
+- **AND** clicking it SHALL NOT dispatch `record()`
+
+#### Scenario: No channel selected disables the record button with tooltip
+
+- **WHEN** `useMidiInputs().inputs.length > 0` AND `useStage().selectedChannelId === null`
+- **THEN** the record button SHALL carry the `disabled` attribute
+- **AND** its tooltip / `title` SHALL read `Select a channel to record into`
+
+#### Scenario: Both conditions met enables the record button
+
+- **WHEN** `useMidiInputs().inputs.length > 0` AND `useStage().selectedChannelId !== null`
+- **THEN** the record button SHALL NOT carry `disabled`
+- **AND** clicking it SHALL dispatch `record()` (transitioning `mode` to `'record'`)
+
+#### Scenario: Input-missing tooltip wins when both conditions are absent
+
+- **WHEN** `useMidiInputs().inputs.length === 0` AND `useStage().selectedChannelId === null`
+- **THEN** the record button's tooltip SHALL read `No MIDI input available`
 
 ### Requirement: Transport stylesheet ports prototype rules
 

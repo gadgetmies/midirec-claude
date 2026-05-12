@@ -370,36 +370,6 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 
 **Status**: pending. **First of three core slices** for end-to-end MIDI recording and playback.
 
-### Record incoming MIDI to the active channel
-
-**Why**: Once real device enumeration lands, the app sees hardware but captures nothing. This slice adds the recording half of the end-to-end loop: press record, play notes on the selected input, see them appear in the piano roll as the channel's note records in real time. Single channel only at this slice — the channel from `selectedChannelId`. Multi-channel routing by MIDI channel byte is a follow-up.
-
-**Scope**:
-
-- `useTransport`: add `isRecording: boolean`, `startRecording()`, `stopRecording()` actions. `startRecording` sets `recordingStartedAt = performance.now()`; `stopRecording` clears it. The titlebar's record affordance (if it exists today as a stub) is wired to these; if it doesn't exist, add it with a standard red-circle glyph that pulses while active.
-- Listener wiring: when `selectedInputId` is set and `isRecording` is true, subscribe to `MIDIInput.onmidimessage` for that device. On note-on (`0x90..0x9F` with velocity > 0), open an active-note entry keyed by pitch with `t = ((performance.now() - recordingStartedAt) / 1000) * (tempo / 60)` (i.e. beats). On the matching note-off (`0x80..0x8F`, or note-on with velocity 0), finalize the entry's `dur` and append a `Note` record to the channel's roll.
-- `useChannels.appendNote(channelId, note)`: append-only action. If the channel has no roll yet, create one (minimal version; the channels backlog entry can replace this with `addRoll`).
-- Hung-note handling: when `stopRecording` runs, any still-active notes are finalized with `dur = (now - noteStartedAt)` clamped to the stop instant.
-- Routing in this slice: every captured note goes to `selectedChannelId`. The incoming MIDI channel byte is **ignored** for now; channel-byte routing is slice 5.
-- Disabled states: record button disabled when no input is selected (tooltip: "No input device selected") or when no channel is selected (tooltip: "Select a channel to record into").
-- Render-thrash guard: batch state updates so multiple notes arriving within one frame produce one reducer dispatch. A simple `requestAnimationFrame`-coalesced queue is enough.
-
-**Verification**:
-
-- Connect a MIDI keyboard, select it, select a channel (e.g., Lead), press record. Play a C-major scale → notes appear in the Lead piano roll in real time at the correct pitches (60..72) and times.
-- Press stop → recording ends; any still-held note is closed with a truncated duration.
-- Press record with no input selected → button disabled with tooltip.
-- Press record with no channel selected → button disabled with tooltip.
-- `yarn typecheck` clean.
-
-**Spec deltas**: `transport-titlebar` — add `isRecording`, `startRecording`, `stopRecording` to the `useTransport` hook requirement. `channels` (or piano-roll) — new `appendNote` action requirement. Probably warrants an OpenSpec proposal bundling this with the playback slice.
-
-**Dependencies**: requires "Web MIDI access and real device enumeration." Independent of the playback slice — the two can land in either order.
-
-**Estimated effort**: 0.5–1 day. State machine is small (active-note map keyed by pitch); the bulk is listener lifecycle (subscribe on record-start, unsubscribe on stop or input-switch) and hung-note finalization.
-
-**Status**: pending. **Second of three core slices** for end-to-end MIDI recording and playback.
-
 ### Play back channel notes to an output device
 
 **Why**: With device enumeration and recording in place, the app captures notes but can't play them back. This slice closes the loop: press play, pre-scheduled MIDI note-on/note-off messages stream to a real output device with sub-ms hardware-level timing via the Web MIDI API's timestamp argument. Single hardcoded output (first available) in this slice — per-channel routing via the Routing matrix comes later.
@@ -676,3 +646,5 @@ Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pres
 ## Done
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->
+
+- **2026-05-12** · `f588865` — **Record incoming MIDI to the active channel**. Second of three core E2E slices. Adds `useMidiRecorder` (active-note map keyed by pitch, rAF-coalesced dispatch, hung-note finalization, chain-forward `onmidimessage`), `useTransport.recordingStartedAt`, `useChannels.appendNote`, and the record-button disabled state in the Titlebar. Single-channel routing only (`selectedChannelId`); multi-channel routing, CC/PB capture, reversible pause, and live MIDI-IN LED tap are separate backlog entries. Manual verification surfaced two pre-existing bugs that were folded into the slice: stop-while-holding extended notes back to `t=0` (origin not captured at effect setup) and the non-looping playhead wrapped at `TOTAL_T`. See archived change `2026-05-12-record-incoming-midi`.

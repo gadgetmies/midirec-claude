@@ -67,5 +67,5 @@
 ## 8. Spec & documentation hygiene
 
 - [x] 8.1 Ran `openspec validate --strict record-incoming-midi` — reports valid.
-- [ ] 8.2 Update `BACKLOG.md` after archive: mark "Record incoming MIDI to the active channel" complete (move to "## Done" with date and commit hash).
+- [x] 8.2 Moved "Record incoming MIDI to the active channel" to `BACKLOG.md` Done section (2026-05-12, commit f588865).
 - [x] 8.3 No deviation documented — the interim "first available input" gating is recorded in design.md, not in design/deviations.
