@@ -103,6 +103,7 @@ type Action =
   | { type: 'roll/toggleCollapsed'; channelId: ChannelId }
   | { type: 'roll/toggleMuted'; channelId: ChannelId }
   | { type: 'roll/toggleSoloed'; channelId: ChannelId }
+  | { type: 'roll/appendNote'; channelId: ChannelId; note: Note }
   | { type: 'lane/toggleCollapsed'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
   | { type: 'lane/toggleMuted'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
   | { type: 'lane/toggleSoloed'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
@@ -140,6 +141,13 @@ function reducer(state: State, action: Action): State {
     case 'roll/toggleCollapsed':    return flipRollField(state, action.channelId, 'collapsed');
     case 'roll/toggleMuted':        return flipRollField(state, action.channelId, 'muted');
     case 'roll/toggleSoloed':       return flipRollField(state, action.channelId, 'soloed');
+    case 'roll/appendNote': {
+      const idx = state.rolls.findIndex((r) => r.channelId === action.channelId);
+      if (idx < 0) return state;
+      const rolls = state.rolls.slice();
+      rolls[idx] = { ...rolls[idx], notes: [...rolls[idx]!.notes, action.note] };
+      return { ...state, rolls };
+    }
     case 'lane/toggleCollapsed':    return flipLaneField(state, action.channelId, action.kind, action.cc, 'collapsed');
     case 'lane/toggleMuted':        return flipLaneField(state, action.channelId, action.kind, action.cc, 'muted');
     case 'lane/toggleSoloed':       return flipLaneField(state, action.channelId, action.kind, action.cc, 'soloed');
@@ -261,6 +269,7 @@ export interface UseChannelsReturn {
   toggleLaneMuted: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   toggleLaneSoloed: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   addParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  appendNote: (channelId: ChannelId, note: Note) => void;
 }
 
 export function useChannels(totalT: number): UseChannelsReturn {
@@ -281,5 +290,6 @@ export function useChannels(totalT: number): UseChannelsReturn {
     toggleLaneMuted:        useCallback((id, kind, cc) => dispatch({ type: 'lane/toggleMuted',     channelId: id, kind, cc }), []),
     toggleLaneSoloed:       useCallback((id, kind, cc) => dispatch({ type: 'lane/toggleSoloed',    channelId: id, kind, cc }), []),
     addParamLane:           useCallback((id, kind, cc) => dispatch({ type: 'lane/add', channelId: id, kind, cc, totalT }), [totalT]),
+    appendNote:             useCallback((id, note) => dispatch({ type: 'roll/appendNote', channelId: id, note }), []),
   };
 }

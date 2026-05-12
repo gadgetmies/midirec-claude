@@ -3,6 +3,7 @@ import { ToastProvider } from './components/toast/Toast';
 import { StageProvider } from './hooks/useStage';
 import { TransportProvider } from './hooks/useTransport';
 import { MidiRuntimeProvider } from './midi/MidiRuntimeProvider';
+import { MidiRecorderRunner } from './midi/recorder';
 
 export function App() {
   return (
@@ -11,6 +12,7 @@ export function App() {
         <ToastProvider>
           <MidiRuntimeProvider>
             <StageProvider>
+              <MidiRecorderRunner />
               <AppShell />
             </StageProvider>
           </MidiRuntimeProvider>

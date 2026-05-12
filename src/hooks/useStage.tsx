@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Marquee } from '../components/piano-roll/notes';
+import type { Marquee, Note } from '../components/piano-roll/notes';
 import { notesInMarquee } from '../components/piano-roll/notes';
 import { useTransport } from './useTransport';
 import {
@@ -97,6 +97,7 @@ export interface StageState {
   toggleLaneMuted: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   toggleLaneSoloed: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   addParamLane: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
+  appendNote: (id: ChannelId, note: Note) => void;
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
   toggleDJTrackSoloed: (id: DJTrackId) => void;
@@ -169,10 +170,11 @@ function useStageState(): StageState {
     return { demoMarquee: marquee, demoNote: note };
   }, []);
 
-  const beatsElapsed = (timecodeMs / 1000) * (bpm / 60);
-  // TODO: remove the modular wrap once the scroll/zoom slice lands; per the
-  // session-model contract, non-looping playback advances forever.
-  const playheadT = ((beatsElapsed % TOTAL_T) + TOTAL_T) % TOTAL_T;
+  // Non-looping playback advances forever — let the playhead exceed TOTAL_T
+  // rather than wrap back to 0. Visual overflow (cursor off the right edge of
+  // the rendered timeline) is the lesser evil vs. an unrequested loop. Loop
+  // wrap belongs to the transport tick reducer once loopRegion is real.
+  const playheadT = (timecodeMs / 1000) * (bpm / 60);
 
   const marquee: Marquee | null = demoMarquee
     ? { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }
@@ -236,6 +238,7 @@ function useStageState(): StageState {
     toggleLaneMuted: channels.toggleLaneMuted,
     toggleLaneSoloed: channels.toggleLaneSoloed,
     addParamLane: channels.addParamLane,
+    appendNote: channels.appendNote,
     djActionTracks: djTracks.djActionTracks,
     djActionSelection,
     setDJActionSelection,

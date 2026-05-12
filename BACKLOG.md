@@ -587,6 +587,66 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 
 **Status**: pending.
 
+### Live MIDI IN LED tap (pulse on real activity, not stub)
+
+**Why**: The Titlebar's `MIDI IN` LED is wired to `useStatusbar().active`, but `useStatusbar` is a stub that returns a constant. The LED today is either always-on or always-off depending on the stub value, regardless of whether any MIDI message is actually arriving. Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user confirmed the LED doesn't pulse when notes arrive, even from a working device that successfully records.
+
+The recorder hook installs its own `onmidimessage` listener only while armed; the LED needs an always-on tap that flashes regardless of transport state.
+
+**Scope**:
+
+- New always-on listener (likely a hook `useMidiActivityTap()` mounted alongside `MidiRecorderRunner`, or folded into the runtime) that subscribes to `onmidimessage` on every connected input via `useMidiInputs()`. On every message it stamps a ref `lastMessageAt = performance.now()` and triggers a state flip with a debounce/decay window of ~150 ms.
+- `useStatusbar`: replace the stub `active` field with state driven by the tap. `active === true` while `now − lastMessageAt < 150ms`, else `false`. A small `setInterval`/`requestAnimationFrame` decay loop handles the trailing edge.
+- Chain-forward semantics: the tap must coexist with the recorder's `onmidimessage` install on the same input. Either (a) the tap subscribes via `addEventListener('midimessage', ...)` while the recorder uses the `onmidimessage` slot, or (b) both go through a small dispatcher that fans out to all subscribers. Recommend (a) — `MIDIInput` is an `EventTarget` and `addEventListener` doesn't conflict with `onmidimessage`.
+- Spec deltas: `statusbar` capability — `useStatusbar().active` becomes derived from live activity rather than a constant; the Titlebar/MIDI-IN-LED requirements in `transport-titlebar` already drive `data-state` off `active`, so no change there.
+
+**Verification**:
+
+- Open the app with a MIDI keyboard, transport idle (not recording). Press a key → the `MIDI IN` LED pulses for ~150 ms.
+- Hold a key → the LED stays lit (continuous messages keep `active === true`).
+- Stop pressing → LED goes dim within ~150 ms.
+- Behavior is identical whether or not recording is active.
+- `yarn typecheck` clean.
+
+**Dependencies**: web-midi-access (already shipped).
+
+**Estimated effort**: 0.5 day. The hook is ~30 LOC; spec delta is small; the only subtlety is the recorder/tap coexistence on the same input.
+
+**Status**: pending. Surfaced during `record-incoming-midi` (2026-05-12) manual verification.
+
+### Pause-during-record reversibility
+
+**Why**: Today `pause()` while recording (mode `'record'`) flips transport `mode` to `'idle'` and clears `recordingStartedAt`. Press play (or record) again and the playhead jumps to 0 (record from idle) or continues without recording (play from idle). Users expect DAW-style behavior: pause during a record take should freeze the playhead, keep the record-arm visual (LED, pulsing button), let me set up for the next phrase, and resume on the next press at the same timecode.
+
+Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pressed pause mid-take expecting a reversible pause but got a soft stop instead.
+
+**Scope**:
+
+- Introduce a new transport mode value `'record-paused'`. Update `TransportMode` union.
+- Reducer changes:
+  - `pause()` from `'record'` → `mode = 'record-paused'`, keep `recordingStartedAt` populated (or migrate to a paired ref — see below).
+  - `record()` (or `pause()`) from `'record-paused'` → `mode = 'record'`, shift `recordingStartedAt` by the pause duration so beat math remains consistent (`recordingStartedAt += pauseDurationMs`).
+  - `stop()` from `'record-paused'` → clears as today.
+- `TransportState.recording` becomes `mode === 'record' || mode === 'record-paused'` so the LED/pulse keeps animating while paused.
+- The rAF tick effect already pauses when `mode === 'idle'`; extend it to also pause when `mode === 'record-paused'` so `timecodeMs` freezes.
+- Recorder hook: when `mode === 'record-paused'`, the listener should detach (no notes captured during pause) and any held notes should finalize at the pause instant. The current effect already finalizes-and-detaches when `recording` goes false; new behavior is to finalize-and-detach when transitioning into `record-paused` but keep the recording session "live" (so the user can resume).
+- Resume flow: on `record-paused → record`, the effect re-installs the listener with the same channel target; the active-note map is empty (fresh), and new notes pick up the take from the current `timecodeMs`.
+- Titlebar UI: the play/pause button label/icon updates when in `record-paused` — likely keep the pause icon since the gesture is "press to resume", and pulse the record button at a reduced rate (or keep the existing pulse).
+- Spec deltas: `transport-titlebar` ADDED scenarios for `record-paused`; recorder spec ADDED scenarios for the finalize-and-detach-but-stay-armed semantics.
+
+**Verification**:
+
+- Press record, play a few notes, press pause (the play/pause button). The record button keeps its armed visual (red), timecode freezes, held notes finalize with the correct truncated `dur` (no extension to t=0 — handled by the `record-incoming-midi` finalize fix).
+- Press play/pause again. Recording resumes from the frozen timecode. Play more notes. Their `t` continues from where the take left off (NOT t=0).
+- Press stop from `record-paused`. Same behavior as stop from `record`: idle, timecode 0, recordingStartedAt cleared.
+- `yarn typecheck` clean.
+
+**Dependencies**: `record-incoming-midi` (just shipped); the finalize fix in that slice unblocks this one.
+
+**Estimated effort**: 0.5–1 day. Reducer + spec changes dominate; UI churn is minimal (the pulse already lives off `recording`).
+
+**Status**: pending. Surfaced during `record-incoming-midi` (2026-05-12) manual verification.
+
 ### Session save / load to a `.midirec` file
 
 **Why**: Everything is in volatile React state today — refresh and your recording is gone. To make the tool usable across sittings, the app must serialize state to a file the user owns. Recommended format: a zipped `.midirec` archive containing a Standard MIDI File (notes + CC + pitch-bend, one track per internal channel) **plus** a sidecar `session.json` carrying app-only state (channel colors, param-lane configs, routing, tempo, time signature, lo/hi pitch windows, input-mapping rules). Renaming `.midirec` → `.zip` lets users extract the SMF for use in any DAW.

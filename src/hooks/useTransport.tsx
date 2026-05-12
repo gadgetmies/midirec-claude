@@ -28,6 +28,7 @@ export interface TransportState {
   bpm: number;
   sig: string;
   clockSource: ClockSource;
+  recordingStartedAt: number | null;
 }
 
 export interface TransportActions {
@@ -64,6 +65,7 @@ interface InternalState {
   bpm: number;
   sig: string;
   clockSource: ClockSource;
+  recordingStartedAt: number | null;
 }
 
 const initialState: InternalState = {
@@ -76,21 +78,23 @@ const initialState: InternalState = {
   bpm: 124,
   sig: '4/4',
   clockSource: 'internal',
+  recordingStartedAt: null,
 };
 
 function reducer(state: InternalState, action: Action): InternalState {
   switch (action.type) {
     case 'play':
-      return { ...state, mode: 'play' };
+      return { ...state, mode: 'play', recordingStartedAt: null };
     case 'pause':
-      return { ...state, mode: 'idle' };
+      return { ...state, mode: 'idle', recordingStartedAt: null };
     case 'stop':
-      return { ...state, mode: 'idle', timecodeMs: 0 };
+      return { ...state, mode: 'idle', timecodeMs: 0, recordingStartedAt: null };
     case 'record':
       return {
         ...state,
         mode: 'record',
         timecodeMs: state.mode === 'idle' ? 0 : state.timecodeMs,
+        recordingStartedAt: state.mode === 'record' ? state.recordingStartedAt : performance.now(),
       };
     case 'toggleLoop':
       return { ...state, looping: !state.looping };
@@ -187,6 +191,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       bpm: state.bpm,
       sig: state.sig,
       clockSource: state.clockSource,
+      recordingStartedAt: state.recordingStartedAt,
       play,
       pause,
       stop,

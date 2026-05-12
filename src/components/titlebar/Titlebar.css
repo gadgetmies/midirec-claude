@@ -121,7 +121,19 @@
 }
 
 .mr-tbtn:disabled {
-  cursor: default;
+  cursor: not-allowed;
+  opacity: 0.35;
+  color: var(--mr-text-3);
+}
+
+.mr-tbtn:disabled:hover,
+.mr-tbtn:disabled:active {
+  background: transparent;
+  color: var(--mr-text-3);
+}
+
+.mr-tbtn[data-rec='true']:disabled {
+  color: var(--mr-text-3);
 }
 
 .mr-tbtn svg {
