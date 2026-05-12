@@ -100,6 +100,7 @@ type Action =
   | { type: 'channel/toggleCollapsed'; channelId: ChannelId }
   | { type: 'channel/toggleMuted'; channelId: ChannelId }
   | { type: 'channel/toggleSoloed'; channelId: ChannelId }
+  | { type: 'channel/add'; channelId: ChannelId; name?: string; color?: string }
   | { type: 'roll/toggleCollapsed'; channelId: ChannelId }
   | { type: 'roll/toggleMuted'; channelId: ChannelId }
   | { type: 'roll/toggleSoloed'; channelId: ChannelId }
@@ -133,11 +134,54 @@ function flipLaneField(state: State, channelId: ChannelId, kind: ParamLaneKind, 
   return { ...state, lanes };
 }
 
+const CHANNEL_COLOR_PALETTE: readonly string[] = [
+  'oklch(72% 0.14 240)',
+  'oklch(70% 0.16 30)',
+  'oklch(68% 0.12 280)',
+  'oklch(75% 0.1 140)',
+  'oklch(71% 0.11 200)',
+  'oklch(69% 0.13 320)',
+  'oklch(74% 0.09 60)',
+  'oklch(66% 0.12 15)',
+  'oklch(73% 0.1 100)',
+  'oklch(67% 0.14 265)',
+  'oklch(76% 0.08 180)',
+  'oklch(70% 0.11 330)',
+  'oklch(68% 0.1 250)',
+  'oklch(72% 0.09 90)',
+  'oklch(65% 0.13 350)',
+  'oklch(75% 0.11 20)',
+];
+
+function defaultChannelColor(id: ChannelId): string {
+  return CHANNEL_COLOR_PALETTE[(id - 1) % CHANNEL_COLOR_PALETTE.length]!;
+}
+
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'channel/toggleCollapsed': return flipChannelField(state, action.channelId, 'collapsed');
     case 'channel/toggleMuted':     return flipChannelField(state, action.channelId, 'muted');
     case 'channel/toggleSoloed':    return flipChannelField(state, action.channelId, 'soloed');
+    case 'channel/add': {
+      if (state.channels.some((c) => c.id === action.channelId)) return state;
+      const ch: Channel = {
+        id: action.channelId,
+        name: action.name ?? `CH ${action.channelId}`,
+        color: action.color ?? defaultChannelColor(action.channelId),
+        collapsed: false,
+        muted: false,
+        soloed: false,
+      };
+      const roll: PianoRollTrack = {
+        channelId: action.channelId,
+        notes: [],
+        muted: false,
+        soloed: false,
+        collapsed: false,
+      };
+      const channels = [...state.channels, ch].sort((a, b) => a.id - b.id);
+      return { ...state, channels, rolls: [...state.rolls, roll] };
+    }
     case 'roll/toggleCollapsed':    return flipRollField(state, action.channelId, 'collapsed');
     case 'roll/toggleMuted':        return flipRollField(state, action.channelId, 'muted');
     case 'roll/toggleSoloed':       return flipRollField(state, action.channelId, 'soloed');
@@ -269,6 +313,7 @@ export interface UseChannelsReturn {
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
+  addChannel: (id: ChannelId, name?: string, color?: string) => void;
   toggleRollCollapsed: (channelId: ChannelId) => void;
   toggleRollMuted: (channelId: ChannelId) => void;
   toggleRollSoloed: (channelId: ChannelId) => void;
@@ -290,6 +335,7 @@ export function useChannels(totalT: number, clean: boolean = false): UseChannels
     toggleChannelCollapsed: useCallback((id) => dispatch({ type: 'channel/toggleCollapsed', channelId: id }), []),
     toggleChannelMuted:     useCallback((id) => dispatch({ type: 'channel/toggleMuted',     channelId: id }), []),
     toggleChannelSoloed:    useCallback((id) => dispatch({ type: 'channel/toggleSoloed',    channelId: id }), []),
+    addChannel: useCallback((id, name, color) => dispatch({ type: 'channel/add', channelId: id, name, color }), []),
     toggleRollCollapsed:    useCallback((id) => dispatch({ type: 'roll/toggleCollapsed',    channelId: id }), []),
     toggleRollMuted:        useCallback((id) => dispatch({ type: 'roll/toggleMuted',        channelId: id }), []),
     toggleRollSoloed:       useCallback((id) => dispatch({ type: 'roll/toggleSoloed',       channelId: id }), []),

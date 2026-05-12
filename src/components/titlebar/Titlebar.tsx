@@ -1,4 +1,3 @@
-import { useStage } from '../../hooks/useStage';
 import { useStatusbar } from '../../hooks/useStatusbar';
 import { useTransport, type ClockSource } from '../../hooks/useTransport';
 import { useMidiInputs } from '../../midi/MidiRuntimeProvider';
@@ -28,16 +27,12 @@ const CLOCK_LABEL: Record<ClockSource, string> = {
 export function Titlebar() {
   const transport = useTransport();
   const { active: midiActive } = useStatusbar();
-  const { selectedChannelId } = useStage();
   const { inputs } = useMidiInputs();
   const toast = useToast();
 
   const hasInput = inputs.length > 0;
-  const hasChannel = selectedChannelId !== null;
-  const recDisabled = !hasInput || !hasChannel;
-  const recDisabledTitle = !hasInput
-    ? 'No MIDI input available'
-    : 'Select a channel to record into';
+  const recDisabled = !hasInput;
+  const recDisabledTitle = 'No MIDI input available';
 
   const {
     playing,

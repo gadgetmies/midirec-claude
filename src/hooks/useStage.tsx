@@ -98,6 +98,7 @@ export interface StageState {
   toggleLaneSoloed: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   addParamLane: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   appendNote: (id: ChannelId, note: Note) => void;
+  addChannel: (id: ChannelId, name?: string, color?: string) => void;
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
   toggleDJTrackSoloed: (id: DJTrackId) => void;
@@ -243,6 +244,7 @@ function useStageState(): StageState {
     toggleLaneSoloed: channels.toggleLaneSoloed,
     addParamLane: channels.addParamLane,
     appendNote: channels.appendNote,
+    addChannel: channels.addChannel,
     djActionTracks: djTracks.djActionTracks,
     djActionSelection,
     setDJActionSelection,

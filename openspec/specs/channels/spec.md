@@ -1,9 +1,7 @@
 ## Purpose
 
 Define the session organization model where channels group a piano-roll track and zero-or-more param lanes. Provide the React orchestrator that renders one channel group per visible channel inside the timeline, and the global solo/mute composition rules that span the channel stack.
-
 ## Requirements
-
 ### Requirement: Channel data shape
 
 The codebase SHALL define a `Channel` interface with the following shape, exported from `src/hooks/useChannels.ts`:
@@ -129,6 +127,7 @@ interface UseChannelsReturn {
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
+  addChannel: (channelId: ChannelId, name?: string, color?: string) => void;
   toggleRollCollapsed: (channelId: ChannelId) => void;
   toggleRollMuted: (channelId: ChannelId) => void;
   toggleRollSoloed: (channelId: ChannelId) => void;
@@ -142,9 +141,11 @@ interface UseChannelsReturn {
 
 `useChannels` SHALL replace `useTracks` and `useCCLanes`. The hooks `useTracks` and `useCCLanes` SHALL NOT be present in the codebase; no compatibility shim SHALL exist.
 
+`addChannel(id, name?, color?)` SHALL insert a new `Channel` with `collapsed: false`, `muted: false`, `soloed: false`, `name` defaulting to `"CH " + id`, `color` defaulting to a deterministic palette value, and SHALL insert a matching `PianoRollTrack` with empty `notes`. If a channel with `id` already exists, the call SHALL be a no-op.
+
 `addParamLane(channelId, kind, cc?)` (renamed from `addCCLane`) SHALL append a new `ParamLane` under the matching channel with `points: []`, `muted: false`, `soloed: false`, `collapsed: false`, and a `name` derived from the kind (and CC number for `kind === 'cc'`). If a lane with the same `(channelId, kind, cc)` triple already exists, the call SHALL be a no-op.
 
-`appendNote(channelId, note)` SHALL append the `note` argument to the `notes` array of the `PianoRollTrack` whose `channelId` matches. If no roll exists for that channel, the call SHALL be a no-op (auto-creating rolls is owned by a separate slice). The action SHALL preserve referential identity for every unchanged roll record — only the targeted roll's reference changes. The action SHALL also preserve referential identity for unchanged channels and lanes arrays.
+`appendNote(channelId, note)` SHALL append the `note` argument to the `notes` array of the `PianoRollTrack` whose `channelId` matches. If no roll exists for that channel, the call SHALL be a no-op (auto-creating rolls is owned by `addChannel` or the session seed). The action SHALL preserve referential identity for every unchanged roll record — only the targeted roll's reference changes. The action SHALL also preserve referential identity for unchanged channels and lanes arrays.
 
 Toggle actions SHALL flip the corresponding boolean. Calling a toggle with an unknown `(channelId, kind, cc)` triple SHALL be a no-op. Toggle actions SHALL preserve referential identity for unchanged records (the React reconciler relies on `Object.is` equality to skip rerenders).
 
@@ -202,6 +203,18 @@ Toggle actions SHALL flip the corresponding boolean. Calling a toggle with an un
 - **AND** `Object.is(prev.rolls[2], next.rolls[2])` SHALL be `true` for the channel 2 roll (unchanged)
 - **AND** `Object.is(prev.channels, next.channels)` SHALL be `true`
 - **AND** `Object.is(prev.lanes, next.lanes)` SHALL be `true`
+
+#### Scenario: addChannel inserts channel and empty roll
+
+- **GIVEN** the session has channels `[1, 2]` only
+- **WHEN** `addChannel(5)` is called
+- **THEN** the next `channels` list SHALL include `id === 5`
+- **AND** the next `rolls` list SHALL include `{ channelId: 5, notes: [] }`
+
+#### Scenario: addChannel is idempotent
+
+- **WHEN** `addChannel(1)` is called on the default seeded session
+- **THEN** the state SHALL be unchanged (`channels` length still 2)
 
 ### Requirement: Seeded default session has two channels
 
@@ -466,3 +479,13 @@ The string `cc-lane` SHALL NOT appear in any selector inside the channels styles
 - **WHEN** a single param lane has `soloed: true` and its parent channel has `soloed: false` (so the channel carries `data-audible="false"` and the lane carries `data-audible="true"`)
 - **THEN** the soloed lane's `.mr-param-lane__plot` (or `.mr-param-lane__collapsed` when collapsed) SHALL have computed `opacity: 1`
 - **AND** the dim selector SHALL NOT match the soloed lane through its non-audible channel ancestor
+
+### Requirement: Stage exposes addChannel for recorder
+
+`useStage()` SHALL expose `addChannel` by delegating to the underlying `useChannels()` instance.
+
+#### Scenario: Recorder path uses stage addChannel
+
+- **WHEN** `useStage().addChannel(6)` is called
+- **THEN** the session `channels` and `rolls` SHALL update per `useChannels.addChannel`
+

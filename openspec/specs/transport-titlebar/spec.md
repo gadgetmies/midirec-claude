@@ -288,14 +288,11 @@ The OBSERVABLE behavior of `play()` and `stop()` — beyond the reducer-level st
 
 ### Requirement: Record button disabled when input or channel is missing
 
-The record button in the Titlebar transport group SHALL be `disabled` when EITHER of the following is true:
+The record button in the Titlebar transport group SHALL be `disabled` only when `useMidiInputs().inputs.length === 0` (no MIDI input device available — runtime ungranted, unsupported, or zero connected inputs).
 
-- `useMidiInputs().inputs.length === 0` (no MIDI input device available — runtime ungranted, unsupported, or zero connected inputs)
-- `useStage().selectedChannelId === null` (no channel selected to record into)
+When disabled, the button's tooltip SHALL read `No MIDI input available`.
 
-When disabled, the button SHALL render a tooltip explaining the cause. If no input is available, the tooltip SHALL read `No MIDI input available`. If an input is available but no channel is selected, the tooltip SHALL read `Select a channel to record into`. If both conditions are true, the input-missing tooltip wins.
-
-When enabled, the button SHALL behave as today: clicking dispatches `record()`, the `mrPulse` animation engages while armed, and the timecode color flips to `var(--mr-rec)`.
+When enabled, clicking SHALL dispatch `record()` as today; the `mrPulse` animation engages while recording, and the timecode color flips to `var(--mr-rec)`.
 
 #### Scenario: No input available disables the record button with tooltip
 
@@ -304,22 +301,16 @@ When enabled, the button SHALL behave as today: clicking dispatches `record()`, 
 - **AND** its tooltip / `title` SHALL read `No MIDI input available`
 - **AND** clicking it SHALL NOT dispatch `record()`
 
-#### Scenario: No channel selected disables the record button with tooltip
+#### Scenario: Input available enables record without channel selection
 
 - **WHEN** `useMidiInputs().inputs.length > 0` AND `useStage().selectedChannelId === null`
-- **THEN** the record button SHALL carry the `disabled` attribute
-- **AND** its tooltip / `title` SHALL read `Select a channel to record into`
-
-#### Scenario: Both conditions met enables the record button
-
-- **WHEN** `useMidiInputs().inputs.length > 0` AND `useStage().selectedChannelId !== null`
 - **THEN** the record button SHALL NOT carry `disabled`
 - **AND** clicking it SHALL dispatch `record()` (transitioning `mode` to `'record'`)
 
-#### Scenario: Input-missing tooltip wins when both conditions are absent
+#### Scenario: Input available with selected channel still enables record
 
-- **WHEN** `useMidiInputs().inputs.length === 0` AND `useStage().selectedChannelId === null`
-- **THEN** the record button's tooltip SHALL read `No MIDI input available`
+- **WHEN** `useMidiInputs().inputs.length > 0` AND `useStage().selectedChannelId !== null`
+- **THEN** the record button SHALL NOT carry `disabled`
 
 ### Requirement: Transport stylesheet ports prototype rules
 

@@ -1,8 +1,5 @@
-# midi-recording Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change record-incoming-midi. Update Purpose after archive.
-## Requirements
 ### Requirement: MidiRecorder hook orchestrates capture lifecycle
 
 The codebase SHALL expose a `useMidiRecorder()` React hook in `src/midi/recorder.ts`. The hook SHALL be mounted exactly once at the app root via a small `<MidiRecorderRunner />` wrapper component (that calls the hook and returns `null`). The runner SHALL be placed inside the provider tree where it has access to `useTransport()`, `useStage()`, `useMidiRuntime()` and `useMidiInputs()` (from `midi-runtime`).
@@ -165,57 +162,7 @@ When the listener detaches — because `recording` flips to false, the input por
 - **THEN** the active-note map SHALL be cleared
 - **AND** the hung note SHALL be queued for dispatch
 
-### Requirement: Non-note messages are ignored in this slice
-
-The recorder SHALL ignore any `MIDIMessageEvent` whose status nibble is not `0x8` (note-off) or `0x9` (note-on). Specifically, the recorder SHALL NOT capture:
-
-- `0xA0..0xAF` (polyphonic aftertouch)
-- `0xB0..0xBF` (control change)
-- `0xC0..0xCF` (program change)
-- `0xD0..0xDF` (channel aftertouch)
-- `0xE0..0xEF` (pitch bend)
-- `0xF0..0xFF` (system messages including clock)
-
-System messages and CC/PB/AT capture are deferred to separate slices.
-
-#### Scenario: Control change message is ignored
-
-- **WHEN** the listener receives `event.data = [0xB0, 1, 64]` (CC 1 = mod wheel)
-- **THEN** the active-note map SHALL remain unchanged
-- **AND** no `appendNote` SHALL be queued
-
-#### Scenario: Pitch bend message is ignored
-
-- **WHEN** the listener receives `event.data = [0xE0, 0, 64]` (centered pitch bend)
-- **THEN** the active-note map SHALL remain unchanged
-- **AND** no `appendNote` SHALL be queued
-
-#### Scenario: Clock message is ignored
-
-- **WHEN** the listener receives `event.data = [0xF8]` (MIDI clock tick)
-- **THEN** the recorder SHALL NOT advance any internal state
-- **AND** no `appendNote` SHALL be queued
-
-### Requirement: Recorder chains forward to any pre-existing onmidimessage handler
-
-The recorder SHALL preserve any previously-installed `onmidimessage` handler on the selected `MIDIInput`. When installing, the recorder SHALL capture `prev = input.onmidimessage`. Inside the recorder's handler, before processing the message, the recorder SHALL invoke `prev?.call(input, event)` so the prior consumer continues to receive every message. On cleanup, the recorder SHALL restore `input.onmidimessage = prev`.
-
-This SHALL hold in React StrictMode, where the effect mounts twice in development.
-
-#### Scenario: Pre-existing handler continues to receive messages
-
-- **GIVEN** a Statusbar LED tap has installed an `onmidimessage` handler on input A
-- **AND** the recorder then installs its handler on input A
-- **WHEN** a note-on arrives at input A
-- **THEN** the Statusbar LED tap SHALL receive the event
-- **AND** the recorder SHALL also process the event
-
-#### Scenario: Cleanup restores the prior handler reference
-
-- **GIVEN** input A had a pre-existing `onmidimessage` value `prev`
-- **AND** the recorder installed its handler, capturing `prev`
-- **WHEN** the recorder cleanup runs
-- **THEN** `input.onmidimessage` SHALL be set back to `prev` (identity-equal)
+## ADDED Requirements
 
 ### Requirement: Multi-channel routing and auto-add
 
@@ -230,3 +177,10 @@ Every captured note SHALL be appended to the internal channel matching the incom
 - **THEN** the session SHALL gain `Channel { id: 5, ... }` with an empty roll
 - **AND** the finalized note SHALL be appended to channel `5`
 
+## REMOVED Requirements
+
+### Requirement: Single-channel routing in this slice
+
+**Reason**: Superseded by multi-channel routing keyed off the MIDI channel byte.
+
+**Migration**: Remove `selectedChannelId` from recorder attach preconditions and routing; use `channelId = (status0 & 0x0F) + 1`.

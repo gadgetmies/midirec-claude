@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 import { useEffect, useRef } from 'react';
 import type { Note } from '../components/piano-roll/notes';
 import type { ChannelId } from '../hooks/useChannels';
@@ -13,7 +14,8 @@ interface ActiveNoteEntry {
 
 interface LatestRef {
   bpm: number;
-  selectedChannelId: ChannelId | null;
+  channels: { id: ChannelId }[];
+  addChannel: (channelId: ChannelId, name?: string, color?: string) => void;
   appendNote: (channelId: ChannelId, note: Note) => void;
 }
 
@@ -21,27 +23,36 @@ function msToBeats(deltaMs: number, bpm: number): number {
   return (deltaMs / 1000) * (bpm / 60);
 }
 
+function activeKey(midiCh: number, pitch: number): string {
+  return `${midiCh}:${pitch}`;
+}
+
+function parseActiveKey(key: string): { midiCh: number; pitch: number } {
+  const sep = key.indexOf(':');
+  return { midiCh: Number(key.slice(0, sep)), pitch: Number(key.slice(sep + 1)) };
+}
+
 export function useMidiRecorder(): void {
   const { recording, recordingStartedAt, bpm } = useTransport();
-  const { selectedChannelId, appendNote } = useStage();
+  const { channels, addChannel, appendNote } = useStage();
   const { state: runtimeState } = useMidiRuntime();
   const { status, inputs } = useMidiInputs();
   const inputId = inputs[0]?.id ?? null;
 
-  const activeNotesRef = useRef<Map<number, ActiveNoteEntry>>(new Map());
+  const activeNotesRef = useRef<Map<string, ActiveNoteEntry>>(new Map());
   const pendingNotesRef = useRef<Array<{ channelId: ChannelId; note: Note }>>([]);
   const rafIdRef = useRef<number | null>(null);
   const latestRef = useRef<LatestRef>({
     bpm,
-    selectedChannelId,
+    channels,
+    addChannel,
     appendNote,
   });
-  latestRef.current = { bpm, selectedChannelId, appendNote };
+  latestRef.current = { bpm, channels, addChannel, appendNote };
 
   useEffect(() => {
     if (!recording) return;
     if (recordingStartedAt === null) return;
-    if (selectedChannelId === null) return;
     if (status !== 'granted') return;
     if (inputId === null) return;
     if (runtimeState.status !== 'granted') return;
@@ -50,8 +61,6 @@ export function useMidiRecorder(): void {
     const input = access.inputs.get(inputId);
     if (!input) return;
 
-    // Captured at effect setup; remains valid across cleanup even after the
-    // reducer clears recordingStartedAt on stop/pause.
     const origin = recordingStartedAt;
 
     const flushPending = () => {
@@ -68,10 +77,10 @@ export function useMidiRecorder(): void {
       rafIdRef.current = requestAnimationFrame(flushPending);
     };
 
-    const finalize = (pitch: number, offTime: number) => {
-      const entry = activeNotesRef.current.get(pitch);
+    const finalize = (midiCh: number, pitch: number, offTime: number) => {
+      const entry = activeNotesRef.current.get(activeKey(midiCh, pitch));
       if (!entry) return;
-      activeNotesRef.current.delete(pitch);
+      activeNotesRef.current.delete(activeKey(midiCh, pitch));
       const t = msToBeats(entry.startedAt - origin, latestRef.current.bpm);
       const dur = msToBeats(offTime - entry.startedAt, latestRef.current.bpm);
       pendingNotesRef.current.push({
@@ -79,6 +88,13 @@ export function useMidiRecorder(): void {
         note: { t, dur, pitch, vel: entry.vel },
       });
       scheduleFlush();
+    };
+
+    const ensureChannelRow = (channelId: ChannelId) => {
+      if (latestRef.current.channels.some((c) => c.id === channelId)) return;
+      flushSync(() => {
+        latestRef.current.addChannel(channelId);
+      });
     };
 
     const prev = input.onmidimessage;
@@ -89,25 +105,27 @@ export function useMidiRecorder(): void {
       if (!data || data.length < 1) return;
       const status0 = data[0]!;
       const nibble = status0 & 0xf0;
+      const midiCh = status0 & 0x0f;
+      const channelId = (midiCh + 1) as ChannelId;
+
       if (nibble === 0x90) {
         const pitch = data[1] ?? 0;
         const vel = data[2] ?? 0;
         if (vel > 0) {
-          const ch = latestRef.current.selectedChannelId;
-          if (ch === null) return;
-          activeNotesRef.current.set(pitch, {
+          ensureChannelRow(channelId);
+          activeNotesRef.current.set(activeKey(midiCh, pitch), {
             startedAt: performance.now(),
             vel,
-            channelId: ch,
+            channelId,
           });
           return;
         }
-        finalize(pitch, performance.now());
+        finalize(midiCh, pitch, performance.now());
         return;
       }
       if (nibble === 0x80) {
         const pitch = data[1] ?? 0;
-        finalize(pitch, performance.now());
+        finalize(midiCh, pitch, performance.now());
         return;
       }
     };
@@ -116,15 +134,16 @@ export function useMidiRecorder(): void {
 
     return () => {
       const now = performance.now();
-      for (const [pitch] of activeNotesRef.current) {
-        finalize(pitch, now);
+      for (const key of [...activeNotesRef.current.keys()]) {
+        const { midiCh, pitch } = parseActiveKey(key);
+        finalize(midiCh, pitch, now);
       }
       activeNotesRef.current.clear();
       if (input.onmidimessage === handler) {
         input.onmidimessage = prev;
       }
     };
-  }, [recording, recordingStartedAt, selectedChannelId, status, inputId, runtimeState]);
+  }, [recording, recordingStartedAt, status, inputId, runtimeState]);
 }
 
 export function MidiRecorderRunner(): null {
