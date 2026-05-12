@@ -37,6 +37,7 @@ interface ActionRollProps {
   totalT: number;
   pxPerBeat: number;
   rowHeight: number;
+  playheadT?: number;
 }
 
 export function ActionRoll({
@@ -45,6 +46,7 @@ export function ActionRoll({
   totalT,
   pxPerBeat,
   rowHeight,
+  playheadT = 0,
 }: ActionRollProps) {
   const { djEventSelection, setDJEventSelection, djActionSelection, setDJActionSelection, pressureRenderMode } =
     useStage();
@@ -163,6 +165,7 @@ export function ActionRoll({
       {lanes}
       {ticks}
       {noteEls}
+      <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
     </div>
   );
 }

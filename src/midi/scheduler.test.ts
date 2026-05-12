@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Note } from '../components/piano-roll/notes';
-import { createScheduler, type ChannelSnapshot, type SchedulerOutput } from './scheduler';
+import type { ActionMapEntry, OutputMapping, PressurePoint } from '../data/dj';
+import {
+  createScheduler,
+  type ChannelSnapshot,
+  type DJEventSnapshot,
+  type DJTrackSnapshot,
+  type SchedulerOutput,
+} from './scheduler';
 
 interface SendCall {
   data: number[];
@@ -375,5 +382,480 @@ describe('createScheduler — tempo snapshot', () => {
     const noteOns1 = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
     expect(noteOns1).toHaveLength(1);
     expect(noteOns1[0]!.timestamp).toBeCloseTo(now1 + 50, 1);
+  });
+});
+
+function makeAction(opts: Partial<ActionMapEntry> & { id: string }): ActionMapEntry {
+  return {
+    cat: opts.cat ?? 'transport',
+    label: opts.label ?? opts.id,
+    short: opts.short ?? opts.id,
+    device: opts.device ?? 'global',
+    pad: opts.pad,
+    pressure: opts.pressure,
+    trigger: opts.trigger,
+    id: opts.id,
+  };
+}
+
+function djEvent(
+  pitch: number,
+  t: number,
+  dur: number,
+  vel: number,
+  opts: { pressure?: PressurePoint[]; perPitchIndex?: number } = {},
+): DJEventSnapshot {
+  return {
+    pitch,
+    t,
+    dur,
+    vel,
+    pressure: opts.pressure,
+    perPitchIndex: opts.perPitchIndex ?? 0,
+  };
+}
+
+function makeDJTrack(opts: {
+  id?: string;
+  midiChannel?: number;
+  events?: DJEventSnapshot[];
+  actionMap?: Record<number, ActionMapEntry>;
+  outputMap?: Record<number, OutputMapping>;
+  muted?: boolean;
+  soloed?: boolean;
+  mutedRows?: number[];
+  soloedRows?: number[];
+}): DJTrackSnapshot {
+  return {
+    id: opts.id ?? 'dj1',
+    midiChannel: opts.midiChannel ?? 16,
+    events: opts.events ?? [],
+    actionMap: opts.actionMap ?? {},
+    outputMap: opts.outputMap ?? {},
+    muted: opts.muted ?? false,
+    soloed: opts.soloed ?? false,
+    mutedRows: opts.mutedRows ?? [],
+    soloedRows: opts.soloedRows ?? [],
+  };
+}
+
+function pulseMany(scheduler: ReturnType<typeof createScheduler>, fromMs: number, toMs: number, stepMs: number, channels: ChannelSnapshot[], djTracks: DJTrackSnapshot[]) {
+  for (let pm = fromMs; pm <= toMs; pm += stepMs) {
+    scheduler.tick(performance.now(), pm, channels, false, djTracks);
+  }
+}
+
+describe('createScheduler — DJ note-mode dispatch', () => {
+  test('emits note-on/note-off using mapping.pitch and scaled velocity', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.1, 0.1, 0.5)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 3, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    const now = performance.now();
+    scheduler.tick(now, 0, [], false, [track]);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    const noteOffs = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x80);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOffs).toHaveLength(1);
+    expect(noteOns[0]!.data).toEqual([0x92, 60, 64]);
+    expect(noteOffs[0]!.data).toEqual([0x82, 60, 0]);
+    expect(noteOns[0]!.timestamp).toBeCloseTo(now + 50, 1);
+    expect(noteOffs[0]!.timestamp).toBeCloseTo(now + 100, 1);
+  });
+
+  test('velocity floor is 1 even when event.vel rounds to 0', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.0, 0.1, 0.001)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const noteOn = output.calls.find((c) => (c.data[0]! & 0xf0) === 0x90)!;
+    expect(noteOn.data[2]).toBe(1);
+  });
+
+  test('velocity ceiling is 127 when event.vel is 1.0', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.0, 0.1, 1.0)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const noteOn = output.calls.find((c) => (c.data[0]! & 0xf0) === 0x90)!;
+    expect(noteOn.data[2]).toBe(127);
+  });
+
+  test('missing outputMap entry falls back to track.midiChannel + event.pitch', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      midiChannel: 16,
+      events: [djEvent(48, 0.0, 0.1, 0.8)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: {},
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    expect(noteOns).toHaveLength(1);
+    /* channel byte = 16 - 1 = 15 (0x0F), output pitch = event.pitch (48), velocity = round(0.8 * 127) = 102 */
+    expect(noteOns[0]!.data).toEqual([0x9f, 48, 102]);
+    expect(toast.messages).toEqual(['Playing to X']);
+  });
+
+  test('outputMap entry overrides track.midiChannel and event.pitch', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      midiChannel: 16,
+      events: [djEvent(48, 0.0, 0.1, 0.8)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 3, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOns[0]!.data).toEqual([0x92, 60, 102]);
+  });
+
+  test('missing actionMap entry silently skips event', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.0, 0.1, 0.8)],
+      actionMap: {},
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
+  });
+
+  test('events past lookahead window are deferred', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 5.0, 0.5, 0.8)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
+    scheduler.tick(performance.now(), 2450, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(1);
+  });
+
+  test('events before playhead are skipped', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.5, 0.1, 0.8)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+    });
+    scheduler.start(1000, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 1000, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
+  });
+});
+
+describe('createScheduler — DJ mute / solo', () => {
+  test('track-level muted DJ track emits zero events', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.1, 0.1, 0.8)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+      muted: true,
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
+  });
+
+  test('row-level muted row emits nothing; other rows in same track continue', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.05, 0.1, 0.8), djEvent(49, 0.06, 0.1, 0.8)],
+      actionMap: {
+        48: makeAction({ id: 'a', cat: 'transport' }),
+        49: makeAction({ id: 'b', cat: 'transport' }),
+      },
+      outputMap: {
+        48: { device: 'global', channel: 1, pitch: 60 },
+        49: { device: 'global', channel: 1, pitch: 61 },
+      },
+      mutedRows: [48],
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOns[0]!.data[1]).toBe(61);
+  });
+
+  test('DJ track solo silences channel-roll dispatch', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.1, 0.1, 0.8)],
+      actionMap: { 48: makeAction({ id: 'a', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 2, pitch: 72 } },
+      soloed: true,
+    });
+    scheduler.start(0, 120, channels, false, [track]);
+    scheduler.tick(performance.now(), 0, channels, false, [track]);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOns[0]!.data[0]).toBe(0x91);
+    expect(noteOns[0]!.data[1]).toBe(72);
+  });
+
+  test('DJ row solo silences channel-roll dispatch and non-soloed rows', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.1, 0.1, 0.8), djEvent(49, 0.1, 0.1, 0.8)],
+      actionMap: {
+        48: makeAction({ id: 'a', cat: 'transport' }),
+        49: makeAction({ id: 'b', cat: 'transport' }),
+      },
+      outputMap: {
+        48: { device: 'global', channel: 2, pitch: 72 },
+        49: { device: 'global', channel: 2, pitch: 73 },
+      },
+      soloedRows: [48],
+    });
+    scheduler.start(0, 120, channels, false, [track]);
+    scheduler.tick(performance.now(), 0, channels, false, [track]);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOns[0]!.data[1]).toBe(72);
+  });
+});
+
+describe('createScheduler — DJ pressure-mode dispatch', () => {
+  test('emits note envelope and 14 AT messages for well-spaced synthesised curve', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(56, 0.0, 2.0, 0.8)],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    pulseMany(scheduler, 0, 1100, 50, [], [track]);
+    const ats = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xd0);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    const noteOffs = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x80);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOffs).toHaveLength(1);
+    expect(ats).toHaveLength(14);
+    expect(ats[0]!.data[0]).toBe(0xd0);
+  });
+
+  test('empty pressure array emits zero AT messages', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(56, 0.0, 2.0, 0.8, { pressure: [] })],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    pulseMany(scheduler, 0, 1100, 50, [], [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xd0)).toHaveLength(0);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(1);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x80)).toHaveLength(1);
+  });
+
+  test('non-empty stored pressure emits one AT per point', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const points: PressurePoint[] = [
+      { t: 0.0, v: 0.0 },
+      { t: 0.5, v: 1.0 },
+      { t: 1.0, v: 0.0 },
+    ];
+    const track = makeDJTrack({
+      events: [djEvent(56, 0.0, 2.0, 0.8, { pressure: points })],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    pulseMany(scheduler, 0, 1100, 50, [], [track]);
+    const ats = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xd0);
+    expect(ats).toHaveLength(3);
+    expect(ats.map((c) => c.data[1])).toEqual([0, 127, 0]);
+  });
+
+  test('throttle drops AT messages closer than 10ms apart', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    /* event dur=0.03 → 15ms duration at tempo 120. Points at curve-t 0, 1/3,
+       1.0 → abs-times 0, 5, 15ms. With 10ms throttle:
+         - point 1 at 0ms emits  (last = 0)
+         - point 2 at 5ms → 5 - 0 < 10 → drop
+         - point 3 at 15ms → 15 - 0 = 15 >= 10 → emit (last = 15) */
+    const points: PressurePoint[] = [
+      { t: 0.0, v: 0.2 },
+      { t: 1 / 3, v: 0.5 },
+      { t: 1.0, v: 0.9 },
+    ];
+    const track = makeDJTrack({
+      events: [djEvent(56, 0.0, 0.03, 0.8, { pressure: points })],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const ats = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xd0);
+    expect(ats).toHaveLength(2);
+    expect(ats[0]!.data[1]).toBe(Math.round(0.2 * 127));
+    expect(ats[1]!.data[1]).toBe(Math.round(0.9 * 127));
+  });
+
+  test('perPitchIndex selects pressure shape via synthesizePressure', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    /* Three events on same pitch 56 with perPitchIndex 0, 1, 2 → arch, rise,
+       center-peak shapes. First point of each: arch=0.05, rise=0.2, center=0.2.
+       Middle point of each (curve-t 0.5): arch=0.85, rise=0.55, center=0.6.
+       Test by checking the value at curve-t 0.5 for each event (rounded). */
+    const dur = 2.0;
+    const tEvent0 = 0.0;
+    const tEvent1 = 5.0;
+    const tEvent2 = 10.0;
+    const track = makeDJTrack({
+      events: [
+        djEvent(56, tEvent0, dur, 0.8, { perPitchIndex: 0 }),
+        djEvent(56, tEvent1, dur, 0.8, { perPitchIndex: 1 }),
+        djEvent(56, tEvent2, dur, 0.8, { perPitchIndex: 2 }),
+      ],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    pulseMany(scheduler, 0, 7000, 30, [], [track]);
+    const ats = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xd0);
+    /* 14 AT per event * 3 events = 42 */
+    expect(ats).toHaveLength(42);
+    /* Middle (idx 7 of 14, curve-t = 7/13 ≈ 0.538):
+         arch:  sin(0.538*π)*0.85 ≈ 0.821 → round 104
+         rise:  0.2 + 0.538*0.7   ≈ 0.577 → round 73
+         center: 0.6 - |0.538-0.5|*0.8 ≈ 0.569 → round 72
+       Differ between shapes — confirms perPitchIndex was passed. */
+    const arch7 = ats[7]!.data[1]!;
+    const rise7 = ats[14 + 7]!.data[1]!;
+    const center7 = ats[28 + 7]!.data[1]!;
+    expect(arch7).not.toBe(rise7);
+    expect(rise7).not.toBe(center7);
+    expect(arch7).toBeGreaterThan(rise7);
+  });
+});
+
+describe('createScheduler — DJ seek and panic', () => {
+  test('seek-back rebinds DJ cursor so later events still fire', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.05, 0.01, 0.8), djEvent(48, 0.15, 0.01, 0.8, { perPitchIndex: 1 })],
+      actionMap: { 48: makeAction({ id: 'a', cat: 'transport' }) },
+      outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const initialOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90).length;
+    expect(initialOns).toBe(2);
+    scheduler.tick(performance.now(), 30000, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const finalOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90).length;
+    expect(finalOns).toBe(initialOns + 2);
+  });
+
+  test('panic emits matching note-off and ANO; does NOT emit channel-pressure zero', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(56, 0.0, 10.0, 0.8)],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const callsBeforePanic = output.calls.length;
+    scheduler.panic();
+    const after = output.calls.slice(callsBeforePanic);
+    const panicOffs = after.filter((c) => (c.data[0]! & 0xf0) === 0x80);
+    const allNotesOffs = after.filter(
+      (c) => (c.data[0]! & 0xf0) === 0xb0 && c.data[1] === 0x7b,
+    );
+    const channelPressureZeros = after.filter(
+      (c) => (c.data[0]! & 0xf0) === 0xd0 && c.data[1] === 0x00,
+    );
+    expect(panicOffs.length).toBeGreaterThanOrEqual(1);
+    expect(panicOffs.some((c) => c.data[1] === 36)).toBe(true);
+    expect(allNotesOffs).toHaveLength(1);
+    expect(allNotesOffs[0]!.data[0]! & 0x0f).toBe(0);
+    expect(channelPressureZeros).toHaveLength(0);
+  });
+
+  test('panic clears throttle and cursor state so second play starts fresh', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(56, 0.0, 2.0, 0.8)],
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    pulseMany(scheduler, 0, 1100, 50, [], [track]);
+    const firstSessionAts = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xd0).length;
+    expect(firstSessionAts).toBe(14);
+    scheduler.panic();
+    const callsAfterFirstPanic = output.calls.length;
+    scheduler.start(0, 120, [], false, [track]);
+    pulseMany(scheduler, 0, 1100, 50, [], [track]);
+    const secondSessionAts = output.calls
+      .slice(callsAfterFirstPanic)
+      .filter((c) => (c.data[0]! & 0xf0) === 0xd0).length;
+    expect(secondSessionAts).toBe(14);
+    expect(scheduler.activeNoteCount()).toBe(1);
   });
 });

@@ -48,6 +48,128 @@ Small, scoped tasks that aren't tied to an in-flight slice or OpenSpec change. E
 
 **Status**: pending. Surfaced during `channel-grouped-timeline` review; deferred per design owner.
 
+### Timeline header hover backgrounds bleed playhead through (sub-100% color-mix)
+
+**Why**: Every timeline header (`.mr-channel__hdr`, `.mr-track__hdr`, `.mr-param-lane__hdr`, `.mr-djtrack__hdr`) uses a `:hover` rule of the form `background: color-mix(in oklab, var(--mr-bg-panel[-2]) 80%, var(--mr-text-1) 4%)` whose two percentages sum to 84% (or 85% in `.mr-channel__hdr`, 78% in one `ChannelGroup.css` rule at line 192). Per CSS Color 5 spec, when `color-mix` percentages don't sum to 100% the result's alpha is multiplied by `(p1 + p2) / 100` — so the hover state is rendered at ~84% opacity. On hover, the playhead's `1px` vertical bar and its 9×9px diamond cap (z=5 inside the lanes, but capped by the lanes' `z-index: 0`) become visible THROUGH the header background. The same bleed-through affects any other content the header is supposed to occlude (collapsed track bodies, lane fills at scroll boundaries). The hover should change the COLOR only, not the opacity.
+
+**Scope**:
+
+- Audit the 6 affected rules across:
+  - `src/components/channels/ChannelGroup.css` (3 occurrences — lines 28, 157, 192).
+  - `src/components/dj-action-tracks/DJActionTrack.css` (line 30).
+  - `src/components/param-lanes/ParamLane.css` (line 59).
+  - `src/components/tracks/Track.css` (line 53).
+- For each, change the two percentages so they sum to exactly `100`. Two equivalent options — pick one consistently:
+  - **Option A (recommended)**: keep the tint constant by scaling each percentage proportionally. E.g. `80% + 4%` → `96% + 4%` (tint preserved, alpha 100%). `80% + 5%` → `95% + 5%`. `70% + 8%` → `92% + 8%`.
+  - **Option B**: keep the absolute tint-color amount and increase the panel side. Mathematically the same as A — listed only to clarify the design intent.
+- Verify no other `:hover` or stateful rule on these elements re-introduces sub-100% mixing.
+
+**Verification**:
+
+- Hover any timeline header at a horizontal scroll position where the playhead crosses the header's hit region (e.g. scrub the playhead to beat 4, hover the channel header above it). The playhead's vertical line and diamond cap SHALL NOT be visible through the hover-tinted header.
+- Toggle `data-soloing` (solo any track) and hover the dimmed header. The non-hover and hover states SHALL have identical opacity; only the hue SHALL change.
+- `grep -E "color-mix\(.*%, .*%\)" src/components/*/*.css | awk -F'[%,]' '{print $0}' | <check sum is 100>` (or eyeball) → all hits sum to 100%.
+- `yarn typecheck` clean (no source changes; CSS-only).
+
+**Estimated effort**: 15–30 minutes. Six one-line CSS edits plus a manual hover-check pass.
+
+**Status**: pending. Surfaced during the `dj-action-track-playback` playhead-layering work — the playhead bleed-through under hover was visible after the playhead landed in the DJ track and is reproducible on every timeline header today.
+
+### Scope selection-blur to inside the timeline; cross-track blur on row-click
+
+**Why**: The current outside-click blur for DJ selections (`useStage.tsx:138–150`) is window-scoped: any `pointerdown` outside `.mr-djtrack` and outside an opted-in `[data-mr-dj-selection-region]` element clears both `djActionSelection` and `djEventSelection`. That includes clicks on the Toolstrip, the Statusbar, the Sidebar panels that aren't marked as a selection region, the app-shell background, and any future side panel that forgets the data attribute — every one of those dismisses the Inspector's Output/Pressure panels mid-edit. The desired model: the Inspector, Sidebar, and other chrome are SURFACES FOR the current selection, so clicking into them must keep selection alive; only clicks INSIDE `.mr-timeline` itself (but outside the row/event that already represents the selection) should change or clear it. The same scoping applies in advance to channel-roll note selection and param-lane CC-point selection — both are coming online in upcoming slices and will hit the same trap if the blur scope is window-wide.
+
+Separately, `<ActionKeys>` row-click (`ActionKeys.tsx:54-59`) sets `djActionSelection` for the clicked row but does not touch `djEventSelection`. When the user has clicked a `.mr-djtrack__note` on track A (setting `djEventSelection = { trackId: 'A', ... }`) and then clicks an `.mr-actkey` on track B, the row selection moves to B while the event selection on A is left dangling — the Inspector's pressure editor keeps showing A's event. Row-click is fundamentally a row-level (re-)target action and should clear any event selection that doesn't belong to the same row on the same track.
+
+**Scope**:
+
+- **Invert the blur predicate**: change `useStage.tsx`'s window listener to fire `setDJActionSelection(null)` + `setDJEventSelection(null)` ONLY when the `pointerdown` target is *inside `.mr-timeline`* AND outside both `.mr-djtrack` and `[data-mr-dj-selection-region]`. Clicks outside `.mr-timeline` are a no-op — the Inspector, Sidebar, Toolstrip, and Statusbar can all be interacted with without losing selection. The `[data-mr-dj-selection-region]` opt-in remains useful for in-timeline regions that should preserve selection (none today, but the affordance stays for future panels embedded in the timeline body).
+- **Cross-track row blur**: in `ActionKeys.tsx`'s row-click handler, after `setDJActionSelection({ trackId, pitch })` also call `setDJEventSelection(null)` UNLESS the current `djEventSelection` already matches `{ trackId, pitch }` (i.e. the event lives on the row being re-selected). Same edit for the `Enter`/`Space` keyboard activation path.
+- **Apply the same blur scoping to future selections**: when channel-roll note selection (currently demo-driven via `selectedIdx` in `useStage.tsx:186`) and param-lane CC-point selection land as real user interactions, their outside-click clearers SHALL use the same "only inside `.mr-timeline`" predicate. Add a shared helper (e.g. `useTimelineBlur(setters: Array<() => void>)`) so all three selection systems share the predicate.
+- Audit any other selection-clearing call sites (`deleteActionEntry`, `deleteOutputMapping`, transport mode changes, file load, etc.) for consistency — those legitimately clear selection regardless of click target and should remain unchanged.
+
+**Verification**:
+
+- With `djActionSelection !== null`, click anywhere in the Inspector (outside `[data-mr-dj-selection-region]`), the Sidebar's non-marked panels, the Toolstrip, or the Statusbar. The selection SHALL persist; the Output/Pressure panels SHALL stay rendered.
+- With `djActionSelection !== null`, click on the ruler band or an empty area inside `.mr-timeline` that is neither a `.mr-djtrack` nor a `[data-mr-dj-selection-region]`. The selection SHALL clear; the side panels SHALL collapse.
+- Set `djEventSelection` by clicking a `.mr-djtrack__note` on track A. Then click an `.mr-actkey` on a different track B. The next render SHALL have `djActionSelection = { trackId: 'B', pitch }` AND `djEventSelection === null`. The Inspector pressure editor SHALL no longer show A's event.
+- Clicking an `.mr-actkey` on the SAME row that owns the current `djEventSelection` (rare but possible) SHALL NOT clear `djEventSelection` — the event is logically part of the row, so re-selecting the row is idempotent for the event.
+- `yarn typecheck` clean; `yarn test` clean (update the existing scenarios in `dj-action-tracks/spec.md` covering "Outside-click blurs the selection" to require the new predicate, and add a scenario for cross-track row blur).
+
+**Spec deltas**: `dj-action-tracks` — MODIFY the "Outside-click blurs the selection" and "Clicking outside the DJ track blurs djEventSelection" requirements to specify the inside-`.mr-timeline` predicate; ADD a scenario to "Clicking an action row selects it" covering cross-track event-selection blur. Likely warrants escalation to an OpenSpec change when picked up.
+
+**Estimated effort**: 1–2 hours. The blur predicate rewrite is ~10 LOC; the row-click cross-clear is ~5 LOC; the bulk is spec deltas + scenario coverage + manual UI verification across the four chrome surfaces.
+
+**Status**: pending. Surfaced during DJ playback testing — Inspector dismissal on every side-panel click made it impractical to inspect and adjust an event mid-playback. Cross-track row blur surfaced in the same session when the Inspector kept showing a stale event after re-selecting an action row on a different track (today: only one DJ track in the seed, so this is preventative for when multi-track sessions ship).
+
+### Drop the Routing panel; move I/O config to per-track inline (with CC# remap)
+
+**Why**: The Sidebar's "Routing" panel (`Sidebar.tsx:145–147`, `RoutingMatrix` component at line 56) renders a global channel×output-device matrix that's decorative today. The DJ-action-track playback work already moved away from the matrix model — DJ tracks emit on `track.midiChannel` directly, with `outputMap[pitch]` as a per-row override. The instrument-track (channel-roll) side should follow the same model: routing belongs to the track, not to a separate top-level panel. A global matrix forces the user to think in cross-product terms (channel × output) when the natural mental model is "this track sends to this device on this channel." It also creates a brittle UI as device counts grow (a 16-channel session × 4 outputs = 64 cells of decorative chrome). Drop the panel; configure I/O on a selected track instead. Same opportunity: expose CC-number remapping on output so a captured CC (e.g. CC 1 mod wheel from the input device) can be re-emitted as a different CC# (e.g. CC 74 cutoff on the output synth) — today's "CC and pitch-bend capture during recording" backlog entry only covers capture, not output-side remap.
+
+**Scope**:
+
+- **Drop the Routing panel**:
+  - Remove `<Panel icon={<RouteIcon />} title="Routing">` and its `<RoutingMatrix>` body from `src/components/sidebar/Sidebar.tsx`.
+  - Delete the `RoutingMatrix` and `RoutingRow` components (in the same file or wherever they live).
+  - Remove `.mr-routing*` CSS rules from `src/components/sidebar/Sidebar.css`.
+  - Audit `RouteIcon` usage — if unused elsewhere, drop from `src/components/icons/transport.tsx`.
+  - Remove any `useRouting`-style hook or `routing` slice of `useStage` that exists solely to back the matrix. If a routing capability spec exists (check `openspec/specs/`), REMOVE it.
+- **Track selection UX for channel-rolls**:
+  - Clicking a `.mr-channel__hdr` or `.mr-track__hdr` (the instrument track's header, not the body) SHALL set a new `selectedTrack: { kind: 'channel', channelId } | { kind: 'dj', trackId } | null` state in `useStage`. Today `selectedChannelId` is demo-only; this slice promotes it to a real user-driven selection with cross-kind support so the same Inspector tab can target both instrument and DJ tracks.
+  - The selected track's header SHALL carry `data-selected="true"` so CSS can render a subtle accent border (consistent with `.mr-actkey[data-selected]` and `.mr-djtrack__note[data-selected]`).
+  - Outside-click blur for `selectedTrack` SHALL use the in-timeline predicate from the preceding "Scope selection-blur" backlog entry — clicks in the Inspector / Sidebar / Toolstrip don't drop the selection.
+- **Per-track I/O config UI (Inspector panel)**:
+  - When `selectedTrack.kind === 'channel'`, the Inspector renders an "I/O" section with four controls:
+    - **Input device** picker (dropdown of `useMidiInputs().inputs`).
+    - **Input channel** (1..16 or "Omni"). Notes arriving on this channel byte from the chosen input device are routed to this track during recording.
+    - **Output device** picker (dropdown of `useMidiOutputs().outputs`).
+    - **Output channel** (1..16). Notes/CCs/PB from this track emit on this channel byte.
+  - When `selectedTrack.kind === 'dj'`, the same section shows the DJ track's `midiChannel` (with an output-channel picker — already implied by the `dj-action-track-playback` spec but no editor exists yet).
+  - The Inspector section SHALL carry `data-mr-selection-region="true"` (the new generalized attribute; rename from `data-mr-dj-selection-region` in the scope-blur slice) so clicks inside don't blur the track selection.
+- **Channels capability data shape**:
+  - Add `inputDeviceId: string | null`, `inputChannel: number | 'omni'`, `outputDeviceId: string | null`, `outputChannel: number` to `Channel`. Defaults: `inputDeviceId/outputDeviceId = null` (track uses the session-wide first device, mirroring today's behavior); `inputChannel = 'omni'`; `outputChannel = channel.id` (preserve today's "channel id is channel byte" identity behavior).
+  - Setters: `setChannelInputDevice(id, deviceId)`, `setChannelInputChannel(id, ch)`, `setChannelOutputDevice(id, deviceId)`, `setChannelOutputChannel(id, ch)`. No-op for unknown ids.
+- **Recording side — input device + channel filter**:
+  - `useMidiRecorder` SHALL respect each channel's `inputDeviceId` + `inputChannel` config: a note arrives → look up the channel(s) whose `inputDeviceId === <source>` AND (`inputChannel === 'omni'` OR `inputChannel === <msg channel byte + 1>`). Append the note to all matching channels.
+  - When no channel matches, the note is silently dropped (no auto-channel-creation in this slice; that's the existing "Multi-channel record routing" entry's job). This part is mostly forward-compat; today's single-channel recording still works because the demo seed has one channel set to omni.
+- **Playback side — output device + channel resolution**:
+  - The scheduler's `ChannelSnapshot` shape gains `outputDeviceId: string | null` and `outputChannel: number`. `useMidiScheduler` resolves the output: if `outputDeviceId !== null` AND that MIDI output is present at play-time, dispatch goes to that output on `outputChannel`. Else fall back to `useMidiOutputs().outputs[0]` (today's behavior).
+  - `channelByte` in `resolveChannelEmit` switches from `(ch.id - 1) & 0x0F` to `(ch.outputChannel - 1) & 0x0F`.
+  - The `activeNoteOns` key already includes `outputId`, so multi-output sessions panic correctly.
+- **CC# output remap**:
+  - Add a `ccOutputMap: Record<number, number>` field per `Channel` — keys are input CC numbers, values are output CC numbers. Empty by default = identity passthrough.
+  - When the CC-capture slice ("CC and pitch-bend capture during recording" backlog entry) lands, captured CC lane points carry the INPUT CC number (e.g. `kind: 'cc-1'`). On playback emit, the scheduler SHALL look up `ccOutputMap[inputCC] ?? inputCC` and emit the resulting CC# in the `0xB0 | channelByte, ccNumber, value` message.
+  - The Inspector's I/O section SHALL list each active CC lane on the channel with an inline "→ CC#" input box. Editing it calls `setChannelCCRemap(channelId, inputCC, outputCC)`.
+  - For DJ pressure-bearing rows: the same affordance applies via `outputMap[pitch].cc?` (a new optional field) — DJ rows can choose to emit pressure as a CC instead of channel-aftertouch when they target a synth that uses CC for the same expression knob.
+- **Statusbar I/O picker cleanup**: the global I/O picker in the Statusbar (per the existing "Pickers for MIDI input and clock source" backlog entry) becomes the *default device* for new channels, not a global routing override. Tracks always win via their per-track config.
+
+**Verification**:
+
+- Routing panel is gone from the Sidebar — no "Routing" panel title, no matrix, no related CSS rules in DevTools.
+- Click a channel header → header carries `data-selected="true"`; the Inspector's I/O section appears with the channel's defaults.
+- Change the channel's input device to "Device A" + input channel to 5 → notes arriving on Device A channel 5 land in this channel; notes on other devices/channels do not.
+- Change the channel's output device to "Device B" + output channel to 10 → playback emits on Device B's MIDI channel byte 9. Stop → All Notes Off fires on Device B channel byte 9.
+- Two channels routed to the same output but different channels → both emit independently, no cross-talk.
+- Remap CC 1 → CC 74 on a channel; record while moving the input mod wheel → the channel's lane shows `cc-1`; play back → output emits CC#74 (not CC#1).
+- `yarn typecheck` clean; `yarn test` clean.
+
+**Spec deltas (likely OpenSpec proposal)**:
+
+- `channels`: ADD four I/O config fields per `Channel` + setters + a `ccOutputMap` field + setters. Modify the existing requirement "Channel state shape" to include these fields.
+- `midi-playback`: MODIFY "Tempo and output are snapshotted at play time" to also snapshot per-channel `outputDeviceId`/`outputChannel`; MODIFY the channel-roll dispatch requirement to use `(ch.outputChannel - 1) & 0x0F` for the channel byte and resolve the output via `ch.outputDeviceId ?? outputSnapshot`.
+- `inspector`: ADD a "Track I/O" panel requirement covering the four pickers + CC-remap list. Wire it to the new `selectedTrack` state.
+- `sidebar`: REMOVE the Routing panel requirements; REMOVE any `routing` capability spec entirely.
+- `midi-recording`: MODIFY the recording requirements to respect per-channel `inputDeviceId`/`inputChannel` instead of `selectedChannelId`.
+- `dj-action-tracks`: MODIFY `DJActionTrack` data shape to include the same `inputDeviceId`/`outputDeviceId` fields (DJ tracks already have `midiChannel`; this extends them with device routing). Optionally extend `OutputMapping` with `cc?: number` for the DJ-side CC remap.
+
+**Supersedes**: "Per-channel output routing in playback (Routing matrix becomes live)" (further down in this backlog) — that entry assumed the matrix would become live; this entry deletes the matrix instead. Also reshapes: "Pickers for MIDI input and clock source" (the Statusbar pickers become per-track defaults), "Input mapping rules — device + MIDI channel → internal channel" (the rules now live in per-channel config instead of a separate panel), "CC and pitch-bend capture during recording" (gains the output-side remap path).
+
+**Dependencies**: "Web MIDI access" — done. "Play back channel notes" / "DJ action track playback" — done. Pairs naturally with "Multi-channel record routing by incoming MIDI channel byte" (use the per-channel input config for routing) and "CC and pitch-bend capture during recording" (use the per-channel `ccOutputMap` on the emit side).
+
+**Estimated effort**: 1.5–2 days. Removing the Routing panel is ~1 hour. The per-track Inspector section + four channel fields + setters is ~3–4 hours. Scheduler wiring for per-channel output device/channel is ~2 hours. CC remap end-to-end (channel field + Inspector list editor + scheduler lookup) is ~3 hours. Spec deltas + manual verification across multi-device scenarios is the rest. Likely escalates to a full OpenSpec proposal given the cross-capability surface.
+
+**Status**: pending. Surfaced during the `dj-action-track-playback` review — the user explicitly redirected routing UX from a global panel to per-track inline config and added the CC# remap requirement in the same conversation.
+
 ### Add/remove affordances for channels and tracks (notes / param lanes)
 
 **Why**: Today the timeline can grow per-channel (`+ Add Lane`) but never shrink, and there's no way to add a new channel either. No remove for channels, no remove for the roll/notes track, no remove for individual param lanes. Channel visibility is currently content-derived (`channelHasContent` predicate in `useStage`), which means a channel with no notes and no lane points silently disappears — and once removed has no path back.
@@ -398,33 +520,6 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 
 **Status**: pending. **Third of three core slices** for end-to-end MIDI recording and playback. Together with the previous two, closes the E2E loop.
 
-### DJ action track playback
-
-**Why**: The just-archived `play-channel-notes` slice closed the channel-roll → output loop, but DJ action tracks remain mute. They render in the timeline, the playhead crosses them, and each pitch carries an `ActionMapEntry` plus an `OutputMapping` (output device + MIDI channel + CC# or note + pressure mapping). For these to actually do something during playback, the scheduler needs to walk DJ track events the same way it walks `PianoRollTrack.notes`, but emit the message type the action's `OutputMapping` describes (note-on/off with the row's pitch, or CC# with a value derived from the event's pressure curve / fixed value, etc.). Without this, DJ action tracks are decorative — visible but inert.
-
-**Scope**:
-
-- Extend the scheduler to read `useStage().djActionTracks` alongside channels. For each DJ track that passes the track-level audibility check (`isDJTrackAudible(track, soloing)`), walk every pitch row that's not row-muted (and is row-soloed when the track has any row-solo, per `useDJActionTracks`'s composition rules).
-- For each event in the row, look up the row's `OutputMapping` (output device id, MIDI channel byte, message kind). Emit a message at `event.t * msPerBeat` using the scheduler's existing lookahead logic. Pressure curves (a `PressurePoint[]` per event) get sampled at lookahead-window boundaries and emitted as a sequence of CC messages along the event's duration — separate dispatch path from the discrete channel-roll note-ons. (Pressure sampling cadence: open question — likely one CC per ~10ms or one per pressure-point, whichever is sparser. Decide in the change's `design.md`.)
-- Output selection: resolve `mapping.outputId` against `useMidiOutputs().outputs` at `play()` time, alongside the channel-roll's `outputs[0]` snapshot. A DJ track row routed to an unavailable output is silently dropped (Statusbar/toast may surface a warning per row — defer to grooming).
-- Panic on stop: the scheduler's `activeNoteOns` map (already keyed by `(outputId, channelByte, pitch)`) absorbs DJ track note-ons without schema change. CCs don't need panic — they're stateless from the synth's perspective.
-
-**Verification**:
-
-- Map a DJ row to "Note 60 on output X, channel 1". Press play → row events emit note-on/off on output X.
-- Map a DJ row to "CC#74 on output X, channel 1" with a pressure curve. Press play → CC#74 messages stream along the event's duration, tracking the curve.
-- Mute the DJ track mid-playback → its events stop emitting within one frame; channel rolls unaffected.
-- Solo a DJ row → only that row's events fire; the track's other rows are dropped.
-- `yarn typecheck` clean.
-
-**Spec deltas**: `midi-playback` — gain DJ-track scheduling requirements. `dj-action-tracks` — likely no change (the data shape already exists); audit during the change's proposal.
-
-**Dependencies**: E2E core (playback slice required). Independent of the per-channel routing slice — DJ tracks already carry their own per-row output mapping, so they don't need the Routing matrix.
-
-**Estimated effort**: 1.5–2 days. The pressure-curve CC sampling path is the bulk; the discrete note path mirrors the existing scheduler logic with a different audibility composition.
-
-**Status**: pending. Surfaced during manual verification of the `play-channel-notes` slice — user noticed DJ tracks have no playback cursor and emit no MIDI.
-
 ### Multi-channel record routing by incoming MIDI channel byte
 
 **Why**: The initial recording slice routes every incoming note to `selectedChannelId`. Real controllers and split keyboards send on multiple MIDI channels (left hand on ch1, right hand on ch2; drum machine on ch10). To capture a multi-channel performance the recorder must route by the incoming MIDI channel byte — a note arriving on MIDI channel N lands in the internal channel with id N.
@@ -452,6 +547,8 @@ The original Slice 10 in `design_handoff_midi_recorder/IMPLEMENTATION_PLAN.md` b
 **Status**: pending.
 
 ### Per-channel output routing in playback (Routing matrix becomes live)
+
+**SUPERSEDED** by "Drop the Routing panel; move I/O config to per-track inline (with CC# remap)" earlier in this backlog. The decision is to delete the matrix entirely rather than wire it up. Keep this entry until the superseding slice ships, then remove this entry as part of that slice's cleanup.
 
 **Why**: The Routing panel renders a matrix (channel × output device) today but its state is decorative — playback ignores it and sends every channel to the first available output. This slice wires the matrix into the scheduler: each channel's events go to the output(s) selected for it in the matrix, with optional per-route MIDI-channel rewrite (e.g., "route everything to output X on its channel 5").
 
@@ -674,4 +771,5 @@ Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pres
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->
 
+- **2026-05-12** · pending archive — **DJ action track playback**. Unifies channel-roll and DJ-track dispatch into a SINGLE loop in `src/midi/scheduler.ts` walking all playable sources via a shared `emitNoteEvent` helper (note-on/note-off + optional channel-aftertouch curve). Adds `midiChannel: number` to `DJActionTrack` (seed: 16) — events emit by default on `track.midiChannel` with `event.pitch` as the output pitch, mirroring how channel-rolls emit on `Channel.id` with `Note.pitch`. `outputMap[pitch]` becomes an OPTIONAL override (channel + pitch) instead of a required prerequisite. Pressure-bearing rows additionally emit `0xD0` from `event.pressure` (or `synthesizePressure(event, perPitchIndex)` when undefined), throttled to a minimum 10 ms gap on the same channelByte; pressure points emit in the dispatch tick with future timestamps (mirrors the channel-roll's future-timestamped note-off). All DJ events share the channel-roll's single `outputSnapshot`; the `activeNoteOns` and `channelsActivated` maps absorb DJ note-ons unchanged so panic-on-stop covers the envelopes. Solo composition: any DJ track or row soloed flips the session-wide `data-soloing` flag and silences un-soloed channel-rolls. Deferred to follow-up slices: configurable CC# emission (needs an `OutputMapping.cc?` field), per-track real-output routing (the `device: DeviceId` field is label-only here), polyphonic key pressure, an editor UI for `midiChannel`. See archived change `2026-05-12-dj-action-track-playback`.
 - **2026-05-12** · `f588865` — **Record incoming MIDI to the active channel**. Second of three core E2E slices. Adds `useMidiRecorder` (active-note map keyed by pitch, rAF-coalesced dispatch, hung-note finalization, chain-forward `onmidimessage`), `useTransport.recordingStartedAt`, `useChannels.appendNote`, and the record-button disabled state in the Titlebar. Single-channel routing only (`selectedChannelId`); multi-channel routing, CC/PB capture, reversible pause, and live MIDI-IN LED tap are separate backlog entries. Manual verification surfaced two pre-existing bugs that were folded into the slice: stop-while-holding extended notes back to `t=0` (origin not captured at effect setup) and the non-looping playhead wrapped at `TOTAL_T`. See archived change `2026-05-12-record-incoming-midi`.

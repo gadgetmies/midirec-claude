@@ -85,6 +85,7 @@ export function AppShell() {
                   totalT={stage.totalT}
                   pxPerBeat={DEFAULT_PX_PER_BEAT}
                   rowHeight={DJ_ROW_HEIGHT}
+                  playheadT={stage.playheadT}
                   onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
                   onToggleMuted={() => stage.toggleDJTrackMuted(track.id)}
                   onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}

@@ -15,6 +15,7 @@ interface DJActionTrackProps {
   totalT: number;
   pxPerBeat: number;
   rowHeight: number;
+  playheadT?: number;
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
@@ -29,6 +30,7 @@ export function DJActionTrack({
   totalT,
   pxPerBeat,
   rowHeight,
+  playheadT,
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
@@ -87,6 +89,7 @@ export function DJActionTrack({
             totalT={totalT}
             pxPerBeat={pxPerBeat}
             rowHeight={rowHeight}
+            playheadT={playheadT}
           />
         </div>
       )}

@@ -31,11 +31,20 @@ export interface DJActionTrack {
   id: DJTrackId;
   name: string;
   color: string;
+  /* MIDI channel the track emits on by default (1..16). Each event with no
+     `outputMap[pitch]` override emits on this channel with the row's pitch
+     as the output pitch. Per-row `outputMap` entries override both channel
+     and pitch when present. Mirrors the channel-roll's `Channel.id` as the
+     intrinsic routing identifier — a DJ track is conceptually a channel
+     that also carries pressure curves. */
+  midiChannel: number;
   actionMap: Record<number, ActionMapEntry>;
   /* Per-pitch output mapping. Keyed by the input pitch (i.e. the same key
-     that drives actionMap). Entries are optional — a pitch may have an
-     actionMap entry but no outputMap entry yet (the action is configured
-     but not yet wired to an outgoing MIDI message). */
+     that drives actionMap). Entries are OPTIONAL OVERRIDES — when present,
+     `mapping.channel` and `mapping.pitch` override the track's defaults
+     (track.midiChannel and event.pitch respectively). When absent, the
+     event emits on `track.midiChannel` with `event.pitch` as the output
+     pitch. */
   outputMap: Record<number, OutputMapping>;
   events: ActionEvent[];
   inputRouting: DJTrackRouting;
@@ -118,6 +127,7 @@ function seedDefault(): DJActionTrack[] {
       id: 'dj1',
       name: 'DJ',
       color: DJ_DEVICES.global.color,
+      midiChannel: 16,
       actionMap: seededActionMap,
       outputMap: {},
       events: SEEDED_EVENTS,

@@ -9,6 +9,13 @@
 .mr-djtrack__lanes {
   flex: 1;
   position: relative;
+  /* z-index: 0 caps the playhead's z=5 (and any other absolute child inside
+     the lanes) inside this stacking context, so the sticky-left
+     .mr-djtrack__keys (z=2 in the parent stack) and the header
+     .mr-djtrack__hdr (z=1) draw over the playhead instead of being painted
+     under it. Mirrors the .mr-track__roll { z-index: 0 } pattern in
+     Track.css. */
+  z-index: 0;
 }
 
 .mr-djtrack__lane {
