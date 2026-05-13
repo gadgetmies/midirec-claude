@@ -261,23 +261,22 @@ function laneDefaultColor(kind: ParamLaneKind): string {
 
 /* ── Seeded default session ─────────────────────────────────────────────── */
 
-function seed(totalT: number, clean: boolean = false): State {
+function seed(totalT: number, instrumentSeed: boolean): State {
   const channels: Channel[] = [
     { id: 1, name: 'Lead', color: 'oklch(72% 0.14 240)', collapsed: false, muted: false, soloed: false, inputSources: [] },
     { id: 2, name: 'Bass', color: 'oklch(70% 0.16 30)',  collapsed: false, muted: false, soloed: false, inputSources: [] },
   ];
-  const rolls: PianoRollTrack[] = clean
+  const rolls: PianoRollTrack[] = instrumentSeed
     ? [
-        { channelId: 1, notes: [], muted: false, soloed: false, collapsed: false },
-        { channelId: 2, notes: [], muted: false, soloed: false, collapsed: false },
-      ]
-    : [
         { channelId: 1, notes: makeNotes(22, 7),  muted: false, soloed: false, collapsed: false },
         { channelId: 2, notes: makeNotes(16, 11), muted: false, soloed: false, collapsed: false },
-      ];
-  const lanes: ParamLane[] = clean
-    ? []
+      ]
     : [
+        { channelId: 1, notes: [], muted: false, soloed: false, collapsed: false },
+        { channelId: 2, notes: [], muted: false, soloed: false, collapsed: false },
+      ];
+  const lanes: ParamLane[] = instrumentSeed
+    ? [
         {
           channelId: 1, kind: 'cc', cc: 1,
           name: 'Mod Wheel', color: 'var(--mr-cc)',
@@ -290,7 +289,8 @@ function seed(totalT: number, clean: boolean = false): State {
           points: ccPitchBend(totalT),
           muted: false, soloed: false, collapsed: false,
         },
-      ];
+      ]
+    : [];
   return { channels, rolls, lanes };
 }
 
@@ -360,8 +360,8 @@ export interface UseChannelsReturn {
   setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
 }
 
-export function useChannels(totalT: number, clean: boolean = false): UseChannelsReturn {
-  const initial = useMemo(() => seed(totalT, clean), [totalT, clean]);
+export function useChannels(totalT: number, instrumentSeed: boolean = false): UseChannelsReturn {
+  const initial = useMemo(() => seed(totalT, instrumentSeed), [totalT, instrumentSeed]);
   const [state, dispatch] = useReducer(reducer, initial);
 
   return {

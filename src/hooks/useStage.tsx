@@ -39,6 +39,7 @@ import {
   MIN_VISIBLE_BEATS,
   deriveSessionHorizonFloorBeats,
 } from '../session/layoutHorizon';
+import { parseDemoQueryFlags } from '../session/demoQuery';
 
 export interface DJActionSelection {
   trackId: DJTrackId;
@@ -133,12 +134,15 @@ const DEMO_NOTE_IDX = 3;
 
 function useStageState(): StageState {
   const { timecodeMs, bpm } = useTransport();
-  const demoClean = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    return window.location.search.includes('demo=clean');
-  }, []);
-  const channels = useChannels(TOTAL_T, demoClean);
-  const djTracks = useDJActionTracks();
+  const demo = useMemo(
+    () =>
+      typeof window === 'undefined'
+        ? parseDemoQueryFlags('')
+        : parseDemoQueryFlags(window.location.search),
+    [],
+  );
+  const channels = useChannels(TOTAL_T, demo.instrumentSeed);
+  const djTracks = useDJActionTracks(demo.djDemo);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const openExportDialog = useCallback(() => setDialogOpen(true), []);
@@ -213,13 +217,7 @@ function useStageState(): StageState {
     [djTracks],
   );
 
-  const { demoMarquee, demoNote } = useMemo(() => {
-    if (typeof window === 'undefined') return { demoMarquee: false, demoNote: false };
-    const search = window.location.search;
-    const marquee = search.includes('demo=marquee');
-    const note = !marquee && search.includes('demo=note');
-    return { demoMarquee: marquee, demoNote: note };
-  }, []);
+  const { demoMarquee, demoNote } = demo;
 
   // Non-looping playback advances forever — let the playhead exceed TOTAL_T
   // rather than wrap back to 0. Visual overflow (cursor off the right edge of
@@ -245,7 +243,7 @@ function useStageState(): StageState {
     : demoNote
       ? [DEMO_NOTE_IDX]
       : [];
-  const selectedChannelId: ChannelId | null = demoMarquee || demoNote || demoClean ? 1 : null;
+  const selectedChannelId: ChannelId | null = demoMarquee || demoNote ? 1 : null;
 
   const resolvedSelection = useMemo<ResolvedSelection | null>(() => {
     if (selectedChannelId === null) return null;

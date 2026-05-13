@@ -85,34 +85,42 @@ interface DJActionTrack {
 }
 ```
 
-The `midiChannel` field SHALL be a MIDI channel number in the inclusive range `1..16`. It is the track's intrinsic output channel — the channel byte each event emits on by default during playback, conceptually mirroring how `Channel.id` serves as a channel-roll's intrinsic channel byte. The default seeded track SHALL set `midiChannel: 16`. Per-row `outputMap[pitch].channel` overrides `midiChannel` when present; see the `midi-playback` capability for the resolution rule.
+The `midiChannel` field SHALL be a MIDI channel number in the inclusive range `1..16`. It is the track's intrinsic output channel — the channel byte each event emits on by default during playback, conceptually mirroring how `Channel.id` serves as a channel-roll's intrinsic channel byte. The **DJ demo seeded** track (when `demo=dj` is active at first render) SHALL set `midiChannel: 16`. Per-row `outputMap[pitch].channel` overrides `midiChannel` when present; see the `midi-playback` capability for the resolution rule.
 
 `inputRouting` SHALL declare which incoming MIDI messages feed this track's action map. `outputRouting` SHALL declare the set of channel-roll channels that contribute notes to the track's action map at recording time. Both fields exist on every dj-action-track; their full selector shapes (pitch ranges, CC selectors) are deferred to the routing-configuration slice.
 
 The `actionMap` field SHALL be **the set of input bindings actively configured on this track** — NOT a reference to a catalog of all possible actions. The track's body SHALL render exactly one row per entry in `actionMap`. The catalog of available actions a user can pick from lives in `DEFAULT_ACTION_MAP` (exported from `src/data/dj.ts`), which is a SOURCE for the picker, not a track's actionMap.
 
-The `outputMap` field SHALL hold per-pitch **optional output-mapping overrides**, keyed by the same pitch keys that drive `actionMap`. When `outputMap[pitch]` is present, its `channel` and `pitch` override `track.midiChannel` and the event's row pitch for emission, respectively. When absent, the event emits with `track.midiChannel` as the channel and the event's own `pitch` as the output pitch. Deleting an action via `deleteActionEntry` SHALL also remove the matching `outputMap` entry. Initial seed sets `outputMap` to `{}`.
+The `outputMap` field SHALL hold per-pitch **optional output-mapping overrides**, keyed by the same pitch keys that drive `actionMap`. When `outputMap[pitch]` is present, its `channel` and `pitch` override `track.midiChannel` and the event's row pitch for emission, respectively. When absent, the event emits with `track.midiChannel` as the channel and the event's own `pitch` as the output pitch. Deleting an action via `deleteActionEntry` SHALL also remove the matching `outputMap` entry. When a DJ demo track is seeded, initial `outputMap` SHALL be `{}`.
 
-The `events` field SHALL be the list of action events associated with this track. In Slice 7b these are synthetic demo events seeded on the track; a future routing slice MAY replace this with events derived from channel-track notes via `inputRouting`.
+The `events` field SHALL be the list of action events associated with this track. In Slice 7b these are synthetic demo events seeded **only when `demo=dj` is enabled** at first render; a future routing slice MAY replace this with events derived from channel-track notes via `inputRouting`.
 
 The `mutedRows` and `soloedRows` fields SHALL track per-row M/S state, exactly as in Slice 7b.
 
-The default seeded track SHALL contain a small demo subset of `DEFAULT_ACTION_MAP` (4 entries — pitches 48, 56, 60, 71 — spanning 3 devices), a synthetic `events` array of length ≥ 10 with deterministic content covering all three rendering modes, an empty `outputMap: {}`, and empty `mutedRows: []` / `soloedRows: []`.
+When **`demo=dj` is active** at first render, exactly one seeded track SHALL appear with the subset of `DEFAULT_ACTION_MAP` and synthetic `events` array used before this change (`SEEDED_PITCHES`: six pitches as implemented — 48, 49, 56, 57, 60, 71), deterministic `events` of length ≥ 10 covering all three rendering modes, an empty `outputMap: {}`, and empty `mutedRows: []` / `soloedRows: []`.
 
-#### Scenario: Default seeded track has the expected fields
+When **no** `demo=dj` flag is present at first render, `useDJActionTracks()` SHALL initialize `djActionTracks` to the empty array `[]`.
 
-- **WHEN** `useStage()` is first called
-- **THEN** `djActionTracks[0]` SHALL have `id === 'dj1'`
+#### Scenario: Baseline load has no DJ tracks
+
+- **WHEN** the app first renders with no `demo=dj` flag
+- **THEN** `useStage().djActionTracks` SHALL be an empty array
+
+#### Scenario: DJ demo seeded track has the expected fields
+
+- **WHEN** the app first renders with `demo=dj` present
+- **THEN** `useStage().djActionTracks.length` SHALL be `1`
+- **AND** `djActionTracks[0]` SHALL have `id === 'dj1'`
 - **AND** `djActionTracks[0].midiChannel` SHALL be `16`
 - **AND** `djActionTracks[0].outputMap` SHALL be an empty object
-- **AND** `Object.keys(djActionTracks[0].actionMap).length` SHALL be ≥ 4
+- **AND** `Object.keys(djActionTracks[0].actionMap).length` SHALL equal the implementation’s seeded pitch count (`6`)
 - **AND** `djActionTracks[0].events.length` SHALL be ≥ 10
 
 ### Requirement: Stage exposes dj-action-track state and per-track toggles
 
 The `StageState` interface returned by `useStage()` SHALL expose:
 
-- `djActionTracks: DJActionTrack[]` — the current list of dj-action-tracks. Default seed contains exactly one entry per the data-shape requirement above.
+- `djActionTracks: DJActionTrack[]` — the current list of dj-action-tracks. Without `demo=dj` at initial load this array SHALL be empty. With `demo=dj`, it SHALL contain exactly one entry matching the DJ demo seeded data-shape requirement above.
 - `toggleDJTrackCollapsed(id: DJTrackId): void` — flips the `collapsed` flag on the named track. No-op if the id is unknown.
 - `toggleDJTrackMuted(id: DJTrackId): void` — flips `muted`. No-op for unknown ids.
 - `toggleDJTrackSoloed(id: DJTrackId): void` — flips `soloed`. No-op for unknown ids.
@@ -133,131 +141,10 @@ The `StageState` interface returned by `useStage()` SHALL expose:
 
 The state SHALL persist across re-renders in `useState` keyed off the `useDJActionTracks` hook (for the track list) and `useStage` itself (for selections and render mode). It SHALL NOT reset on Toolstrip state changes, dialog opens, or any other unrelated state transitions.
 
-#### Scenario: toggleDJTrackMuted flips the muted flag
+#### Scenario: DJ demo exposes one track in Stage state
 
-- **WHEN** `toggleDJTrackMuted('dj1')` is called while `djActionTracks[0].muted === false`
-- **THEN** the next render SHALL have `djActionTracks[0].muted === true`
-- **AND** other fields on the track SHALL be unchanged
-
-#### Scenario: Unknown id is a no-op for any toggle
-
-- **WHEN** any of the five toggle actions is called with an unknown `id`
-- **THEN** `djActionTracks` SHALL be unchanged (referentially equal across renders)
-- **AND** no error SHALL be thrown
-
-#### Scenario: setActionEntry adds a new entry
-
-- **WHEN** `setActionEntry('dj1', 72, entry)` is called and `djActionTracks[0].actionMap[72]` was previously `undefined`
-- **THEN** the next render SHALL have `djActionTracks[0].actionMap[72]` equal to `entry`
-- **AND** the count of keys in `actionMap` SHALL have increased by exactly 1
-
-#### Scenario: setActionEntry replaces an existing entry
-
-- **WHEN** `setActionEntry('dj1', 56, newEntry)` is called and `djActionTracks[0].actionMap[56]` was previously the seeded "Hot Cue 1" entry
-- **THEN** the next render SHALL have `djActionTracks[0].actionMap[56]` equal to `newEntry`
-- **AND** the count of keys in `actionMap` SHALL be unchanged
-
-#### Scenario: setActionEntry is a no-op for unknown track id
-
-- **WHEN** `setActionEntry('nonexistent', 60, entry)` is called
-- **THEN** `djActionTracks` SHALL be unchanged (referentially equal across renders)
-- **AND** no error SHALL be thrown
-
-#### Scenario: deleteActionEntry removes the key and prunes derived state
-
-- **WHEN** `deleteActionEntry('dj1', 56)` is called and `actionMap[56]` exists AND `outputMap[56]` is set AND `mutedRows.includes(56) === true`
-- **THEN** the next render SHALL have `actionMap[56] === undefined`
-- **AND** `outputMap[56] === undefined`
-- **AND** `mutedRows.includes(56) === false`
-
-#### Scenario: deleteActionEntry clears djActionSelection when it matches
-
-- **WHEN** `deleteActionEntry('dj1', 56)` is called and `djActionSelection === { trackId: 'dj1', pitch: 56 }`
-- **THEN** the next render SHALL have `djActionSelection === null`
-
-#### Scenario: deleteActionEntry also clears djEventSelection when it matches
-
-- **WHEN** `deleteActionEntry('dj1', 56)` is called and `djEventSelection === { trackId: 'dj1', pitch: 56, eventIdx: 2 }`
-- **THEN** the next render SHALL have `djEventSelection === null`
-
-#### Scenario: deleteActionEntry leaves djActionSelection unchanged when it does not match
-
-- **WHEN** `deleteActionEntry('dj1', 60)` is called and `djActionSelection === { trackId: 'dj1', pitch: 56 }`
-- **THEN** `djActionSelection` SHALL be unchanged
-
-#### Scenario: deleteActionEntry is a no-op for unknown pitch
-
-- **WHEN** `deleteActionEntry('dj1', 99)` is called and `actionMap[99]` was already absent
-- **THEN** `djActionTracks` SHALL be unchanged (referentially equal across renders)
-
-#### Scenario: setOutputMapping adds a new entry
-
-- **WHEN** `setOutputMapping('dj1', 56, { device: 'deck2', channel: 3, pitch: 64 })` is called and `outputMap[56]` was previously `undefined`
-- **THEN** the next render SHALL have `outputMap[56]` equal to that mapping
-
-#### Scenario: setOutputMapping replaces an existing entry
-
-- **WHEN** `setOutputMapping('dj1', 56, newMapping)` is called and `outputMap[56]` was a different mapping
-- **THEN** the next render SHALL have `outputMap[56]` equal to `newMapping`
-- **AND** the count of keys in `outputMap` SHALL be unchanged
-
-#### Scenario: setOutputMapping is a no-op for unknown track id
-
-- **WHEN** `setOutputMapping('nonexistent', 56, mapping)` is called
-- **THEN** `djActionTracks` SHALL be unchanged (referentially equal across renders)
-
-#### Scenario: deleteOutputMapping removes the key
-
-- **WHEN** `deleteOutputMapping('dj1', 56)` is called and `outputMap[56]` was set
-- **THEN** the next render SHALL have `outputMap[56] === undefined`
-
-#### Scenario: deleteOutputMapping is a no-op when pitch is absent
-
-- **WHEN** `deleteOutputMapping('dj1', 56)` is called and `outputMap[56]` was already absent
-- **THEN** `djActionTracks` SHALL be unchanged (referentially equal across renders)
-
-#### Scenario: setDJActionSelection opens and closes the selection
-
-- **WHEN** `setDJActionSelection({ trackId: 'dj1', pitch: 56 })` is called while `djActionSelection === null`
-- **THEN** the next render SHALL have `djActionSelection === { trackId: 'dj1', pitch: 56 }`
-- **WHEN** `setDJActionSelection(null)` is then called
-- **THEN** the next render SHALL have `djActionSelection === null`
-
-#### Scenario: setDJEventSelection opens and closes the event selection
-
-- **WHEN** `setDJEventSelection({ trackId: 'dj1', pitch: 56, eventIdx: 2 })` is called while `djEventSelection === null`
-- **THEN** the next render SHALL have `djEventSelection === { trackId: 'dj1', pitch: 56, eventIdx: 2 }`
-- **WHEN** `setDJEventSelection(null)` is then called
-- **THEN** the next render SHALL have `djEventSelection === null`
-
-#### Scenario: setEventPressure writes the points array
-
-- **WHEN** `setEventPressure('dj1', 56, 2, [{ t: 0, v: 0.5 }])` is called and `track.events[2]` exists with `pitch === 56`
-- **THEN** the next render SHALL have `track.events[2].pressure` deep-equal `[{ t: 0, v: 0.5 }]`
-- **AND** other fields on `track.events[2]` SHALL be unchanged
-
-#### Scenario: setEventPressure is a no-op for out-of-range eventIdx
-
-- **WHEN** `setEventPressure('dj1', 56, 9999, [])` is called and `track.events.length < 9999`
-- **THEN** `djActionTracks` SHALL be referentially equal across renders
-- **AND** no error SHALL be thrown
-
-#### Scenario: setEventPressure is a no-op when pitch does not match the event
-
-- **WHEN** `setEventPressure('dj1', 60, 2, [])` is called and `track.events[2].pitch === 56` (not 60)
-- **THEN** `djActionTracks` SHALL be referentially equal across renders
-
-#### Scenario: clearEventPressure writes an empty array
-
-- **WHEN** `clearEventPressure('dj1', 56, 2)` is called for a valid event
-- **THEN** the next render SHALL have `track.events[2].pressure === []`
-
-#### Scenario: pressureRenderMode default and toggle
-
-- **WHEN** the app first renders
-- **THEN** `useStage().pressureRenderMode` SHALL be `'curve'`
-- **WHEN** `setPressureRenderMode('step')` is called
-- **THEN** the next render SHALL have `pressureRenderMode === 'step'`
+- **WHEN** `demo=dj` is present at first render
+- **THEN** `useStage().djActionTracks.length` SHALL be `1`
 
 ### Requirement: Soloing flag combines channel and dj-action-track solo
 
@@ -386,9 +273,15 @@ Both kinds SHALL share the timeline's horizontal scroll axis. Both kinds SHALL a
 
 DJ action tracks SHALL NOT be rendered inside any channel group. They are siblings of channel groups, both direct children of `.mr-timeline__inner`.
 
-#### Scenario: Default session renders both kinds
+#### Scenario: Baseline session renders channels only
 
-- **WHEN** the app first renders with the default seed (2 channels with content, 1 dj-action-track)
+- **WHEN** the app first renders at `/` with an empty DJ list
+- **THEN** `.mr-timeline__inner` SHALL contain (in order): one `.mr-ruler`, two `.mr-channel` elements
+- **AND** SHALL contain zero `.mr-djtrack` elements
+
+#### Scenario: DJ demo renders one dj-action-track
+
+- **WHEN** the app first renders with `demo=dj` (and baseline channel rows)
 - **THEN** `.mr-timeline__inner` SHALL contain (in order): one `.mr-ruler`, two `.mr-channel` elements, one `.mr-djtrack` element
 - **AND** the `.mr-djtrack` SHALL appear below all `.mr-channel` elements in the DOM
 
@@ -436,11 +329,11 @@ The `pressure` field has three meaningful states:
 - `[]` — explicitly cleared. Renderers SHALL draw no pressure data (flat at zero); the editor's summary SHALL report `0 events · peak 0.00 · avg 0.00`.
 - non-empty `PressurePoint[]` — stored points. Renderers SHALL rasterise these via `rasterizePressure` and draw the result.
 
-The default seeded track (`id === 'dj1'`) SHALL include an `events` array of length ≥ 10 with deterministic content sufficient to demonstrate all three note-rendering modes (trigger, velocity-sensitive, pressure-bearing). Every event's `pitch` SHALL be a key in the seeded `actionMap`. Seeded events SHALL leave `pressure` unset (i.e. `undefined`) so the synthesised curve continues to render for unedited events.
+When `demo=dj` is active, the **`dj1`** track SHALL include an `events` array of length ≥ 10 with deterministic content sufficient to demonstrate all three note-rendering modes (trigger, velocity-sensitive, pressure-bearing). Every event's `pitch` SHALL be a key in that track's seeded `actionMap`. Seeded events SHALL leave `pressure` unset (i.e. `undefined`) so the synthesised curve continues to render for unedited events.
 
-#### Scenario: Events field exists on the seeded track
+#### Scenario: Events field exists on the seeded DJ demo track
 
-- **WHEN** the app first renders
+- **WHEN** the app first renders with `demo=dj`
 - **THEN** `useStage().djActionTracks[0].events` SHALL be an array
 - **AND** the array SHALL have length ≥ 10
 - **AND** every entry SHALL be a valid `ActionEvent` (`pitch`, `t`, `dur`, `vel` all defined)
@@ -455,7 +348,7 @@ The default seeded track (`id === 'dj1'`) SHALL include an `events` array of len
 
 #### Scenario: Seeded events have undefined pressure
 
-- **WHEN** the app first renders
+- **WHEN** the app first renders with `demo=dj`
 - **THEN** for every entry in `useStage().djActionTracks[0].events`, the `pressure` field SHALL be `undefined`
 
 ### Requirement: Per-row M/S state on DJActionTrack
@@ -467,11 +360,11 @@ The `DJActionTrack` data shape SHALL include two arrays of MIDI pitches represen
 
 Membership in `mutedRows` SHALL be local to the track: a row's mute state only affects that row's events within its own track. Membership in `soloedRows` SHALL contribute to the session-wide `soloing` flag.
 
-The default seeded track SHALL initialize both arrays as `[]`.
+The **DJ demo** seeded track SHALL initialize both arrays as `[]`.
 
-#### Scenario: Default seeded track has empty row M/S arrays
+#### Scenario: DJ demo seeded track has empty row M/S arrays
 
-- **WHEN** the app first renders
+- **WHEN** the app first renders with `demo=dj`
 - **THEN** `useStage().djActionTracks[0].mutedRows` SHALL be `[]`
 - **AND** `useStage().djActionTracks[0].soloedRows` SHALL be `[]`
 

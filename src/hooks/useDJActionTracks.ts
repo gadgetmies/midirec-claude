@@ -147,8 +147,8 @@ function seedDefault(): DJActionTrack[] {
   ];
 }
 
-export function useDJActionTracks(): UseDJActionTracksReturn {
-  const initial = useMemo(() => seedDefault(), []);
+export function useDJActionTracks(djDemo: boolean = false): UseDJActionTracksReturn {
+  const initial = useMemo(() => (djDemo ? seedDefault() : []), [djDemo]);
   const [djActionTracks, setDJActionTracks] = useState<DJActionTrack[]>(initial);
 
   const flip = useCallback(

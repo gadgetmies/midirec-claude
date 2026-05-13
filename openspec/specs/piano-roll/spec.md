@@ -189,13 +189,15 @@ This pre-computed shape is consumed by the `inspector` capability so the Inspect
 
 `useStage()` SHALL:
 
-- Return `notes = makeNotes(38, 7)` — the prototype's deterministic seed (count 38, seed 7). The `makeNotes(count, seed)` helper SHALL be implemented in `src/components/piano-roll/notes.ts` and SHALL produce identical output to the prototype's `makeNotes` function (same LCG constants 9301, 49297, 233280; same starting `t` accumulation; same pitch offset 48; same velocity formula).
+- Return Lead-roll notes derived from session state: when **any instrument-demanding token** is present (`instrument`, `marquee`, or `note`), those notes SHALL be `makeNotes(22, 7)` on first load (matching the `channels` seed); otherwise the Lead roll SHALL be empty on first load. *(Any legacy `notes` snapshot field retained for compatibility SHALL follow the same rule.)*
 - Return `lo = 48`, `hi = 76`, `totalT = 16`.
 - Return `playheadT` derived from the `useTransport()` clock as `((timecodeMs / 1000) * (bpm / 60)) % totalT`, so the playhead sweeps proportionally to the fake clock and wraps at the right edge.
-- Branch on URL flags as follows. The flags are mutually exclusive; when both are present, `?demo=marquee` SHALL win:
-  - **`demo=marquee`**: return `marquee = { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }`, omit `selectedIdx` (so it is auto-derived as the empty array; `resolvedSelection` derives from the marquee branch above), and set `selectedChannelId = 1`. The rectangle is tuned so that `notesInMarquee(makeNotes(38, 7), marquee)` returns exactly 7 indexes — matching screenshot 04's previously-displayed `7 SELECTED` count. `resolvedSelection` SHALL therefore have `indexes.length === 7`.
-  - **`demo=note`**: return `marquee = null`, `selectedIdx = [<idx>]` for a fixed index `<idx>` chosen so that the selected note has a recognisable pitch in the Lead channel's roll (the implementation MAY choose any deterministic index in `[0, makeNotes(38, 7).length)`), and `selectedChannelId = 1`. `resolvedSelection.indexes` SHALL therefore have length exactly 1.
-  - **Neither flag**: return `marquee = null`, `selectedIdx = []`, `selectedChannelId = null`. `resolvedSelection` SHALL be `null`.
+- Evaluate marquee vs note branching **when `demo=marquee` or `demo=note` is present**. The **`demo=marquee`/`demo=note` URLs imply the instrument fixture** for Lead notes (same as passing `demo=instrument`); no explicit `instrument` parameter is required.
+- Inside the marquee vs note interaction, when both marquee and note are requested, **`?demo=marquee` SHALL win**:
+  - **`demo=marquee`**: return `marquee = { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }`, omit `selectedIdx` (so it is auto-derived as the empty array; `resolvedSelection` derives from the marquee branch above), and set `selectedChannelId = 1`. The rectangle SHALL be tuned so `notesInMarquee(makeNotes(22, 7), marquee)` returns exactly `7` indexes. `resolvedSelection` SHALL therefore have `indexes.length === 7`.
+  - **`demo=note`** (without active marquee precedence): return `marquee = null`, `selectedIdx = [<idx>]` for a fixed index `<idx>` chosen so that the selected note has a recognisable pitch in the Lead roll (the implementation MAY choose any deterministic index in `[0, makeNotes(22, 7).length)`), and `selectedChannelId = 1`. `resolvedSelection.indexes` SHALL therefore have length exactly 1.
+  - **`demo=marquee` and `demo=note` together**: marquee branch wins (`demo=marquee` precedence unchanged).
+  - **Neither `demo=marquee` nor `demo=note`**: return `marquee = null`, `selectedIdx = []`, `selectedChannelId = null` unless another capability sets it. `resolvedSelection` SHALL be `null` absent other selection-driving state.
 
 #### Scenario: Default load shows no marquee and null resolvedSelection
 
@@ -203,7 +205,7 @@ This pre-computed shape is consumed by the `inspector` capability so the Inspect
 - **THEN** the rendered DOM SHALL NOT contain any `.mr-marquee` element
 - **AND** `useStage().resolvedSelection` SHALL equal `null`
 
-#### Scenario: ?demo=marquee shows the screenshot-04 marquee
+#### Scenario: demo=marquee loads marquee without separate instrument flag
 
 - **WHEN** the app is loaded at `/?demo=marquee`
 - **THEN** the rendered DOM SHALL contain exactly one `.mr-marquee` element
@@ -211,17 +213,22 @@ This pre-computed shape is consumed by the `inspector` capability so the Inspect
 - **AND** `useStage().resolvedSelection` SHALL be a non-null object with `channelId === 1` and `indexes.length === 7`
 - **AND** the rendered DOM SHALL contain zero `.mr-marquee__badge` elements
 
-#### Scenario: ?demo=note shows a single-note selection
+#### Scenario: demo=note loads single-note demo without separate instrument flag
 
 - **WHEN** the app is loaded at `/?demo=note`
 - **THEN** the rendered DOM SHALL NOT contain any `.mr-marquee` element
 - **AND** `useStage().resolvedSelection` SHALL be a non-null object with `channelId === 1` and `indexes.length === 1`
 - **AND** exactly one `.mr-note` element SHALL carry `data-sel="true"`
 
-#### Scenario: ?demo=marquee wins over ?demo=note when both are present
+#### Scenario: Marquee wins when both marquee and note are present
 
 - **WHEN** the app is loaded at `/?demo=marquee&demo=note`
-  (or equivalently `/?demo=note&demo=marquee`, since URL flag order does not matter for this test)
+- **THEN** the rendered DOM SHALL contain exactly one `.mr-marquee` element
+- **AND** `useStage().resolvedSelection.indexes.length` SHALL equal `7`
+
+#### Scenario: Redundant demo=instrument with marquee yields same marquee behavior
+
+- **WHEN** the app is loaded at `/?demo=instrument&demo=marquee`
 - **THEN** the rendered DOM SHALL contain exactly one `.mr-marquee` element
 - **AND** `useStage().resolvedSelection.indexes.length` SHALL equal `7`
 
