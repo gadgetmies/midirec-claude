@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   DEFAULT_ACTION_MAP,
   actionMode,
+  defaultMixerOutputCc,
   type ActionMapEntry,
   type TriggerMode,
 } from './dj';
@@ -63,6 +64,14 @@ describe('actionMode', () => {
   test('velocity-sensitive beats trigger when both predicates would match', () => {
     /* Synthetic: trigger-style id + pad: true. Velocity wins. */
     expect(actionMode(make({ id: 'hc2', cat: 'deck', pad: true }))).toBe('velocity-sensitive');
+  });
+});
+
+describe('defaultMixerOutputCc', () => {
+  test('maps continuous mixer actions', () => {
+    expect(defaultMixerOutputCc('xfade_pos')).toBe(16);
+    expect(defaultMixerOutputCc('ch1_eq_mid')).toBe(18);
+    expect(defaultMixerOutputCc('load_a')).toBeUndefined();
   });
 });
 

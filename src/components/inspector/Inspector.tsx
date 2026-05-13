@@ -4,6 +4,7 @@ import type { Note } from '../piano-roll/notes';
 import { formatBBT, formatPitch, summarizeSelection } from './summary';
 import {
   DJ_DEVICES,
+  defaultMixerOutputCc,
   devColor,
   devLabel,
   pitchLabel,
@@ -127,18 +128,25 @@ function ActionPanel({
     djEventSelection.eventIdx < track.events.length &&
     track.events[djEventSelection.eventIdx].pitch === pitch;
 
+  const suggestedCc = defaultMixerOutputCc(entry.id);
+  const showCcOut = suggestedCc !== undefined || existing?.cc !== undefined;
+
   /* Default the form values from either the existing mapping or sensible
      defaults derived from the input binding (output device matches input
      device; output pitch matches input pitch; output channel defaults to 1).
      The form is auto-save: editing any field commits via setOutputMapping. */
   const current: OutputMapping = existing ?? {
     device: entry.device,
-    channel: 1,
+    channel: track.midiChannel,
     pitch,
   };
 
   const commit = (next: Partial<OutputMapping>) => {
-    setOutputMapping(track.id, pitch, { ...current, ...next });
+    const merged: OutputMapping = { ...current, ...next };
+    if (next.cc === undefined && 'cc' in next) {
+      delete merged.cc;
+    }
+    setOutputMapping(track.id, pitch, merged);
   };
 
   return (
@@ -206,6 +214,27 @@ function ActionPanel({
           <span className="mr-insp__pitch-label">{pitchLabel(current.pitch)}</span>
         </div>
       </div>
+      {showCcOut ? (
+        <div className="mr-kv">
+          <span className="mr-kv__k">CC#</span>
+          <input
+            type="number"
+            min={0}
+            max={127}
+            className="mr-input mr-insp__field"
+            value={current.cc ?? ''}
+            placeholder={suggestedCc !== undefined ? String(suggestedCc) : undefined}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '') {
+                commit({ cc: undefined });
+                return;
+              }
+              commit({ cc: clampInt(e.target.valueAsNumber, 0, 127, suggestedCc ?? 0) });
+            }}
+          />
+        </div>
+      ) : null}
 
       {existing && (
         <div className="mr-insp__edit-action-row">

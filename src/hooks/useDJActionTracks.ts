@@ -12,6 +12,9 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   DEFAULT_ACTION_MAP,
   DJ_DEVICES,
+  defaultMixerOutputCc,
+  normalizeActionMapEntry,
+  normalizeOutputMapping,
   type ActionEvent,
   type ActionMapEntry,
   type OutputMapping,
@@ -92,6 +95,44 @@ function sliceActionMap(pitches: readonly number[]): Record<number, ActionMapEnt
   return m;
 }
 
+/** Demo mixer strip: incoming routing is CC (same numbers as default playback CC). */
+function mixerDemoActionMap(pitches: readonly number[]): Record<number, ActionMapEntry> {
+  const m = sliceActionMap(pitches);
+  const out: Record<number, ActionMapEntry> = {};
+  for (const [ps, entry] of Object.entries(m)) {
+    const pitch = Number(ps);
+    const cc = defaultMixerOutputCc(entry.id);
+    out[pitch] =
+      cc === undefined
+        ? normalizeActionMapEntry(entry)
+        : normalizeActionMapEntry({
+            ...entry,
+            midiInputKind: 'cc',
+            midiInputCc: cc,
+          });
+  }
+  return out;
+}
+
+function mixerDefaultOutputMap(
+  actionMap: Record<number, ActionMapEntry>,
+  trackMidiChannel: number,
+): Record<number, OutputMapping> {
+  const out: Record<number, OutputMapping> = {};
+  for (const [ps, entry] of Object.entries(actionMap)) {
+    const cc = defaultMixerOutputCc(entry.id);
+    if (cc === undefined) continue;
+    const pitch = Number(ps);
+    out[pitch] = normalizeOutputMapping({
+      device: entry.device,
+      channel: trackMidiChannel,
+      pitch,
+      cc,
+    });
+  }
+  return out;
+}
+
 const SEEDED_EVENTS_DECK1: ActionEvent[] = [
   { pitch: 48, t: 0.0, dur: 0.1, vel: 1.0 },
   { pitch: 48, t: 8.0, dur: 0.1, vel: 1.0 },
@@ -149,6 +190,7 @@ const SEEDED_EVENTS_MIXER: ActionEvent[] = [
 function seedDefault(includeMessages: boolean): DJActionTrack[] {
   const emptyRoute = { channels: [] as ChannelId[] };
   const ev = (xs: ActionEvent[]) => (includeMessages ? xs : []);
+  const mixerAm = mixerDemoActionMap(DEMO_MIXER_PITCHES);
   const tracks: DJActionTrack[] = [
     {
       id: 'dj-deck1',
@@ -189,8 +231,8 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       name: 'Mixer',
       color: DJ_DEVICES.mixer.color,
       midiChannel: 16,
-      actionMap: sliceActionMap(DEMO_MIXER_PITCHES),
-      outputMap: {},
+      actionMap: mixerAm,
+      outputMap: mixerDefaultOutputMap(mixerAm, 16),
       events: ev(SEEDED_EVENTS_MIXER),
       inputRouting: emptyRoute,
       outputRouting: emptyRoute,
@@ -351,7 +393,7 @@ export function applySetActionEntry(
   const idx = tracks.findIndex((t) => t.id === id);
   if (idx < 0) return tracks;
   const track = tracks[idx];
-  const nextActionMap = { ...track.actionMap, [pitch]: entry };
+  const nextActionMap = { ...track.actionMap, [pitch]: normalizeActionMapEntry(entry) };
   const next = tracks.slice();
   next[idx] = { ...track, actionMap: nextActionMap };
   return next;
@@ -408,7 +450,7 @@ export function applySetOutputMapping(
   const idx = tracks.findIndex((t) => t.id === id);
   if (idx < 0) return tracks;
   const track = tracks[idx];
-  const nextOutputMap = { ...track.outputMap, [pitch]: mapping };
+  const nextOutputMap = { ...track.outputMap, [pitch]: normalizeOutputMapping(mapping) };
   const next = tracks.slice();
   next[idx] = { ...track, outputMap: nextOutputMap };
   return next;

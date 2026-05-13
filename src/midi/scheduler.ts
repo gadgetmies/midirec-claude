@@ -86,6 +86,7 @@ interface ResolvedEmit {
   pitch: number;
   vel: number;
   pressure?: PressurePoint[];
+  ccOut?: number;
 }
 
 function binarySearchFirstAtOrAfterT(items: NoteLikeEvent[], targetT: number): number {
@@ -164,21 +165,41 @@ function resolveDJEmit(
   const channel = mapping?.channel ?? source.track.midiChannel;
   const channelByte = (channel - 1) & 0x0f;
   const outputPitch = mapping?.pitch ?? event.pitch;
-  const vel = Math.min(127, Math.max(1, Math.round(event.vel * 127)));
-  const pressurePoints =
-    action.pressure === true
-      ? event.pressure === undefined
+
+  if (action.pressure === true) {
+    const vel = Math.min(127, Math.max(1, Math.round(event.vel * 127)));
+    const pressurePoints =
+      event.pressure === undefined
         ? synthesizePressure(
             { pitch: event.pitch, t: event.t, dur: event.dur, vel: event.vel },
             event.perPitchIndex,
           )
-        : event.pressure
-      : undefined;
+        : event.pressure;
+    return {
+      channelByte,
+      pitch: outputPitch,
+      vel,
+      pressure: pressurePoints,
+    };
+  }
+
+  const ccNum = mapping?.cc;
+  if (ccNum !== undefined && ccNum >= 0 && ccNum <= 127) {
+    const ccVal = Math.min(127, Math.max(0, Math.round(event.vel * 127)));
+    return {
+      channelByte,
+      pitch: outputPitch,
+      vel: ccVal,
+      ccOut: ccNum,
+    };
+  }
+
+  const vel = Math.min(127, Math.max(1, Math.round(event.vel * 127)));
   return {
     channelByte,
     pitch: outputPitch,
     vel,
-    pressure: pressurePoints,
+    pressure: undefined,
   };
 }
 
@@ -277,6 +298,21 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     }
   }
 
+  function emitControlChange(
+    channelByte: number,
+    cc: number,
+    value: number,
+    eventStartPlayheadMs: number,
+    now: number,
+    playheadMs: number,
+  ): void {
+    if (!deps.output) return;
+    const nowFloor = typeof performance !== 'undefined' ? performance.now() : now;
+    const ts = Math.max(nowFloor, now + (eventStartPlayheadMs - playheadMs));
+    deps.output.send([0xb0 | channelByte, cc, value], ts);
+    channelsActivated.set(channelActKey(channelByte), channelByte);
+  }
+
   function start(
     playheadMs: number,
     bpm: number,
@@ -338,16 +374,27 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
             : resolveDJEmit(source, event as DJEventSnapshot, sessionAnySoloed);
         if (emit) {
           const endMs = (event.t + event.dur) * msPerBeat;
-          emitNoteEvent(
-            emit.channelByte,
-            emit.pitch,
-            emit.vel,
-            startMs,
-            endMs,
-            now,
-            playheadMs,
-            emit.pressure,
-          );
+          if (emit.ccOut !== undefined) {
+            emitControlChange(
+              emit.channelByte,
+              emit.ccOut,
+              emit.vel,
+              startMs,
+              now,
+              playheadMs,
+            );
+          } else {
+            emitNoteEvent(
+              emit.channelByte,
+              emit.pitch,
+              emit.vel,
+              startMs,
+              endMs,
+              now,
+              playheadMs,
+              emit.pressure,
+            );
+          }
         }
         cursor++;
       }

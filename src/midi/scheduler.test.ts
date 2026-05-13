@@ -577,6 +577,40 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     scheduler.tick(performance.now(), 1000, [], false, [track]);
     expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
   });
+
+  test('outputMap with cc emits control change, not notes', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.0, 1.0, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, cc: 16 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    const now = performance.now();
+    scheduler.tick(now, 0, [], false, [track]);
+    const ccs = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xb0);
+    const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    expect(ccs).toHaveLength(1);
+    expect(noteOns).toHaveLength(0);
+    expect(ccs[0]!.data).toEqual([0xb1, 16, 64]);
+  });
+
+  test('CC-out value can be zero', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.0, 0.5, 0.0)],
+      actionMap: { 80: makeAction({ id: 'ch1_vol', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 1, pitch: 81, cc: 7 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const cc = output.calls.find((c) => (c.data[0]! & 0xf0) === 0xb0)!;
+    expect(cc.data[2]).toBe(0);
+  });
 });
 
 describe('createScheduler — DJ mute / solo', () => {

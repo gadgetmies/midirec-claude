@@ -9,10 +9,10 @@ The codebase SHALL expose a `src/data/dj.ts` module exporting:
 
 - `DJ_CATEGORIES: Record<CategoryId, { label: string }>`. Keys: `'deck' | 'mixer' | 'fx' | 'global'`.
 - `DJ_DEVICES: Record<DeviceId, { label: string; short: string; color: string }>` — verbatim. Keys: `'deck1' | 'deck2' | 'deck3' | 'deck4' | 'fx1' | 'fx2' | 'mixer' | 'global'`. Each entry's `color` is an OKLCH string.
-- `DEFAULT_ACTION_MAP: Record<number, ActionMapEntry>` — same pitch coverage as today; every entry's `cat` SHALL be one of the four `CategoryId` literals. Former transport/cue/loop/hotcue semantics are represented with `cat: 'deck'` except where noted below. Tap Tempo SHALL use `cat: 'global'`. Load Deck actions (`load_a`, `load_b`) SHALL use `cat: 'mixer'`.
+- `DEFAULT_ACTION_MAP: Record<number, ActionMapEntry>` — same pitch coverage as today; every entry's `cat` SHALL be one of the four `CategoryId` literals. Former transport/cue/loop/hotcue semantics are represented with `cat: 'deck'` except where noted below. Tap Tempo SHALL use `cat: 'global'`. Load Deck actions (`load_a`, `load_b`) SHALL use `cat: 'mixer'`. Continuous mixer controls (crossfader, per-channel volumes, per-channel EQ bands) in `DEFAULT_ACTION_MAP` SHALL remain `cat: 'mixer'` with `pad: true` as today; implementations SHALL pair them with **default output CC numbers** (see `design.md` in change `mixer-dj-cc-messages`) so playback targets CC without per-user configuration in the common case.
 - `TriggerMode` type: `'momentary' | 'toggle'`.
-- `ActionMapEntry` type: `{ id: string; cat: CategoryId; label: string; short: string; device: DeviceId; pad?: boolean; pressure?: boolean; trigger?: TriggerMode }`.
-- `OutputMapping` type: `{ device: DeviceId; channel: number; pitch: number }`. `channel` is in the inclusive range `1..16`; `pitch` is in the inclusive range `0..127`.
+- `ActionMapEntry` type: `{ id: string; cat: CategoryId; label: string; short: string; device: DeviceId; pad?: boolean; pressure?: boolean; trigger?: TriggerMode; midiInputCc?: number }`. The optional `midiInputCc` field, when present, SHALL be in the inclusive range `0..127` and SHALL select **incoming Control Change** as the record trigger for this row (see `midi-recording`).
+- `OutputMapping` type: `{ device: DeviceId; channel: number; pitch: number; cc?: number }`. `channel` is in the inclusive range `1..16`; `pitch` is in the inclusive range `0..127`. The optional `cc` field, when present, SHALL be in the inclusive range `0..127` and SHALL mean **playback emits Control Change** with that controller number on the resolved MIDI channel instead of note-on/note-off (see `midi-playback`).
 - Helpers `devColor(d: DeviceId): string`, `devShort(d: DeviceId): string`, `devLabel(d: DeviceId): string`, `pitchLabel(p: number): string`.
 
 The data SHALL be declared `as const` so TypeScript narrows the literal types; the helpers SHALL fall back to the `'global'` device for unknown ids, matching the prototype's `(DJ_DEVICES[device] || DJ_DEVICES.global)` pattern.
@@ -45,6 +45,7 @@ The `trigger` field SHALL be optional on every `ActionMapEntry`. When absent (as
 - **WHEN** a reader inspects an `OutputMapping` value
 - **THEN** its `device` SHALL be a `DeviceId`
 - **AND** its `channel` and `pitch` SHALL be numbers (consumer-side clamping enforces `1..16` and `0..127` respectively)
+- **AND** when `cc` is present, it SHALL be an integer in `0..127`
 
 #### Scenario: Category keys are the four Map Note tabs
 
@@ -55,6 +56,12 @@ The `trigger` field SHALL be optional on every `ActionMapEntry`. When absent (as
 
 - **WHEN** a reader inspects the `DEFAULT_ACTION_MAP` entry whose `id` is `tap`
 - **THEN** `entry.cat` SHALL be `'global'`
+
+#### Scenario: ActionMapEntry accepts optional incoming CC
+
+- **WHEN** a persisted `ActionMapEntry` includes `midiInputCc: 12`
+- **THEN** it SHALL be valid for `useStage().setActionEntry` and SHALL be stored verbatim (clamped to `0..127` on write)
+- **AND** record-time matching SHALL prefer this CC binding over note-based matching when both could apply (see `midi-recording`)
 
 ### Requirement: DJActionTrack data shape
 
@@ -101,7 +108,7 @@ The `midiChannel` field SHALL be a MIDI channel number in the inclusive range `1
 
 The `actionMap` field SHALL be **the set of input bindings actively configured on this track** — NOT a reference to a catalog of all possible actions. The track's body SHALL render exactly one row per entry in `actionMap`. The catalog of available actions a user can pick from lives in `DEFAULT_ACTION_MAP` (exported from `src/data/dj.ts`), which is a SOURCE for the picker, not a track's actionMap.
 
-The `outputMap` field SHALL hold per-pitch **optional output-mapping overrides**, keyed by the same pitch keys that drive `actionMap`. When `outputMap[pitch]` is present, its `channel` and `pitch` override `track.midiChannel` and the event's row pitch for emission, respectively. When absent, the event emits with `track.midiChannel` as the channel and the event's own `pitch` as the output pitch. Deleting an action via `deleteActionEntry` SHALL also remove the matching `outputMap` entry. When a DJ demo track is seeded, initial `outputMap` SHALL be `{}`.
+The `outputMap` field SHALL hold per-pitch **optional output-mapping overrides**, keyed by the same pitch keys that drive `actionMap`. When `outputMap[pitch]` is present and **`cc` is absent or `undefined`**, its `channel` and `pitch` override `track.midiChannel` and the event's row pitch for note-on/note-off emission, respectively. When `outputMap[pitch].cc` is present (`0..127`), playback SHALL emit **Control Change** messages on that CC number on the resolved output channel per `midi-playback`; the `pitch` field remains persisted for UI and migration. When `outputMap[pitch]` is absent, the event emits with `track.midiChannel` as the channel and the event's own `pitch` as the output pitch for note mode. Deleting an action via `deleteActionEntry` SHALL also remove the matching `outputMap` entry. When a DJ demo track is seeded, initial `outputMap` SHALL be `{}`.
 
 The `events` field SHALL be the list of action events associated with this track. In Slice 7b these are synthetic demo events seeded **only when `demo=dj` is enabled** at first render; a future routing slice MAY replace this with events derived from channel-track notes via `inputRouting`.
 
@@ -125,6 +132,11 @@ When **no** `demo=dj` flag is present at first render, `useDJActionTracks()` SHA
 - **AND** `djActionTracks[0].outputMap` SHALL be an empty object
 - **AND** `Object.keys(djActionTracks[0].actionMap).length` SHALL equal the implementation’s seeded pitch count (`6`)
 - **AND** `djActionTracks[0].events.length` SHALL be ≥ 10
+
+#### Scenario: outputMap with cc overrides note output per midi-playback
+
+- **WHEN** `outputMap[80]` exists as `{ device: 'mixer', channel: 2, pitch: 80, cc: 7 }` for a mixer volume row
+- **THEN** playback SHALL emit Control Change on CC 7 (not note-on for pitch 80) when that row dispatches, subject to `midi-playback` CC rules
 
 ### Requirement: Stage exposes dj-action-track state and per-track toggles
 

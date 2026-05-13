@@ -24,6 +24,9 @@ export type DeviceId =
 
 export type TriggerMode = 'momentary' | 'toggle';
 
+/** Incoming message type for DJ action row record routing (Map Note panel). */
+export type MidiInputKind = 'note' | 'cc' | 'at' | 'pb';
+
 export interface ActionMapEntry {
   id: string;
   cat: CategoryId;
@@ -35,21 +38,103 @@ export interface ActionMapEntry {
   trigger?: TriggerMode;
   /** Web MIDI port ids. Non-empty = listen only on these ports (same note/channel). Empty/omitted = DJ track default port, or any subscribed port when track default is also empty. */
   midiInputDeviceIds?: string[];
+  /** When set, selects how incoming MIDI is matched for this row. If omitted, inferred from legacy `midiInputCc` / defaults to note. */
+  midiInputKind?: MidiInputKind;
   /** MIDI wire channel 1–16 for incoming notes; defaults to 1 when unset. */
   midiInputChannel?: number;
-  /** Incoming note 0–127; defaults to the action row pitch when unset. */
+  /** Incoming note 0–127; defaults to the action row pitch when unset. Used when `midiInputKind` is `note` (or inferred note). */
   midiInputNote?: number;
+  /** Control change number 0–127. Used when `midiInputKind` is `cc`. */
+  midiInputCc?: number;
 }
 
 /* The MIDI emitted on playback when an action fires. Distinct from the
    input binding in ActionMapEntry (which says "incoming pitch X means this
    action"). An action may have no output mapping at all (the entry can be
    absent from `track.outputMap`); the engine then treats the action as a
-   no-emit binding. Channel is 1..16, pitch is 0..127. */
+   no-emit binding. Channel is 1..16, pitch is 0..127. When `cc` is set,
+   playback emits Control Change with that controller number instead of
+   note-on/note-off. */
 export interface OutputMapping {
   device: DeviceId;
   channel: number;
   pitch: number;
+  cc?: number;
+}
+
+/** Default output MIDI CC numbers for continuous mixer template actions (DJ mixer surface). */
+const MIXER_ACTION_DEFAULT_OUTPUT_CC: Partial<Record<string, number>> = {
+  xfade_pos: 16,
+  ch1_vol: 7,
+  ch2_vol: 7,
+  ch1_eq_hi: 17,
+  ch1_eq_mid: 18,
+  ch1_eq_lo: 19,
+  ch2_eq_hi: 20,
+  ch2_eq_mid: 21,
+  ch2_eq_lo: 22,
+};
+
+export function defaultMixerOutputCc(actionId: string): number | undefined {
+  const n = MIXER_ACTION_DEFAULT_OUTPUT_CC[actionId];
+  return n !== undefined ? n : undefined;
+}
+
+export function resolvedMidiInputKind(e: ActionMapEntry): MidiInputKind {
+  if (e.midiInputKind) return e.midiInputKind;
+  if (e.midiInputCc !== undefined) return 'cc';
+  return 'note';
+}
+
+export function mergeMidiInputKind(nextKind: MidiInputKind, _entry: ActionMapEntry): Partial<ActionMapEntry> {
+  const patch: Partial<ActionMapEntry> = { midiInputKind: nextKind };
+  if (nextKind === 'note') {
+    patch.midiInputCc = undefined;
+  } else if (nextKind === 'cc') {
+    patch.midiInputNote = undefined;
+  } else {
+    patch.midiInputNote = undefined;
+    patch.midiInputCc = undefined;
+  }
+  return patch;
+}
+
+export function normalizeOutputMapping(m: OutputMapping): OutputMapping {
+  const channel = Math.max(1, Math.min(16, Math.round(Number(m.channel)) || 1));
+  const pitch = Math.max(0, Math.min(127, Math.round(Number(m.pitch)) || 0));
+  const next: OutputMapping = { device: m.device, channel, pitch };
+  if (m.cc !== undefined && Number.isFinite(m.cc)) {
+    next.cc = Math.max(0, Math.min(127, Math.round(m.cc)));
+  }
+  return next;
+}
+
+export function normalizeActionMapEntry(e: ActionMapEntry): ActionMapEntry {
+  const n: ActionMapEntry = { ...e };
+  if (n.midiInputChannel !== undefined) {
+    n.midiInputChannel = Math.max(1, Math.min(16, Math.round(n.midiInputChannel)));
+  }
+  if (n.midiInputNote !== undefined) {
+    n.midiInputNote = Math.max(0, Math.min(127, Math.round(n.midiInputNote)));
+  }
+  if (n.midiInputCc === undefined) {
+    delete n.midiInputCc;
+  } else {
+    n.midiInputCc = Math.max(0, Math.min(127, Math.round(n.midiInputCc)));
+  }
+  if (n.midiInputKind === undefined) {
+    delete n.midiInputKind;
+  }
+  const kind = resolvedMidiInputKind(n);
+  if (kind === 'note') {
+    delete n.midiInputCc;
+  } else if (kind === 'cc') {
+    delete n.midiInputNote;
+  } else {
+    delete n.midiInputNote;
+    delete n.midiInputCc;
+  }
+  return n;
 }
 
 /* A single aftertouch sample on a pressure-bearing action event. `t` is

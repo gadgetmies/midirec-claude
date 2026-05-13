@@ -92,9 +92,9 @@ The form SHALL contain, in DOM order:
 
 Every form interaction SHALL commit its result immediately by calling `useStage().setActionEntry(trackId, pitch, mergedEntry)`. There SHALL be NO Done / Save / Apply button; field changes are the commit point.
 
-When the user selects a different **action** from the Action `<select>`, the committed entry SHALL adopt that action's `id`, `label`, `short`, `device`, and (when present) `pad` and `pressure` from the matched `DEFAULT_ACTION_MAP` template. The `cat` and `trigger` fields SHALL be preserved from the prior entry.
+When the user selects a different **action** from the Action `<select>`, the committed entry SHALL adopt that action's `id`, `label`, `short`, `device`, and (when present) `pad` and `pressure` from the matched `DEFAULT_ACTION_MAP` template. The `cat` and `trigger` fields SHALL be preserved from the prior entry. The **`midiInputCc` field SHALL be preserved** unless the new template forbids CC binding by explicit product rule (none in this slice — implementors SHALL preserve).
 
-When the user activates a different **category** chip, the committed entry SHALL set `cat` to the chip's key AND set `id`, `label`, `short`, `pad`, `pressure` from the first entry in `DEFAULT_ACTION_MAP` matching the new category (sorted by numeric pitch). The `device` and `trigger` fields SHALL be preserved from the prior entry. If no entry in `DEFAULT_ACTION_MAP` matches the new category, `id`, `label`, `short` SHALL be the empty string.
+When the user activates a different **category** chip, the committed entry SHALL set `cat` to the chip's key AND set `id`, `label`, `short`, `pad`, `pressure` from the first entry in `DEFAULT_ACTION_MAP` matching the new category (sorted by numeric pitch). The `device` and `trigger` fields SHALL be preserved from the prior entry. The **`midiInputCc` field SHALL be preserved** from the prior entry. If no entry in `DEFAULT_ACTION_MAP` matches the new category, `id`, `label`, `short` SHALL be the empty string.
 
 When the user changes the **device** or **trigger** select, the committed entry SHALL update that field only.
 
@@ -131,4 +131,20 @@ The form's `Delete mapping` button SHALL call `useStage().deleteActionEntry(trac
 - **AND** after the next render the panel SHALL be absent (`.mr-map-form` no longer in the DOM)
 - **AND** `useStage().djActionSelection` SHALL be `null`
 - **AND** the DJ action track's keys column SHALL contain no row for pitch 56
+
+### Requirement: Map Note form exposes optional incoming MIDI CC binding
+
+The `InputMappingPanel` body SHALL place a `.mr-kv` (or grid-equivalent) row labelled **`MIDI in · CC`** after the existing **`MIDI in · note`** row (or in the same two-column grid group as ch/note, consistent with the implementation layout). The row SHALL contain a numeric input accepting integers `0..127`, controlling `ActionMapEntry.midiInputCc`. When the field is empty or cleared, writers SHALL omit `midiInputCc` from the persisted entry (note-only binding). The field SHALL coexist with `MIDI in · ch` and `MIDI in · note`; when `midiInputCc` is set, record-time semantics SHALL follow `midi-recording` (CC takes precedence over note matching for that row).
+
+#### Scenario: CC field commits on change
+
+- **WHEN** the panel is open for a row and the user enters `7` in the `MIDI in · CC` input
+- **THEN** `setActionEntry` SHALL be called with `midiInputCc: 7` merged into the entry
+- **AND** subsequent renders SHALL show `7` in the input
+
+#### Scenario: Clearing CC restores note-only matching
+
+- **WHEN** the panel is open for a row that has `midiInputCc: 7` and the user clears the CC input
+- **THEN** `setActionEntry` SHALL be called with `midiInputCc` unset (omitted)
+- **AND** record routing SHALL use `midiInputNote` / row pitch per the prior behavior
 

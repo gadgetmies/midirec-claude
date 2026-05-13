@@ -2,7 +2,7 @@ import { flushSync } from 'react-dom';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Note } from '../components/piano-roll/notes';
 import type { Channel, ChannelId } from '../hooks/useChannels';
-import type { ActionEvent, ActionMapEntry } from '../data/dj';
+import { resolvedMidiInputKind, type ActionEvent, type ActionMapEntry } from '../data/dj';
 import type { DJActionTrack, DJTrackId } from '../hooks/useDJActionTracks';
 import type { TimelineTrackSelection } from '../hooks/useStage';
 import { useStage } from '../hooks/useStage';
@@ -98,6 +98,7 @@ function matchingDJActions(
   for (const t of tracks) {
     for (const [pitchStr, entry] of Object.entries(t.actionMap)) {
       const rowPitch = Number(pitchStr);
+      if (resolvedMidiInputKind(entry) !== 'note') continue;
       const wantIds = effectiveMidiInputDeviceIds(t, entry);
       const devOk = portMatchesActionDevices(wantIds, portId);
       const ch = (entry.midiInputChannel ?? 1) as ChannelId;
@@ -109,6 +110,68 @@ function matchingDJActions(
   }
   return out;
 }
+
+function matchingDJCcActions(
+  tracks: DJActionTrack[],
+  portId: string,
+  midiCh: number,
+  controller: number,
+): DJMatch[] {
+  const w = wireChFromNibble(midiCh);
+  const out: DJMatch[] = [];
+  for (const t of tracks) {
+    for (const [pitchStr, entry] of Object.entries(t.actionMap)) {
+      const rowPitch = Number(pitchStr);
+      if (resolvedMidiInputKind(entry) !== 'cc') continue;
+      if (entry.midiInputCc === undefined) continue;
+      const wantIds = effectiveMidiInputDeviceIds(t, entry);
+      const devOk = portMatchesActionDevices(wantIds, portId);
+      const ch = (entry.midiInputChannel ?? 1) as ChannelId;
+      if (devOk && w === ch && controller === entry.midiInputCc) {
+        out.push({ trackId: t.id, actionPitch: rowPitch });
+      }
+    }
+  }
+  return out;
+}
+
+function matchingDJAtActions(tracks: DJActionTrack[], portId: string, midiCh: number): DJMatch[] {
+  const w = wireChFromNibble(midiCh);
+  const out: DJMatch[] = [];
+  for (const t of tracks) {
+    for (const [pitchStr, entry] of Object.entries(t.actionMap)) {
+      const rowPitch = Number(pitchStr);
+      if (resolvedMidiInputKind(entry) !== 'at') continue;
+      const wantIds = effectiveMidiInputDeviceIds(t, entry);
+      const devOk = portMatchesActionDevices(wantIds, portId);
+      const ch = (entry.midiInputChannel ?? 1) as ChannelId;
+      if (devOk && w === ch) {
+        out.push({ trackId: t.id, actionPitch: rowPitch });
+      }
+    }
+  }
+  return out;
+}
+
+function matchingDJPbActions(tracks: DJActionTrack[], portId: string, midiCh: number): DJMatch[] {
+  const w = wireChFromNibble(midiCh);
+  const out: DJMatch[] = [];
+  for (const t of tracks) {
+    for (const [pitchStr, entry] of Object.entries(t.actionMap)) {
+      const rowPitch = Number(pitchStr);
+      if (resolvedMidiInputKind(entry) !== 'pb') continue;
+      const wantIds = effectiveMidiInputDeviceIds(t, entry);
+      const devOk = portMatchesActionDevices(wantIds, portId);
+      const ch = (entry.midiInputChannel ?? 1) as ChannelId;
+      if (devOk && w === ch) {
+        out.push({ trackId: t.id, actionPitch: rowPitch });
+      }
+    }
+  }
+  return out;
+}
+
+export { matchingDJActions, matchingDJCcActions, matchingDJAtActions, matchingDJPbActions };
 
 function pickInstrument(matches: ChannelId[], sel: TimelineTrackSelection | null): ChannelId {
   if (matches.length === 1) return matches[0]!;
@@ -370,6 +433,66 @@ export function useMidiRecorder(): void {
         if (nibble === 0x80) {
           const pitch = data[1] ?? 0;
           pushFinalized(portId, midiCh, pitch, performance.now());
+          return;
+        }
+        if (nibble === 0xb0) {
+          const controller = data[1] ?? 0;
+          const value = data[2] ?? 0;
+          const { djActionTracks: djs, selectedTimelineTrack: sel, bpm } = latestRef.current;
+          const dj = matchingDJCcActions(djs, portId, midiCh, controller);
+          if (dj.length === 0) return;
+          const match = pickDJMatch(dj, sel);
+          const t = msToBeats(performance.now() - origin, bpm);
+          pendingDJRef.current.push({
+            trackId: match.trackId,
+            event: {
+              pitch: match.actionPitch,
+              t,
+              dur: 1 / 128,
+              vel: Math.min(1, value / 127),
+            },
+          });
+          scheduleFlush();
+          return;
+        }
+        if (nibble === 0xd0) {
+          const pressure = data[1] ?? 0;
+          const { djActionTracks: djs, selectedTimelineTrack: sel, bpm } = latestRef.current;
+          const dj = matchingDJAtActions(djs, portId, midiCh);
+          if (dj.length === 0) return;
+          const match = pickDJMatch(dj, sel);
+          const t = msToBeats(performance.now() - origin, bpm);
+          pendingDJRef.current.push({
+            trackId: match.trackId,
+            event: {
+              pitch: match.actionPitch,
+              t,
+              dur: 1 / 128,
+              vel: Math.min(1, pressure / 127),
+            },
+          });
+          scheduleFlush();
+          return;
+        }
+        if (nibble === 0xe0) {
+          const lsb = data[1] ?? 0;
+          const msb = data[2] ?? 0;
+          const v14 = (msb << 7) | lsb;
+          const { djActionTracks: djs, selectedTimelineTrack: sel, bpm } = latestRef.current;
+          const dj = matchingDJPbActions(djs, portId, midiCh);
+          if (dj.length === 0) return;
+          const match = pickDJMatch(dj, sel);
+          const t = msToBeats(performance.now() - origin, bpm);
+          pendingDJRef.current.push({
+            trackId: match.trackId,
+            event: {
+              pitch: match.actionPitch,
+              t,
+              dur: 1 / 128,
+              vel: v14 / 16383,
+            },
+          });
+          scheduleFlush();
           return;
         }
       };

@@ -21,12 +21,28 @@ import {
   DJ_DEVICES,
   devColor,
   devLabel,
+  mergeMidiInputKind,
   pitchLabel,
+  resolvedMidiInputKind,
   type ActionMapEntry,
   type CategoryId,
   type DeviceId,
+  type MidiInputKind,
   type TriggerMode,
 } from '../../data/dj';
+
+function pickInputBinding(e: ActionMapEntry): Pick<
+  ActionMapEntry,
+  'midiInputDeviceIds' | 'midiInputChannel' | 'midiInputKind' | 'midiInputNote' | 'midiInputCc'
+> {
+  return {
+    midiInputDeviceIds: e.midiInputDeviceIds,
+    midiInputChannel: e.midiInputChannel,
+    midiInputKind: e.midiInputKind,
+    midiInputNote: e.midiInputNote,
+    midiInputCc: e.midiInputCc,
+  };
+}
 
 function clampMidiChannel(n: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
@@ -34,6 +50,11 @@ function clampMidiChannel(n: number, fallback: number): number {
 }
 
 function clampMidiNote(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(127, Math.round(n)));
+}
+
+function clampMidiCc(n: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
   return Math.max(0, Math.min(127, Math.round(n)));
 }
@@ -126,9 +147,7 @@ export function InputMappingPanel() {
         id: '',
         label: '',
         short: '',
-        midiInputDeviceIds: entry.midiInputDeviceIds,
-        midiInputChannel: entry.midiInputChannel,
-        midiInputNote: entry.midiInputNote,
+        ...pickInputBinding(entry),
       });
       return;
     }
@@ -139,9 +158,7 @@ export function InputMappingPanel() {
       short: first.short,
       pad: first.pad,
       pressure: first.pressure,
-      midiInputDeviceIds: entry.midiInputDeviceIds,
-      midiInputChannel: entry.midiInputChannel,
-      midiInputNote: entry.midiInputNote,
+      ...pickInputBinding(entry),
     });
   };
 
@@ -152,9 +169,7 @@ export function InputMappingPanel() {
       if (!picked) {
         writeEntry({
           id,
-          midiInputDeviceIds: entry.midiInputDeviceIds,
-          midiInputChannel: entry.midiInputChannel,
-          midiInputNote: entry.midiInputNote,
+          ...pickInputBinding(entry),
         });
         return;
       }
@@ -170,9 +185,7 @@ export function InputMappingPanel() {
         device: useRow.entry.device,
         pad: useRow.entry.pad,
         pressure: useRow.entry.pressure,
-        midiInputDeviceIds: entry.midiInputDeviceIds,
-        midiInputChannel: entry.midiInputChannel,
-        midiInputNote: entry.midiInputNote,
+        ...pickInputBinding(entry),
       });
       return;
     }
@@ -180,9 +193,7 @@ export function InputMappingPanel() {
     if (!found) {
       writeEntry({
         id,
-        midiInputDeviceIds: entry.midiInputDeviceIds,
-        midiInputChannel: entry.midiInputChannel,
-        midiInputNote: entry.midiInputNote,
+        ...pickInputBinding(entry),
       });
       return;
     }
@@ -193,9 +204,7 @@ export function InputMappingPanel() {
       device: found.entry.device,
       pad: found.entry.pad,
       pressure: found.entry.pressure,
-      midiInputDeviceIds: entry.midiInputDeviceIds,
-      midiInputChannel: entry.midiInputChannel,
-      midiInputNote: entry.midiInputNote,
+      ...pickInputBinding(entry),
     });
   };
 
@@ -244,6 +253,7 @@ function Form({
   const mapActionRows = useMemo(() => actionRowsForMapSelect(entry.cat), [entry.cat]);
   const actionSelectId = actionIdForSelect(entry, entry.cat);
   const captureNote = entry.midiInputNote ?? pitch;
+  const inKind = resolvedMidiInputKind(entry);
   return (
     <div className="mr-map-form">
       <div className="mr-map-form__hd">
@@ -254,7 +264,23 @@ function Form({
         <div className="mr-map-form__hd-meta">
           <div className="mr-map-form__hd-title">{entry.label || '— unmapped —'}</div>
           <div className="mr-map-form__hd-sub">
-            listens {pitchLabel(captureNote)} · note {captureNote} · row {pitch}
+            {inKind === 'note' && (
+              <>
+                listens {pitchLabel(captureNote)} · note {captureNote} · ch {entry.midiInputChannel ?? 1} · row{' '}
+                {pitch}
+              </>
+            )}
+            {inKind === 'cc' && (
+              <>
+                listens CC {entry.midiInputCc ?? '—'} · ch {entry.midiInputChannel ?? 1} · row {pitch}
+              </>
+            )}
+            {inKind === 'at' && (
+              <>listens channel aftertouch · ch {entry.midiInputChannel ?? 1} · row {pitch}</>
+            )}
+            {inKind === 'pb' && (
+              <>listens pitch bend · ch {entry.midiInputChannel ?? 1} · row {pitch}</>
+            )}
           </div>
         </div>
       </div>
@@ -334,14 +360,30 @@ function Form({
       </div>
 
       <div className="mr-map-form__section">
+        <span className="mr-map-form__lbl">MIDI in · type</span>
+        <select
+          className="mr-select"
+          value={inKind}
+          onChange={(e) =>
+            commitPartial(mergeMidiInputKind(e.target.value as MidiInputKind, entry))
+          }
+        >
+          <option value="note">Note</option>
+          <option value="cc">Control change</option>
+          <option value="at">Channel aftertouch</option>
+          <option value="pb">Pitch bend</option>
+        </select>
+      </div>
+
+      <div className="mr-map-form__section">
         <span className="mr-map-form__lbl">MIDI in · devices</span>
         {midiInputs.length === 0 ? (
           <p className="mr-map-form__note">No MIDI inputs — grant access to choose ports.</p>
         ) : (
           <>
             <p className="mr-map-form__note">
-              All off uses the DJ track default (Track input). Enable one or more ports so this action listens on
-              the same note from each of them.
+              All off uses the DJ track default (Track input). Enable one or more ports for this row’s incoming
+              MIDI.
             </p>
             <div className="mr-map-form__midi-devs">
               {midiInputs.map((d) => {
@@ -390,21 +432,46 @@ function Form({
             }
           />
         </div>
-        <div className="mr-map-form__section">
-          <span className="mr-map-form__lbl">MIDI in · note</span>
-          <input
-            type="number"
-            min={0}
-            max={127}
-            className="mr-input"
-            value={captureNote}
-            onChange={(e) =>
-              commitPartial({
-                midiInputNote: clampMidiNote(e.target.valueAsNumber, captureNote),
-              })
-            }
-          />
-        </div>
+        {inKind === 'note' ? (
+          <div className="mr-map-form__section">
+            <span className="mr-map-form__lbl">MIDI in · note</span>
+            <input
+              type="number"
+              min={0}
+              max={127}
+              className="mr-input"
+              value={captureNote}
+              onChange={(e) =>
+                commitPartial({
+                  midiInputNote: clampMidiNote(e.target.valueAsNumber, captureNote),
+                })
+              }
+            />
+          </div>
+        ) : null}
+        {inKind === 'cc' ? (
+          <div className="mr-map-form__section">
+            <span className="mr-map-form__lbl">MIDI in · CC</span>
+            <input
+              type="number"
+              min={0}
+              max={127}
+              className="mr-input"
+              value={entry.midiInputCc ?? ''}
+              placeholder="0–127"
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  commitPartial({ midiInputCc: undefined });
+                  return;
+                }
+                commitPartial({
+                  midiInputCc: clampMidiCc(e.target.valueAsNumber, entry.midiInputCc ?? 0),
+                });
+              }}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="mr-map-form__ft">

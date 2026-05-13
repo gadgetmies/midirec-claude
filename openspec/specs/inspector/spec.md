@@ -281,7 +281,7 @@ The panel SHALL render, in DOM order:
 
 Every field change on the Output panel SHALL call `useStage().setOutputMapping(trackId, pitch, mergedMapping)` exactly once with the new value merged into the current mapping. When no `outputMap[pitch]` existed before, the first edit SHALL create the entry using the form's current default values (input device, channel 1, input pitch) with the edited field overridden.
 
-The Channel input SHALL clamp values to the inclusive range `1..16`. The Pitch input SHALL clamp values to the inclusive range `0..127`. Out-of-range input MUST NOT throw or produce invalid persisted state.
+The Channel input SHALL clamp values to the inclusive range `1..16`. The Pitch input SHALL clamp values to the inclusive range `0..127`. The **CC# input, when present, SHALL clamp to `0..127`**. Out-of-range input MUST NOT throw or produce invalid persisted state.
 
 #### Scenario: Editing the Channel input commits immediately
 
@@ -299,6 +299,11 @@ The Channel input SHALL clamp values to the inclusive range `1..16`. The Pitch i
 
 - **WHEN** the user enters `99` in the Channel input
 - **THEN** the value passed to `setOutputMapping` SHALL be `16`
+
+#### Scenario: CC# clamps out-of-range input
+
+- **WHEN** the user enters `200` in the CC# input
+- **THEN** the value passed to `setOutputMapping` SHALL be `127`
 
 ### Requirement: Delete output button removes the outputMap entry
 
@@ -329,4 +334,19 @@ This rule preserves the Slice 5 contract for channel/roll selection and does not
 - **WHEN** `djActionSelection` transitions from `{ trackId: 'dj1', pitch: 56 }` to `null` AND `resolvedSelection === { channelId: 1, indexes: [3] }`
 - **THEN** the Inspector body SHALL contain the single-select channel/roll Note panel (four `.mr-kv` rows: `Start`, `Length`, `Velocity`, `Channel`)
 - **AND** the Inspector body SHALL NOT contain the `Device` / `Channel` / `Pitch` inputs from the Output panel
+
+### Requirement: DJ Output panel exposes output CC number when mapping Control Change
+
+When the selected action row’s output uses **Control Change** (i.e. `outputMap[pitch].cc` is set, or the row is a continuous mixer control per `dj-action-tracks` such that the UI offers CC output), the Output mapping panel SHALL render a `.mr-kv` row with key text **`CC#`** and a numeric `<input type="number" min="0" max="127" class="mr-input">` bound to `outputMap[pitch].cc`. When **`cc` is unset**, the input SHALL show an empty or placeholder state until the user enters a value, at which point `setOutputMapping` creates or updates `cc`. When **`cc`** is set, changing the field SHALL commit per the existing auto-save requirement. Rows that only emit **note** output MAY omit the `CC#` row when `cc` is absent and the action is not mixer-CC-backed; when the product always shows both Pitch and CC#, **Pitch** remains the note output and **CC#** is optional until filled.
+
+#### Scenario: CC row appears for mixer crossfader output mapping
+
+- **WHEN** `djActionSelection` references a mixer `xfade_pos` row and the user edits output
+- **THEN** the Inspector body SHALL contain a `.mr-kv` row whose key label is `CC#`
+- **AND** editing the value SHALL call `setOutputMapping` with an updated `cc` field
+
+#### Scenario: Mapping persists cc in outputMap
+
+- **WHEN** the user sets `CC#` to `11`
+- **THEN** `useStage().setOutputMapping` SHALL be called with a mapping that includes `cc: 11` merged with device/channel/pitch
 

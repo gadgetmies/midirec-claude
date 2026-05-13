@@ -12,6 +12,8 @@ import {
 } from './useDJActionTracks';
 import {
   DEFAULT_ACTION_MAP,
+  normalizeActionMapEntry,
+  normalizeOutputMapping,
   type ActionMapEntry,
   type OutputMapping,
 } from '../data/dj';
@@ -132,7 +134,7 @@ describe('applySetActionEntry', () => {
     const next = applySetActionEntry(tracks, 'dj1', 63, synthEntry);
     expect(next).not.toBe(tracks);
     expect(Object.keys(next[0].actionMap).length).toBe(beforeSize + 1);
-    expect(next[0].actionMap[63]).toBe(synthEntry);
+    expect(next[0].actionMap[63]).toStrictEqual(normalizeActionMapEntry(synthEntry));
   });
 
   test('replaces an existing pitch key without changing map size', () => {
@@ -141,7 +143,7 @@ describe('applySetActionEntry', () => {
     const beforeSize = Object.keys(before.actionMap).length;
     const next = applySetActionEntry(tracks, 'dj1', 48, synthEntry);
     expect(Object.keys(next[0].actionMap).length).toBe(beforeSize);
-    expect(next[0].actionMap[48]).toBe(synthEntry);
+    expect(next[0].actionMap[48]).toStrictEqual(normalizeActionMapEntry(synthEntry));
   });
 
   test('is a no-op (same reference) for unknown track id', () => {
@@ -212,7 +214,7 @@ describe('applySetOutputMapping', () => {
   test('adds a new entry on a pitch that had no output mapping', () => {
     const before = baseTrack();
     const next = applySetOutputMapping([before], 'dj1', 48, mapping);
-    expect(next[0].outputMap[48]).toBe(mapping);
+    expect(next[0].outputMap[48]).toStrictEqual(normalizeOutputMapping(mapping));
   });
 
   test('replaces an existing mapping on the same pitch', () => {
@@ -220,7 +222,7 @@ describe('applySetOutputMapping', () => {
       outputMap: { 48: { device: 'global', channel: 1, pitch: 1 } },
     });
     const next = applySetOutputMapping([before], 'dj1', 48, mapping);
-    expect(next[0].outputMap[48]).toBe(mapping);
+    expect(next[0].outputMap[48]).toStrictEqual(normalizeOutputMapping(mapping));
     expect(Object.keys(next[0].outputMap).length).toBe(1);
   });
 
