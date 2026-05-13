@@ -5,7 +5,10 @@ import {
   actionMode,
   defaultMixerOutputCc,
   normalizeActionMapEntry,
+  normalizeOutputMapping,
+  resolvedDjRowOutputCc,
   type ActionMapEntry,
+  type OutputMapping,
   type TriggerMode,
 } from './dj';
 
@@ -96,6 +99,41 @@ describe('defaultMixerOutputCc', () => {
     expect(defaultMixerOutputCc('xfade_pos')).toBe(16);
     expect(defaultMixerOutputCc('ch1_eq_mid')).toBe(18);
     expect(defaultMixerOutputCc('load_a')).toBeUndefined();
+  });
+});
+
+describe('resolvedDjRowOutputCc', () => {
+  const xfade = DEFAULT_ACTION_MAP[80]!;
+  const play = DEFAULT_ACTION_MAP[48]!;
+
+  test('uses outputMap.cc when set', () => {
+    const actionMap = { 80: xfade };
+    const outputMap = {
+      80: normalizeOutputMapping({ device: 'mixer', channel: 16, pitch: 80, cc: 99 }),
+    };
+    expect(resolvedDjRowOutputCc(actionMap, outputMap, 80)).toBe(99);
+  });
+
+  test('falls back to defaultMixerOutputCc when outputMap has no cc', () => {
+    const actionMap = { 80: xfade };
+    const outputMap = {
+      80: normalizeOutputMapping({ device: 'mixer', channel: 16, pitch: 80 }),
+    };
+    expect(resolvedDjRowOutputCc(actionMap, outputMap, 80)).toBe(16);
+  });
+
+  test('returns undefined for pressure-bearing rows even if outputMap has cc', () => {
+    const actionMap = { 56: DEFAULT_ACTION_MAP[56]! };
+    const outputMap = {
+      56: normalizeOutputMapping({ device: 'deck1', channel: 1, pitch: 56, cc: 1 }),
+    };
+    expect(resolvedDjRowOutputCc(actionMap, outputMap, 56)).toBeUndefined();
+  });
+
+  test('returns undefined for deck actions without cc default', () => {
+    const actionMap = { 48: play };
+    const outputMap: Record<number, OutputMapping> = {};
+    expect(resolvedDjRowOutputCc(actionMap, outputMap, 48)).toBeUndefined();
   });
 });
 

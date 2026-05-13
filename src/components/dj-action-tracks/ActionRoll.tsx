@@ -1,8 +1,7 @@
 /* Lane side of the dj-action-track body — lanes per configured action,
-   beat ticks, and per-event note rendering in three modes (trigger /
-   velocity-sensitive / pressure-bearing) plus a fallback for actions that
-   don't match any of the three predicates (e.g. mixer/loop without pad
-   or pressure flags).
+   beat ticks, per-event note rendering (trigger / velocity-sensitive /
+   pressure-bearing / fallback), plus CC automation strips for rows whose
+   effective MIDI output is Control Change.
 
    Pressure curves: events with stored `event.pressure` render from that
    array; otherwise the per-event `perPitchIndex` flows into
@@ -19,6 +18,8 @@ import {
   actionMode,
   devColor,
   djActionRowOrderTopToBottom,
+  resolvedDjRowOutputCc,
+  type ActionEvent,
   type ActionMapEntry,
   type PressurePoint,
   type PressureRenderMode,
@@ -32,6 +33,17 @@ import { useStage } from '../../hooks/useStage';
 import { rasterizePressure, synthesizePressure } from '../../data/pressure';
 
 const PRESSURE_CELLS = 14;
+/** Merge consecutive CC lane events on the same pitch when their start times are closer than this (beats). */
+const CC_GROUP_MAX_START_GAP_BEATS = 1;
+
+interface CcMergedGroup {
+  pitch: number;
+  /** `track.events` index of the chronologically first message in the cluster (click + selection anchor). */
+  representativeIdx: number;
+  memberIndices: number[];
+  t0: number;
+  dur: number;
+}
 
 interface ActionRollProps {
   track: DJActionTrack;
@@ -63,6 +75,11 @@ export function ActionRoll({
     if (idx < 0) return -rowHeight; // pushed off-screen; should be filtered before this
     return idx * rowHeight;
   };
+
+  const ccGroupByMemberIdx = buildCcMergedGroupsByMemberIndex(
+    track,
+    CC_GROUP_MAX_START_GAP_BEATS,
+  );
 
   const lanes: JSX.Element[] = rowOrder.map((pitch) => {
     const muted = track.mutedRows.includes(pitch);
@@ -116,13 +133,50 @@ export function ActionRoll({
     const left = event.t * pxPerBeat;
     const noteH = Math.max(5, rowHeight - 2);
     const color = devColor(action.device);
-    const mode = actionMode(action);
     const audible = isDJRowAudible(track, event.pitch, soloing);
-    const selected =
-      djEventSelection !== null &&
-      djEventSelection.trackId === track.id &&
-      djEventSelection.pitch === event.pitch &&
-      djEventSelection.eventIdx === originalIdx;
+    const rowCc = resolvedDjRowOutputCc(track.actionMap, track.outputMap, event.pitch);
+    if (rowCc !== undefined) {
+      const group = ccGroupByMemberIdx.get(originalIdx);
+      if (!group || group.representativeIdx !== originalIdx) {
+        continue;
+      }
+      const onClick = (ev: MouseEvent) => {
+        ev.stopPropagation();
+        setDJEventSelection({
+          trackId: track.id,
+          pitch: group.pitch,
+          eventIdx: group.representativeIdx,
+        });
+        if (
+          !djActionSelection ||
+          djActionSelection.trackId !== track.id ||
+          djActionSelection.pitch !== group.pitch
+        ) {
+          setDJActionSelection({ trackId: track.id, pitch: group.pitch });
+        }
+      };
+      const groupSelected =
+        djEventSelection !== null &&
+        djEventSelection.trackId === track.id &&
+        djEventSelection.pitch === group.pitch &&
+        group.memberIndices.includes(djEventSelection.eventIdx);
+      noteEls.push(
+        renderCcAutomation(
+          group,
+          track,
+          action,
+          color,
+          top,
+          noteH,
+          pxPerBeat,
+          audible,
+          groupSelected,
+          onClick,
+          rowCc,
+        ),
+      );
+      continue;
+    }
     const onClick = (ev: MouseEvent) => {
       ev.stopPropagation();
       setDJEventSelection({ trackId: track.id, pitch: event.pitch, eventIdx: originalIdx });
@@ -134,6 +188,12 @@ export function ActionRoll({
         setDJActionSelection({ trackId: track.id, pitch: event.pitch });
       }
     };
+    const selected =
+      djEventSelection !== null &&
+      djEventSelection.trackId === track.id &&
+      djEventSelection.pitch === event.pitch &&
+      djEventSelection.eventIdx === originalIdx;
+    const mode = actionMode(action);
     noteEls.push(
       renderNote(
         originalIdx,
@@ -163,6 +223,143 @@ export function ActionRoll({
       {ticks}
       {noteEls}
       <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
+    </div>
+  );
+}
+
+function buildCcMergedGroupsByMemberIndex(
+  track: DJActionTrack,
+  maxStartGapBeats: number,
+): Map<number, CcMergedGroup> {
+  const out = new Map<number, CcMergedGroup>();
+  const byPitch = new Map<number, { idx: number; ev: ActionEvent }[]>();
+
+  for (let i = 0; i < track.events.length; i++) {
+    const ev = track.events[i];
+    if (!Object.prototype.hasOwnProperty.call(track.actionMap, ev.pitch)) continue;
+    if (resolvedDjRowOutputCc(track.actionMap, track.outputMap, ev.pitch) === undefined) continue;
+    const list = byPitch.get(ev.pitch) ?? [];
+    list.push({ idx: i, ev });
+    byPitch.set(ev.pitch, list);
+  }
+
+  for (const [pitch, items] of byPitch) {
+    items.sort((a, b) => a.ev.t - b.ev.t);
+    let cluster: { idx: number; ev: ActionEvent }[] = [];
+
+    const flush = () => {
+      if (cluster.length === 0) return;
+      const t0 = cluster[0].ev.t;
+      const tEnd = Math.max(...cluster.map((x) => x.ev.t + x.ev.dur));
+      const dur = Math.max(0, tEnd - t0);
+      const memberIndices = cluster.map((c) => c.idx);
+      const representativeIdx = cluster[0].idx;
+      const group: CcMergedGroup = {
+        pitch,
+        representativeIdx,
+        memberIndices,
+        t0,
+        dur,
+      };
+      for (const idx of memberIndices) {
+        out.set(idx, group);
+      }
+      cluster = [];
+    };
+
+    for (const item of items) {
+      if (cluster.length === 0) {
+        cluster.push(item);
+      } else {
+        const prevStart = cluster[cluster.length - 1].ev.t;
+        if (item.ev.t - prevStart < maxStartGapBeats) {
+          cluster.push(item);
+        } else {
+          flush();
+          cluster = [item];
+        }
+      }
+    }
+    flush();
+  }
+
+  return out;
+}
+
+function collapseCcMessagesByPixelX(
+  group: CcMergedGroup,
+  track: DJActionTrack,
+  pxPerBeat: number,
+): { t: number; dur: number; vel: number }[] {
+  const sorted = group.memberIndices
+    .map((i) => ({ i, ev: track.events[i]! }))
+    .sort((a, b) => a.ev.t - b.ev.t || a.i - b.i);
+  const out: { t: number; dur: number; vel: number }[] = [];
+  for (const { ev } of sorted) {
+    const xPx = Math.round(ev.t * pxPerBeat);
+    const prev = out[out.length - 1];
+    if (prev !== undefined && Math.round(prev.t * pxPerBeat) === xPx) {
+      prev.vel = ev.vel;
+      prev.dur = Math.max(prev.dur, ev.dur);
+    } else {
+      out.push({ t: ev.t, dur: ev.dur, vel: ev.vel });
+    }
+  }
+  return out;
+}
+
+function renderCcAutomation(
+  group: CcMergedGroup,
+  track: DJActionTrack,
+  action: ActionMapEntry,
+  color: string,
+  top: number,
+  noteH: number,
+  pxPerBeat: number,
+  audible: boolean,
+  selected: boolean,
+  onClick: (e: MouseEvent) => void,
+  ccNum: number,
+): JSX.Element {
+  const messages = collapseCcMessagesByPixelX(group, track, pxPerBeat);
+  const w = Math.max(8, group.dur * pxPerBeat);
+  const bars = messages.map((m, mi) => {
+    const x = (m.t - group.t0) * pxPerBeat;
+    const barW = Math.max(2, m.dur * pxPerBeat);
+    const fillH = Math.max(2, Math.min(1, m.vel) * (noteH - 4));
+    return (
+      <rect
+        key={mi}
+        x={x}
+        y={noteH - 2 - fillH}
+        width={barW}
+        height={fillH}
+        className="mr-djtrack__cc__cell"
+        shapeRendering="crispEdges"
+      />
+    );
+  });
+  const audibleAttr = audible ? 'true' : 'false';
+  const selectedAttr = selected ? 'true' : undefined;
+  return (
+    <div
+      key={`cc${group.representativeIdx}`}
+      className="mr-djtrack__cc"
+      title={`${action.label} · ${action.short} · CC ${ccNum}`}
+      data-audible={audibleAttr}
+      data-selected={selectedAttr}
+      onClick={onClick}
+      style={{
+        top,
+        left: group.t0 * pxPerBeat,
+        width: w,
+        height: noteH,
+        background: `color-mix(in oklab, ${color} 22%, transparent)`,
+      }}
+    >
+      <svg width={w} height={noteH} className="mr-djtrack__cc__svg" preserveAspectRatio="none">
+        {bars}
+      </svg>
     </div>
   );
 }

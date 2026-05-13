@@ -80,6 +80,23 @@ export function defaultMixerOutputCc(actionId: string): number | undefined {
   return n !== undefined ? n : undefined;
 }
 
+/** CC number for DJ row UI and mixer defaults — excludes pressure-bearing rows (note+AT playback). */
+export function resolvedDjRowOutputCc(
+  actionMap: Record<number, ActionMapEntry>,
+  outputMap: Record<number, OutputMapping>,
+  pitch: number,
+): number | undefined {
+  const action = actionMap[pitch];
+  if (!action) return undefined;
+  if (action.pressure === true) return undefined;
+  const m = outputMap[pitch];
+  if (m?.cc !== undefined && Number.isFinite(m.cc)) {
+    const n = Math.round(Number(m.cc));
+    if (n >= 0 && n <= 127) return n;
+  }
+  return defaultMixerOutputCc(action.id);
+}
+
 export function resolvedMidiInputKind(e: ActionMapEntry): MidiInputKind {
   if (e.midiInputKind) return e.midiInputKind;
   if (e.midiInputCc !== undefined) return 'cc';
