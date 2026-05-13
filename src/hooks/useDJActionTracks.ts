@@ -3,8 +3,9 @@
    NOT a MIDI capture or playback surface. See design/real-time-correctness.md:
    capture/playback timing belongs to the audio engine (Slice 10), not to React
    state. This hook only holds the track's user-configured shape — name, color,
-   action map, routing, M/S flags, per-row M/S, plus a synthetic events array
-   for visual demo. Per-message MIDI events SHALL NOT flow through `setState`
+   action map, routing, M/S flags, per-row M/S, plus optional synthetic timeline
+   events when the session sets `djDemoMessages` (`demo=dj` without
+   `demo=dj-empty`). Per-message MIDI events SHALL NOT flow through `setState`
    here. */
 
 import { useCallback, useMemo, useState } from 'react';
@@ -75,68 +76,124 @@ export interface UseDJActionTracksReturn {
   appendDJActionEvent: (id: DJTrackId, event: ActionEvent) => void;
 }
 
-/* The track's `actionMap` is the set of actions CONFIGURED on this track —
-   not the full catalog of available actions. `DEFAULT_ACTION_MAP` (from
-   src/data/dj.ts) is the picker source for the future routing UI; users
-   add entries from there into a track's actionMap.
+/* Demo seed (`demo=dj` or `demo=dj-empty`): same deck + mixer strips and
+   action maps; synthetic events only when `includeMessages` is true. */
 
-   Default seed: 6 actions spanning 3 devices, chosen to exercise all three
-   render modes plus the fallback. The keys column shows each action's
-   `short` (PLAY, CUE, HC1, HC2, ON, X◀) — never `label` — so the row
-   identity fits in the 56px keys width without truncation. The full
-   `label` appears as a browser tooltip via `title`.
-   - 48 Play / Pause (PLAY) → trigger (transport, no pad, no pressure)
-   - 49 Cue          (CUE)  → trigger (cue, no pad, no pressure)
-   - 56 Hot Cue 1    (HC1)  → pressure-bearing (pressure: true)
-   - 57 Hot Cue 2    (HC2)  → velocity-sensitive (pad: true, no pressure)
-   - 60 FX 1 On      (ON)   → fallback (fx, no pad, no pressure)
-   - 71 Crossfade ◀  (X◀)  → fallback (mixer, no pad, no pressure)
+const DEMO_DECK1_PITCHES = [48, 56, 57, 58, 59, 89, 76] as const;
+const DEMO_DECK2_PITCHES = [65, 69, 70, 78, 79, 90, 77] as const;
+const DEMO_MIXER_PITCHES = [80, 81, 82, 83, 84, 85, 86, 87, 88] as const;
 
-   Synthetic events are deterministic, scoped to musical bars 1–4, and
-   density-tuned to make the rendering modes visible without crowding. The
-   audio engine (Slice 10) does not consume this field; routing-derived
-   events from channel-track notes will replace it in a later slice. */
-const SEEDED_PITCHES = [48, 49, 56, 57, 60, 71];
+function sliceActionMap(pitches: readonly number[]): Record<number, ActionMapEntry> {
+  const m: Record<number, ActionMapEntry> = {};
+  for (const p of pitches) {
+    const entry = DEFAULT_ACTION_MAP[p];
+    if (entry) m[p] = entry;
+  }
+  return m;
+}
 
-const SEEDED_EVENTS: ActionEvent[] = [
-  // 48 Play / Pause — trigger blips at bar 1 and bar 3.
+const SEEDED_EVENTS_DECK1: ActionEvent[] = [
   { pitch: 48, t: 0.0, dur: 0.1, vel: 1.0 },
   { pitch: 48, t: 8.0, dur: 0.1, vel: 1.0 },
-  // 49 Cue — trigger hits before each Play.
-  { pitch: 49, t: 7.5, dur: 0.1, vel: 0.9 },
-  { pitch: 49, t: 11.5, dur: 0.1, vel: 0.9 },
-  // 56 Hot Cue 1 (HC1) — pressure-bearing, two longer events with rich curves.
   { pitch: 56, t: 1.5, dur: 1.5, vel: 0.85 },
   { pitch: 56, t: 5.0, dur: 2.0, vel: 0.7 },
-  // 57 Hot Cue 2 (HC2) — velocity-sensitive pad, four hits with varied velocity.
   { pitch: 57, t: 2.0, dur: 0.4, vel: 0.55 },
   { pitch: 57, t: 4.5, dur: 0.4, vel: 0.85 },
-  { pitch: 57, t: 7.0, dur: 0.4, vel: 0.7 },
-  { pitch: 57, t: 10.5, dur: 0.4, vel: 0.95 },
-  // 60 FX 1 On (ON) — fallback bars showing on/off states.
-  { pitch: 60, t: 3.0, dur: 1.5, vel: 0.8 },
-  { pitch: 60, t: 9.0, dur: 2.0, vel: 0.8 },
-  // 71 Crossfade ◀ (X◀) — fallback, longer fade-style bar.
-  { pitch: 71, t: 6.0, dur: 3.0, vel: 0.8 },
+  { pitch: 58, t: 3.5, dur: 0.35, vel: 0.6 },
+  { pitch: 58, t: 7.25, dur: 0.35, vel: 0.9 },
+  { pitch: 59, t: 6.0, dur: 0.35, vel: 0.75 },
+  { pitch: 59, t: 9.5, dur: 0.35, vel: 0.5 },
+  { pitch: 89, t: 0.75, dur: 0.12, vel: 0.35 },
+  { pitch: 89, t: 3.75, dur: 0.12, vel: 0.55 },
+  { pitch: 89, t: 9.25, dur: 0.12, vel: 0.8 },
+  { pitch: 76, t: 1.0, dur: 0.15, vel: 0.2 },
+  { pitch: 76, t: 4.0, dur: 0.15, vel: 0.5 },
+  { pitch: 76, t: 10.0, dur: 0.15, vel: 0.85 },
 ];
 
-function seedDefault(): DJActionTrack[] {
-  const seededActionMap: Record<number, ActionMapEntry> = {};
-  for (const p of SEEDED_PITCHES) {
-    const entry = DEFAULT_ACTION_MAP[p];
-    if (entry) seededActionMap[p] = entry;
-  }
-  return [
+const SEEDED_EVENTS_DECK2: ActionEvent[] = [
+  { pitch: 65, t: 0.5, dur: 0.1, vel: 1.0 },
+  { pitch: 65, t: 9.0, dur: 0.1, vel: 1.0 },
+  { pitch: 69, t: 2.0, dur: 1.2, vel: 0.8 },
+  { pitch: 69, t: 6.5, dur: 1.5, vel: 0.72 },
+  { pitch: 70, t: 1.25, dur: 0.35, vel: 0.6 },
+  { pitch: 70, t: 5.5, dur: 0.35, vel: 0.88 },
+  { pitch: 78, t: 3.0, dur: 0.35, vel: 0.7 },
+  { pitch: 78, t: 8.0, dur: 0.35, vel: 0.92 },
+  { pitch: 79, t: 4.25, dur: 0.35, vel: 0.55 },
+  { pitch: 79, t: 11.0, dur: 0.35, vel: 0.78 },
+  { pitch: 90, t: 1.75, dur: 0.12, vel: 0.4 },
+  { pitch: 90, t: 6.25, dur: 0.12, vel: 0.6 },
+  { pitch: 90, t: 10.25, dur: 0.12, vel: 0.88 },
+  { pitch: 77, t: 2.5, dur: 0.15, vel: 0.35 },
+  { pitch: 77, t: 7.0, dur: 0.15, vel: 0.65 },
+  { pitch: 77, t: 10.5, dur: 0.15, vel: 0.95 },
+];
+
+const SEEDED_EVENTS_MIXER: ActionEvent[] = [
+  { pitch: 80, t: 0.0, dur: 2.5, vel: 0.4 },
+  { pitch: 80, t: 5.0, dur: 2.0, vel: 0.55 },
+  { pitch: 80, t: 9.0, dur: 2.5, vel: 0.72 },
+  { pitch: 81, t: 1.0, dur: 0.5, vel: 0.6 },
+  { pitch: 81, t: 6.0, dur: 0.6, vel: 0.85 },
+  { pitch: 82, t: 1.5, dur: 0.5, vel: 0.55 },
+  { pitch: 82, t: 8.0, dur: 0.55, vel: 0.9 },
+  { pitch: 83, t: 3.0, dur: 0.4, vel: 0.5 },
+  { pitch: 84, t: 3.5, dur: 0.4, vel: 0.62 },
+  { pitch: 85, t: 4.0, dur: 0.4, vel: 0.45 },
+  { pitch: 86, t: 5.5, dur: 0.4, vel: 0.58 },
+  { pitch: 87, t: 6.0, dur: 0.4, vel: 0.7 },
+  { pitch: 88, t: 6.5, dur: 0.4, vel: 0.52 },
+];
+
+function seedDefault(includeMessages: boolean): DJActionTrack[] {
+  const emptyRoute = { channels: [] as ChannelId[] };
+  const ev = (xs: ActionEvent[]) => (includeMessages ? xs : []);
+  const tracks: DJActionTrack[] = [
     {
-      id: 'dj1',
-      name: 'DJ',
-      color: DJ_DEVICES.global.color,
-      midiChannel: 16,
-      actionMap: seededActionMap,
+      id: 'dj-deck1',
+      name: 'Deck 1',
+      color: DJ_DEVICES.deck1.color,
+      midiChannel: 14,
+      actionMap: sliceActionMap(DEMO_DECK1_PITCHES),
       outputMap: {},
-      events: SEEDED_EVENTS,
-      inputRouting: { channels: [] },
-      outputRouting: { channels: [] },
+      events: ev(SEEDED_EVENTS_DECK1),
+      inputRouting: emptyRoute,
+      outputRouting: emptyRoute,
+      collapsed: false,
+      muted: false,
+      soloed: false,
+      mutedRows: [],
+      soloedRows: [],
+      defaultMidiInputDeviceId: '',
+    },
+    {
+      id: 'dj-deck2',
+      name: 'Deck 2',
+      color: DJ_DEVICES.deck2.color,
+      midiChannel: 15,
+      actionMap: sliceActionMap(DEMO_DECK2_PITCHES),
+      outputMap: {},
+      events: ev(SEEDED_EVENTS_DECK2),
+      inputRouting: emptyRoute,
+      outputRouting: emptyRoute,
+      collapsed: false,
+      muted: false,
+      soloed: false,
+      mutedRows: [],
+      soloedRows: [],
+      defaultMidiInputDeviceId: '',
+    },
+    {
+      id: 'dj-mixer',
+      name: 'Mixer',
+      color: DJ_DEVICES.mixer.color,
+      midiChannel: 16,
+      actionMap: sliceActionMap(DEMO_MIXER_PITCHES),
+      outputMap: {},
+      events: ev(SEEDED_EVENTS_MIXER),
+      inputRouting: emptyRoute,
+      outputRouting: emptyRoute,
       collapsed: false,
       muted: false,
       soloed: false,
@@ -145,10 +202,19 @@ function seedDefault(): DJActionTrack[] {
       defaultMidiInputDeviceId: '',
     },
   ];
+  return tracks.slice().sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+  );
 }
 
-export function useDJActionTracks(djDemo: boolean = false): UseDJActionTracksReturn {
-  const initial = useMemo(() => (djDemo ? seedDefault() : []), [djDemo]);
+export function useDJActionTracks(
+  djDemo: boolean = false,
+  djDemoMessages: boolean = true,
+): UseDJActionTracksReturn {
+  const initial = useMemo(
+    () => (djDemo ? seedDefault(djDemoMessages) : []),
+    [djDemo, djDemoMessages],
+  );
   const [djActionTracks, setDJActionTracks] = useState<DJActionTrack[]>(initial);
 
   const flip = useCallback(

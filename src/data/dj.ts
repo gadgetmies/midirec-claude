@@ -108,6 +108,20 @@ export function actionMode(action: ActionMapEntry): ActionMode {
   return 'fallback';
 }
 
+/** Row order top → bottom: ascending `short`, then pitch for stable tie-breaks. */
+export function djActionRowOrderTopToBottom(
+  actionMap: Record<number, ActionMapEntry>,
+): number[] {
+  return Object.keys(actionMap)
+    .map(Number)
+    .sort((a, b) => {
+      const sa = actionMap[a]!.short;
+      const sb = actionMap[b]!.short;
+      const c = sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
+      return c !== 0 ? c : a - b;
+    });
+}
+
 
 /* Action categories — used for grouping/labeling only. */
 export const DJ_CATEGORIES: Record<CategoryId, { label: string }> = {
@@ -160,15 +174,28 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   66: { id: 'cue_b',     cat: 'cue',       label: 'Cue',          short: 'CUE',   device: 'deck2' },
   67: { id: 'sync_b',    cat: 'transport', label: 'Sync',         short: 'SYNC',  device: 'deck2' },
   68: { id: 'loop_in_b', cat: 'loop',      label: 'Loop In',      short: 'L·IN',  device: 'deck2' },
-  69: { id: 'hc1_b',     cat: 'hotcue',    label: 'Hot Cue 1',    short: 'HC1',   device: 'deck2' },
-  70: { id: 'hc2_b',     cat: 'hotcue',    label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2' },
+  69: { id: 'hc1_b',     cat: 'hotcue',    label: 'Hot Cue 1',    short: 'HC1',   device: 'deck2', pad: true, pressure: true },
+  70: { id: 'hc2_b',     cat: 'hotcue',    label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2', pad: true },
   // Mixer
-  71: { id: 'xfade_a',   cat: 'mixer',     label: 'Crossfade ◀', short: 'X◀',   device: 'mixer' },
-  72: { id: 'xfade_b',   cat: 'mixer',     label: 'Crossfade ▶', short: 'X▶',   device: 'mixer' },
   73: { id: 'load_a',    cat: 'deck',      label: 'Load Deck 1',  short: 'LD·1', device: 'mixer' },
   74: { id: 'load_b',    cat: 'deck',      label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
   // Global
   75: { id: 'tap',       cat: 'transport', label: 'Tap Tempo',    short: 'TAP',   device: 'global' },
+  76: { id: 'beat_jump', cat: 'loop',      label: 'Beat Jump',    short: 'BJ',    device: 'deck1', pad: true },
+  77: { id: 'beat_jump_b', cat: 'loop',    label: 'Beat Jump',    short: 'BJ',    device: 'deck2', pad: true },
+  78: { id: 'hc3_b',     cat: 'hotcue',    label: 'Hot Cue 3',    short: 'HC3',   device: 'deck2', pad: true },
+  79: { id: 'hc4_b',     cat: 'hotcue',    label: 'Hot Cue 4',    short: 'HC4',   device: 'deck2', pad: true },
+  80: { id: 'xfade_pos', cat: 'mixer',     label: 'Crossfader',   short: 'XF',    device: 'mixer', pad: true },
+  81: { id: 'ch1_vol',   cat: 'mixer',     label: 'Ch 1 Volume',  short: '2V',    device: 'mixer', pad: true },
+  82: { id: 'ch2_vol',   cat: 'mixer',     label: 'Ch 2 Volume',  short: '1V',    device: 'mixer', pad: true },
+  83: { id: 'ch1_eq_hi', cat: 'mixer',     label: 'Ch 1 EQ High', short: '1H',    device: 'mixer', pad: true },
+  84: { id: 'ch1_eq_mid', cat: 'mixer',    label: 'Ch 1 EQ Mid',  short: '1M',    device: 'mixer', pad: true },
+  85: { id: 'ch1_eq_lo', cat: 'mixer',     label: 'Ch 1 EQ Low',  short: '1L',    device: 'mixer', pad: true },
+  86: { id: 'ch2_eq_hi', cat: 'mixer',     label: 'Ch 2 EQ High', short: '2H',    device: 'mixer', pad: true },
+  87: { id: 'ch2_eq_mid', cat: 'mixer',    label: 'Ch 2 EQ Mid',  short: '2M',    device: 'mixer', pad: true },
+  88: { id: 'ch2_eq_lo', cat: 'mixer',     label: 'Ch 2 EQ Low',  short: '2L',    device: 'mixer', pad: true },
+  89: { id: 'beat_jump_size', cat: 'loop', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck1', pad: true },
+  90: { id: 'beat_jump_size_b', cat: 'loop', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck2', pad: true },
 };
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */

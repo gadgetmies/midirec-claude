@@ -1,7 +1,10 @@
 export interface ParsedDemoFlags {
   /** True iff URL should seed instrument timeline (Lead/Bass rolls + lanes). Implied by instrument, marquee, or note demos. */
   instrumentSeed: boolean;
+  /** True iff `demo=dj` and/or `demo=dj-empty` — seeds DJ action tracks (same action maps). */
   djDemo: boolean;
+  /** False when `demo=dj-empty` alone or combined with `demo=dj` (empty wins); true only for `demo=dj` without `dj-empty`. */
+  djDemoMessages: boolean;
   demoMarquee: boolean;
   demoNote: boolean;
 }
@@ -17,7 +20,10 @@ export function parseDemoQueryFlags(locationSearch: string): ParsedDemoFlags {
 
   const instrumentSeed = has('instrument') || demoMarquee || has('note');
 
-  const djDemo = has('dj');
+  const djEmpty = has('dj-empty');
+  const djFull = has('dj');
+  const djDemo = djFull || djEmpty;
+  const djDemoMessages = djFull && !djEmpty;
 
-  return { instrumentSeed, djDemo, demoMarquee, demoNote };
+  return { instrumentSeed, djDemo, djDemoMessages, demoMarquee, demoNote };
 }

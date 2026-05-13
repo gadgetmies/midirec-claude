@@ -18,6 +18,7 @@ import type { MouseEvent } from 'react';
 import {
   actionMode,
   devColor,
+  djActionRowOrderTopToBottom,
   type ActionMapEntry,
   type PressurePoint,
   type PressureRenderMode,
@@ -51,28 +52,19 @@ export function ActionRoll({
 }: ActionRollProps) {
   const { djEventSelection, setDJEventSelection, djActionSelection, setDJActionSelection, pressureRenderMode } =
     useStage();
-  /* Pitches descending top-to-bottom (high pitch at top, matching the
-     channel-track piano-roll convention and the prototype's ActionRollUnit
-     row order). */
-  const pitchesAsc = Object.keys(track.actionMap)
-    .map(Number)
-    .sort((a, b) => a - b);
-  const pitchCount = pitchesAsc.length;
+  const rowOrder = djActionRowOrderTopToBottom(track.actionMap);
+  const pitchCount = rowOrder.length;
   const totalH = pitchCount * rowHeight;
   const thin = layoutHorizonBeats > GRID_TICK_THINNING_THRESHOLD_BEATS;
   const lanesWidth = layoutHorizonBeats * pxPerBeat;
 
-  /* topForPitch maps a pitch to its row's `top` offset in the lanes
-     coordinate system. With ascending-sorted pitches, index 0 is the
-     lowest pitch (bottom row → top = totalH - rowHeight) and the last
-     index is the highest pitch (top row → top = 0). */
   const topForPitch = (pitch: number) => {
-    const idx = pitchesAsc.indexOf(pitch);
+    const idx = rowOrder.indexOf(pitch);
     if (idx < 0) return -rowHeight; // pushed off-screen; should be filtered before this
-    return totalH - (idx + 1) * rowHeight;
+    return idx * rowHeight;
   };
 
-  const lanes: JSX.Element[] = pitchesAsc.map((pitch) => {
+  const lanes: JSX.Element[] = rowOrder.map((pitch) => {
     const muted = track.mutedRows.includes(pitch);
     const soloed = track.soloedRows.includes(pitch);
     const audible = isDJRowAudible(track, pitch, soloing);

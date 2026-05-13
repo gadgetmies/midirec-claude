@@ -6,6 +6,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('')).toEqual({
       instrumentSeed: false,
       djDemo: false,
+      djDemoMessages: false,
       demoMarquee: false,
       demoNote: false,
     });
@@ -15,6 +16,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=marquee')).toEqual({
       instrumentSeed: true,
       djDemo: false,
+      djDemoMessages: false,
       demoMarquee: true,
       demoNote: false,
     });
@@ -24,6 +26,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=note')).toEqual({
       instrumentSeed: true,
       djDemo: false,
+      djDemoMessages: false,
       demoMarquee: false,
       demoNote: true,
     });
@@ -33,6 +36,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=dj')).toEqual({
       instrumentSeed: false,
       djDemo: true,
+      djDemoMessages: true,
       demoMarquee: false,
       demoNote: false,
     });
@@ -42,6 +46,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=instrument&demo=dj')).toEqual({
       instrumentSeed: true,
       djDemo: true,
+      djDemoMessages: true,
       demoMarquee: false,
       demoNote: false,
     });
@@ -51,6 +56,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=marquee&demo=note')).toEqual({
       instrumentSeed: true,
       djDemo: false,
+      djDemoMessages: false,
       demoMarquee: true,
       demoNote: false,
     });
@@ -60,6 +66,7 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=clean')).toEqual({
       instrumentSeed: false,
       djDemo: false,
+      djDemoMessages: false,
       demoMarquee: false,
       demoNote: false,
     });
@@ -69,7 +76,28 @@ describe('parseDemoQueryFlags', () => {
     expect(parseDemoQueryFlags('?demo=clean&demo=marquee')).toEqual({
       instrumentSeed: true,
       djDemo: false,
+      djDemoMessages: false,
       demoMarquee: true,
+      demoNote: false,
+    });
+  });
+
+  it('parses dj-empty: same DJ seed, no synthetic events flag', () => {
+    expect(parseDemoQueryFlags('?demo=dj-empty')).toEqual({
+      instrumentSeed: false,
+      djDemo: true,
+      djDemoMessages: false,
+      demoMarquee: false,
+      demoNote: false,
+    });
+  });
+
+  it('dj-empty wins over dj for synthetic events', () => {
+    expect(parseDemoQueryFlags('?demo=dj&demo=dj-empty')).toEqual({
+      instrumentSeed: false,
+      djDemo: true,
+      djDemoMessages: false,
+      demoMarquee: false,
       demoNote: false,
     });
   });

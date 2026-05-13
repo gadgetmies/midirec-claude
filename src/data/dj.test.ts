@@ -45,8 +45,8 @@ describe('actionMode', () => {
   });
 
   test('fallback for mixer without pad/pressure', () => {
-    const xfade = DEFAULT_ACTION_MAP[71];
-    expect(actionMode(xfade)).toBe('fallback');
+    const loadA = DEFAULT_ACTION_MAP[73];
+    expect(actionMode(loadA)).toBe('fallback');
   });
 
   test('fallback for loop without pad/pressure', () => {
@@ -71,7 +71,7 @@ describe('trigger field on ActionMapEntry', () => {
   test('DEFAULT_ACTION_MAP entries omit the trigger field', () => {
     expect(DEFAULT_ACTION_MAP[48].trigger).toBeUndefined();
     expect(DEFAULT_ACTION_MAP[56].trigger).toBeUndefined();
-    expect(DEFAULT_ACTION_MAP[71].trigger).toBeUndefined();
+    expect(DEFAULT_ACTION_MAP[73].trigger).toBeUndefined();
   });
 
   test('TriggerMode accepts momentary and toggle', () => {
