@@ -28,7 +28,7 @@ interface ChannelGroupProps {
   isSelected: boolean;
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
-  totalT: number;
+  layoutHorizonBeats: number;
   onToggleChannelCollapsed: () => void;
   onToggleChannelMuted: () => void;
   onToggleChannelSoloed: () => void;
@@ -53,7 +53,7 @@ export function ChannelGroup({
   isSelected,
   marquee,
   selectedIdx,
-  totalT,
+  layoutHorizonBeats,
   onToggleChannelCollapsed,
   onToggleChannelMuted,
   onToggleChannelSoloed,
@@ -138,13 +138,14 @@ export function ChannelGroup({
               onToggleSoloed={onToggleRollSoloed}
               onSelectTimelineChannel={onSelectTimelineChannel}
               trackHeaderSelected={timelineHeaderSelected}
+              layoutHorizonBeats={layoutHorizonBeats}
             />
           )}
           {lanes.map((lane) => (
             <ParamLane
               key={laneKeyOf(lane)}
               lane={lane}
-              totalT={totalT}
+              totalT={layoutHorizonBeats}
               pxPerBeat={viewProps.pxPerBeat}
               playheadT={viewProps.playheadT}
               audible={isLaneAudible(lane, channels, soloing)}

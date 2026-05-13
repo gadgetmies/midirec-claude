@@ -12,7 +12,7 @@ interface DJActionTrackProps {
   track: DJActionTrackData;
   audible: boolean;
   soloing: boolean;
-  totalT: number;
+  layoutHorizonBeats: number;
   pxPerBeat: number;
   rowHeight: number;
   playheadT?: number;
@@ -29,7 +29,7 @@ export function DJActionTrack({
   track,
   audible,
   soloing,
-  totalT,
+  layoutHorizonBeats,
   pxPerBeat,
   rowHeight,
   playheadT,
@@ -107,7 +107,7 @@ export function DJActionTrack({
           <ActionRoll
             track={track}
             soloing={soloing}
-            totalT={totalT}
+            layoutHorizonBeats={layoutHorizonBeats}
             pxPerBeat={pxPerBeat}
             rowHeight={rowHeight}
             playheadT={playheadT}

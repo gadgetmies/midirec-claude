@@ -1,16 +1,27 @@
-import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
+import {
+  DEFAULT_PX_PER_BEAT,
+  KEYS_COLUMN_WIDTH,
+} from '../piano-roll/PianoRoll';
+import { GRID_TICK_THINNING_THRESHOLD_BEATS } from '../../session/layoutHorizon';
 import './Ruler.css';
 
 interface RulerProps {
-  totalT?: number;
+  layoutHorizonBeats: number;
   pxPerBeat?: number;
 }
 
-export function Ruler({ totalT = 16, pxPerBeat = DEFAULT_PX_PER_BEAT }: RulerProps) {
-  const lanesWidth = totalT * pxPerBeat;
+export function Ruler({
+  layoutHorizonBeats,
+  pxPerBeat = DEFAULT_PX_PER_BEAT,
+}: RulerProps) {
+  const thin = layoutHorizonBeats > GRID_TICK_THINNING_THRESHOLD_BEATS;
+  const lanesWidth = layoutHorizonBeats * pxPerBeat;
   const width = KEYS_COLUMN_WIDTH + lanesWidth;
   const els: JSX.Element[] = [];
-  for (let i = 0; i <= totalT; i++) {
+  for (let i = 0; i <= layoutHorizonBeats; i++) {
+    if (thin && i !== 0 && i !== layoutHorizonBeats && i % 4 !== 0) {
+      continue;
+    }
     const major = i % 4 === 0;
     const left = KEYS_COLUMN_WIDTH + i * pxPerBeat;
     els.push(
@@ -20,7 +31,7 @@ export function Ruler({ totalT = 16, pxPerBeat = DEFAULT_PX_PER_BEAT }: RulerPro
         style={{ left }}
       />,
     );
-    if (major && i < totalT) {
+    if (major && i < layoutHorizonBeats) {
       const bar = 1 + Math.floor(i / 4);
       const beat = (i % 4) + 1;
       els.push(

@@ -4,6 +4,16 @@ Small, scoped tasks that aren't tied to an in-flight slice or OpenSpec change. *
 
 ## Open
 
+### Timeline horizontal infinite scroll (beat‑0 clamp, unlimited right extent)
+
+**Why**: Timeline width is anchored to a fixed `TOTAL_T`-style horizon (~16 beats), while the session model already assumes unbounded note times. Playback and overdubs therefore collide with an artificial eastern wall instead of scrolling forever; the western edge must pin at beat `0` (ruler origin `1.1` semantics) instead of drifting into hypothetical negative beats.
+
+**Scope**: Implemented via OpenSpec change `timeline-horizontal-infinite-scroll` (`openspec/changes/timeline-horizontal-infinite-scroll/`). `sessionHorizonFloorBeats` in `useStage` only spans existing notes/lanes/DJ events (minimum 16 beats); `.mr-timeline` widens **`layoutHorizonBeats`** in `AppShell` when scrolling/resizing exposes the right edge (**`SCROLL_EXTENSION_MARGIN_BEATS`** runway). Ruler/grid follow that combined horizon; **`scrollLeft >= 0`** clamp unchanged.
+
+**Verification**: Scroll far right after extending material — inner width grows, sync locked; programmatic `scrollLeft` cannot finish `< 0`; `yarn typecheck` + specs in the change archive validate.
+
+**Status**: **OpenSpec in progress** — `openspec/changes/timeline-horizontal-infinite-scroll`.
+
 ### M/S chip jumps 1px to the left at the end of horizontal scroll
 
 **Why**: With the `channel-grouped-timeline` change, every level (channel header, track header, CC lane header) carries a sticky-right `__hdr-right` zone holding an `<MSChip>`. At horizontal `scrollLeft === scrollWidth - clientWidth` (the rightmost scroll position), the chip transitions from "pinned to viewport-right" to "natural position at parent's right edge" and visibly jumps 1px to the left. Reproduces in Chromium. Tracing the layout (the rightmost cap rect ends at ~1398.25px inside a 1408px plot; `hdr-right`'s natural right edge equals `inner.right` at scroll-max) suggests a sub-pixel rounding artifact at the sticky boundary rather than a layout error. Design owner confirms it's a minor visual nit, not a blocker.
@@ -658,6 +668,33 @@ Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pres
 **Dependencies**: E2E core. Independent of all other build entries; can land any time after the E2E loop closes.
 
 **Estimated effort**: 1–1.5 days. SMF serialization is the main unknown; a small npm dep handles it.
+
+**Status**: pending.
+
+### MIDI export sidecar: DJ-action mapping manifest (JSON)
+
+**Why**: A Standard MIDI File alone is ambiguous for downstream tools and human operators when the timeline includes DJ action tracks. The SMF carries raw channel/status/data bytes (for example CC1 on channel 1, note C1 on channel 1) without saying what those messages *mean* in hardware or software units (mixer crossfader vs deck cue pad). Export should ship a companion JSON manifest that maps each emitted MIDI identity (channel, message class, controller or note number, etc.) to the functional role the app assigned (unit/device, control name, deck/side if applicable), so importers, documentation, and hand-off to other systems stay faithful to the session intent.
+
+**Scope**:
+
+- When exporting MIDI for a session that includes one or more DJ action tracks, write a **sidecar file** next to the `.mid` (or inside the same archive if export is bundled, e.g. `.midirec`): e.g. `*.dj-map.json` or a single `manifest.json` with a `djActionMappings` section — pick one naming scheme and document it in the export UI or format spec.
+- The manifest SHALL enumerate **at minimum**: internal track/row identifiers (or stable export ids), human-readable labels (as shown in the UI), MIDI **output** channel (1–16), message kind (note-on/note-off envelope, CC, channel pressure, etc.), and the concrete MIDI numbers (note number, CC number) as emitted in the SMF.
+- Each entry SHALL reference the **semantic mapping** the user configured: e.g. `{ "function": "Mixer crossfader", "unit": "Mixer", "midi": { "channel": 1, "kind": "cc", "number": 1 } }`, `{ "function": "Deck 1 CUE", "unit": "Deck 1", "midi": { "channel": 1, "kind": "note", "pitch": 24 } }` — exact schema to be nailed when picked up (version field recommended for forward compatibility).
+- If a row uses `outputMap` overrides (different channel/pitch/CC than defaults), the manifest reflects **post-override** emit identities so it matches the bytes in the SMF line-for-line.
+- Sessions with **only** instrument channel-rolls and no DJ tracks may omit the sidecar or emit an empty mappings array — decide one behavior and keep it consistent.
+- Implementation likely lives next to whatever SMF writer ships (session save/export path); reuse the same canonical mapping source the DJ track editor and scheduler use (`OutputMapping`, row labels, `midiChannel`), not a second duplicate table.
+
+**Verification**:
+
+- Export a session with a DJ track whose rows include at least one CC-backed action and one note-backed action; open the `.mid` in a hex/daw inspector and confirm the JSON entries match observed channel/CC#/note#.
+- Change an output override for a row; re-export; manifest updates to the new MIDI identity while labels stay tied to the same row.
+- `yarn typecheck` clean after any new types for the manifest.
+
+**Spec deltas**: likely `dj-action-tracks` and a small `session-io` / export note; may warrant an OpenSpec change when export format is formalized.
+
+**Dependencies**: MIDI (or session) export path that emits SMF for DJ events; aligns with "Session save / load" if both use a shared archive layout.
+
+**Estimated effort**: 0.5–1 day once the SMF export hook exists — schema + serializer + one golden export fixture test.
 
 **Status**: pending.
 

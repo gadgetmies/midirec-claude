@@ -1,9 +1,7 @@
 ## Purpose
 
 Define the per-row piano-roll track surface: the track header (chevron + label + M/S chip), the open vs collapsed body (embedded `PianoRoll` or 6px minimap), the marquee/selection scoping rule, and the per-row mute composition. Channels and the global solo dim live in the `channels` capability; this capability defines what one track row looks like and how it composes mute.
-
 ## Requirements
-
 ### Requirement: Track header renders chevron, swatch, name, sub, and M/S chip
 
 Each track row SHALL render a `.mr-track__hdr` element that spans the full intrinsic timeline width and SHALL split its children into three sticky-zoned wrappers, in left-to-right order:
@@ -203,3 +201,13 @@ The codebase SHALL ship `src/components/ms-chip/MSChip.css` containing the rules
 - **WHEN** the user clicks the `M` button inside an MSChip nested in a container with its own click handler
 - **THEN** the container's click handler SHALL NOT receive the click event
 - **AND** the chip's `onMute` callback SHALL be invoked
+
+### Requirement: Tracks pass layout horizon to PianoRoll shells
+
+`<Track>` (open + collapsed modes) SHALL forward `layoutHorizonBeats` from `ChannelGroup`/App orchestration into `<PianoRoll>` / `<Minimap>` widths so stripe vs minimap extents stay contiguous with ruler math.
+
+#### Scenario: PianoRoll subtree receives propagated horizon prop
+
+- **WHEN** `ChannelGroup` supplies `layoutHorizonBeats` larger than inherited `totalT`
+- **THEN** `PianoRoll` mounted inside that channel SHALL consume the wider stripe width derived from horizon while respecting view-window clipping rules
+

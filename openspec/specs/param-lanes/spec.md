@@ -1,9 +1,7 @@
 ## Purpose
 
 Define the per-lane param-stream surface: the lane header (chevron + name + sub + M/S chip), the body (64-cell discrete-bar SVG plot or collapsed minimap), the hover scrubbing readout, and the per-lane mute composition. Lane state and the global solo dim live in the `channels` capability; this capability defines what one param lane (`kind: 'cc' | 'pb' | 'at'`) looks like and how it composes mute. Renamed from `cc-lanes` to honor MIDI's distinction: only `kind: 'cc'` lanes carry Control Change messages — Pitch Bend (`'pb'`) and Aftertouch (`'at'`) are separate MIDI message types.
-
 ## Requirements
-
 ### Requirement: ParamLane renders a header row above a body containing the plot
 
 The `ParamLane` component SHALL render a `<div className="mr-param-lane" data-muted={lane.muted} data-soloed={lane.soloed} data-collapsed={lane.collapsed} data-audible={...}>` laid out as a flex column with two rows, mirroring the `.mr-track` row pattern: a horizontal **header** above a **body** containing the plot.
@@ -227,3 +225,13 @@ A future slice may activate these props; until then, type-checking SHALL still p
 - **WHEN** `<ParamLane interp={{ a: 4, b: 12 }} ... />` is rendered in this slice
 - **THEN** the rendered SVG SHALL contain zero `<line>` elements
 - **AND** SHALL contain zero `.mr-param-cursor` elements
+
+### Requirement: Param lane plot width binds to layout horizon
+
+Expanded `.mr-param-lane__plot`, collapsed minimap wrappers, SVG horizontal geometry, AND playhead lateral math SHALL derive inline width from `layoutHorizonBeats * pxPerBeat` matching sibling piano rolls fed from the orchestrator instead of shrinking to the narrower `totalT` window-length prop when the two diverge.
+
+#### Scenario: Param lane plot equals roll width beneath same channel
+
+- **WHEN** a `.mr-channel` stack passes `layoutHorizonBeats = H` identically into Track + ParamLane rows for the same channel
+- **THEN** expanded plot `clientWidth - keysSpacerOffset` SHALL match the adjoining `.mr-roll__lanes` stripe width within ±1 px
+

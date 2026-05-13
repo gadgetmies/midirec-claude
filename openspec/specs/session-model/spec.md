@@ -2,9 +2,7 @@
 
 ## Purpose
 Conceptual model of a session: an unbounded note stream with optional user-defined loop markers that wrap playback. Session length is derived on demand (`max(n.t + n.dur)`), never stored as state.
-
 ## Requirements
-
 ### Requirement: Session is an unbounded note stream
 
 A **session** SHALL be modelled as an unbounded sequence of notes. There SHALL NOT be a session-length field, an end-time field, or any session-scope state that caps the time range. Any `Note` carrying `t >= 0` is a valid session note; the system makes no assumption that `t + dur` is below any threshold.
@@ -115,3 +113,26 @@ When the loop region is entirely outside the view window, no markers and no tint
 - **THEN** the renderer SHALL display the start marker at lane-x `8 * pxPerBeat`
 - **AND** SHALL display no end marker (the end is past the window)
 - **AND** SHALL extend the inter-marker tint from the start position to the right edge of the lane area
+
+### Requirement: Timeline layout horizon derives from session extent
+
+The session orchestration SHALL compute a non-negative `layoutHorizonBeats` exported to `.mr-timeline`-hosted renderers (`Ruler`, every `ChannelGroup` descendant lane surface, DJ action bodies). Its value SHALL be at least:
+
+1. An implementation-defined baseline window (backward-compatible with seeded fixtures that short sessions).
+2. The smallest integer beat ceiling spanning every session datum that carries an end-coordinate in beats (`max(n.t + n.dur)` across notes per channel roll and DJ events, `max(p.t)` across param lane `points`, analogous rules for every future streamed layer).
+3. A non-negative trailing padding measured in beats so users can overdub slightly past material without immediate reflow starvation.
+
+Implementations MAY round up to coarse bar multiples for ergonomics.
+
+`layoutHorizonBeats` SHALL grow whenever new events push session extent beyond the prior horizon minus padding logic; shrinking is NOT required unless a dedicated trimming slice removes data.
+
+#### Scenario: Quiet session retains minimum horizon
+
+- **WHEN** all rolls, lanes, and DJ tracks carry no temporal data beyond seeded defaults whose extent is strictly below the baseline horizon
+- **THEN** `layoutHorizonBeats` SHALL equal the baseline horizon expressed in beats (not degenerate toward zero scroll width unless UI explicitly collapses timelines)
+
+#### Scenario: Long note lengthens horizon
+
+- **WHEN** a roll holds a note with `t = 0`, `dur = 64`
+- **THEN** `layoutHorizonBeats` SHALL be not less than the ceiling mandated by deriving from that note endpoint plus mandated padding constants
+

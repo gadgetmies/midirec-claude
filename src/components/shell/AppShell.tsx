@@ -1,3 +1,4 @@
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useStage } from '../../hooks/useStage';
 import { ChannelGroup } from '../channels/ChannelGroup';
 import { DJActionTrack } from '../dj-action-tracks/DJActionTrack';
@@ -11,6 +12,11 @@ import { Toolstrip } from '../toolstrip/Toolstrip';
 import { ExportDialog } from '../dialog/ExportDialog';
 import { isDJTrackAudible } from '../../hooks/useDJActionTracks';
 import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
+import {
+  SCROLL_EXTENSION_MARGIN_BEATS,
+  clampTimelineScroll,
+  horizonBeatsForViewportRightEdge,
+} from '../../session/layoutHorizon';
 
 /* Dj-action-track row height in pixels — must match the `--mr-h-row` token
    used by ActionKeys.css so the keys column and the lane area line up. */
@@ -20,6 +26,45 @@ import './AppShell.css';
 export function AppShell() {
   const stage = useStage();
   const tl = stage.selectedTimelineTrack;
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  const floor = stage.sessionHorizonFloorBeats;
+  const floorRef = useRef(floor);
+  floorRef.current = floor;
+
+  const [layoutHorizonBeats, setLayoutHorizonBeats] = useState(floor);
+
+  useLayoutEffect(() => {
+    setLayoutHorizonBeats((h) => Math.max(h, floor));
+  }, [floor]);
+
+  const clampAndExpandHorizon = useCallback(() => {
+    const el = timelineRef.current;
+    if (!el) return;
+    clampTimelineScroll(el);
+    const fromViewport = horizonBeatsForViewportRightEdge(
+      el.scrollLeft,
+      el.clientWidth,
+      KEYS_COLUMN_WIDTH,
+      DEFAULT_PX_PER_BEAT,
+      SCROLL_EXTENSION_MARGIN_BEATS,
+    );
+    const need = Math.max(floorRef.current, fromViewport);
+    setLayoutHorizonBeats((h) => (h >= need ? h : need));
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = timelineRef.current;
+    if (!el) return;
+    clampAndExpandHorizon();
+    const ro = new ResizeObserver(clampAndExpandHorizon);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clampAndExpandHorizon]);
+
+  useLayoutEffect(() => {
+    clampAndExpandHorizon();
+  }, [floor, clampAndExpandHorizon]);
 
   const viewProps = {
     lo: stage.lo,
@@ -41,12 +86,19 @@ export function AppShell() {
           <div className="mr-toolstrip">
             <Toolstrip />
           </div>
-          <div className="mr-timeline" data-soloing={stage.soloing ? 'true' : undefined}>
+          <div
+            ref={timelineRef}
+            className="mr-timeline"
+            data-soloing={stage.soloing ? 'true' : undefined}
+            onScroll={clampAndExpandHorizon}
+          >
             <div
               className="mr-timeline__inner"
-              style={{ width: KEYS_COLUMN_WIDTH + stage.totalT * DEFAULT_PX_PER_BEAT }}
+              style={{
+                width: KEYS_COLUMN_WIDTH + layoutHorizonBeats * DEFAULT_PX_PER_BEAT,
+              }}
             >
-              <Ruler totalT={stage.totalT} />
+              <Ruler layoutHorizonBeats={layoutHorizonBeats} />
               {stage.visibleChannels.map((channel) => {
                 const roll = stage.rolls.find((r) => r.channelId === channel.id);
                 const channelLanes = stage.lanes.filter((l) => l.channelId === channel.id);
@@ -65,7 +117,7 @@ export function AppShell() {
                     isSelected={isSelected}
                     marquee={isSelected ? stage.marquee : null}
                     selectedIdx={isSelected ? stage.selectedIdx : []}
-                    totalT={stage.totalT}
+                    layoutHorizonBeats={layoutHorizonBeats}
                     onToggleChannelCollapsed={() => stage.toggleChannelCollapsed(channel.id)}
                     onToggleChannelMuted={() => stage.toggleChannelMuted(channel.id)}
                     onToggleChannelSoloed={() => stage.toggleChannelSoloed(channel.id)}
@@ -91,7 +143,7 @@ export function AppShell() {
                     track={track}
                     audible={isDJTrackAudible(track, stage.soloing)}
                     soloing={stage.soloing}
-                    totalT={stage.totalT}
+                    layoutHorizonBeats={layoutHorizonBeats}
                     pxPerBeat={DEFAULT_PX_PER_BEAT}
                     rowHeight={DJ_ROW_HEIGHT}
                     playheadT={stage.playheadT}

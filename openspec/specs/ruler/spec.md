@@ -2,9 +2,7 @@
 
 ## Purpose
 Bar/beat ruler strip at the top of the timeline. Renders ticks and bar.beat labels aligned to the piano-roll lanes below, using the same `pxPerBeat` zoom and keys-column offset as the lanes so beat 0 in the ruler lines up with beat 0 in the rolls.
-
 ## Requirements
-
 ### Requirement: Ruler renders bar/beat ticks with major/minor differentiation
 
 The codebase SHALL expose a `Ruler` React component at `src/components/ruler/Ruler.tsx`. Given props `{ width, totalT? }`, the component SHALL render a `.mr-ruler` element containing one `.mr-ruler__tick` per integer beat from `0` through `totalT` inclusive, absolute-positioned at `left: i * (width / totalT)`. Beats divisible by 4 SHALL ALSO carry the `mr-ruler__tick--major` class and SHALL be accompanied by a `.mr-ruler__lbl` element rendering the bar.beat label in the format `{bar}.{beat}` (e.g. `1.1`, `2.1`, `3.1`, `4.1` for `totalT=16`).
@@ -79,3 +77,15 @@ In addition to the prototype's rules, the stylesheet SHALL define:
 
 - **WHEN** `src/components/ruler/Ruler.css` is grepped for `#[0-9a-fA-F]{3,8}\b` AND for `oklch\(`
 - **THEN** the search SHALL return zero matches in both cases
+
+### Requirement: Ruler layout width follows layoutHorizonBeats
+
+The `Ruler` SHALL accept `layoutHorizonBeats` (defaulting to legacy `totalT` when callers omit either for backward compatibility tests). Its scrollable raster width SHALL be `layoutHorizonBeats * pxPerBeat`; tick placement SHALL cover beats `0` through `layoutHorizonBeats` inclusive consistent with existing major/minor differentiation.
+
+When span density would exceed thresholds defined in engineering notes (derived from UX review), implementations MAY omit non-major ticks while preserving bar-aligned majors at every fourth beat identical to today's labeling math.
+
+#### Scenario: Wide horizon aligns beat zero with PianoRoll stripes
+
+- **WHEN** `layoutHorizonBeats = 64` and PianoRoll renders with the same orchestrated horizon
+- **THEN** ruler tick `i = 0` SHALL share lane-area x-coordinate with piano-roll stripe start for beat `0` within ±1 px
+

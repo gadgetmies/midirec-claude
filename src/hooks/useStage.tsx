@@ -35,6 +35,10 @@ import type {
   PressurePoint,
   PressureRenderMode,
 } from '../data/dj';
+import {
+  MIN_VISIBLE_BEATS,
+  deriveSessionHorizonFloorBeats,
+} from '../session/layoutHorizon';
 
 export interface DJActionSelection {
   trackId: DJTrackId;
@@ -72,6 +76,9 @@ export interface StageState {
   lo: number;
   hi: number;
   totalT: number;
+  /** Minimum beat extent so notes/lanes/DJ events remain on the timeline strip; actual width adds scroll-driven exploration. */
+  sessionHorizonFloorBeats: number;
+  minVisibleBeats: number;
   playheadT: number;
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
@@ -220,6 +227,16 @@ function useStageState(): StageState {
   // wrap belongs to the transport tick reducer once loopRegion is real.
   const playheadT = (timecodeMs / 1000) * (bpm / 60);
 
+  const sessionHorizonFloorBeats = useMemo(
+    () =>
+      deriveSessionHorizonFloorBeats({
+        rolls: channels.rolls,
+        lanes: channels.lanes,
+        djTracks: djTracks.djActionTracks,
+      }),
+    [channels.rolls, channels.lanes, djTracks.djActionTracks],
+  );
+
   const marquee: Marquee | null = demoMarquee
     ? { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }
     : null;
@@ -263,6 +280,8 @@ function useStageState(): StageState {
     lo: LO,
     hi: HI,
     totalT: TOTAL_T,
+    sessionHorizonFloorBeats,
+    minVisibleBeats: MIN_VISIBLE_BEATS,
     playheadT,
     marquee,
     selectedIdx,

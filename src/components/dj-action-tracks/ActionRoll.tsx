@@ -26,6 +26,7 @@ import {
   isDJRowAudible,
   type DJActionTrack,
 } from '../../hooks/useDJActionTracks';
+import { GRID_TICK_THINNING_THRESHOLD_BEATS } from '../../session/layoutHorizon';
 import { useStage } from '../../hooks/useStage';
 import { rasterizePressure, synthesizePressure } from '../../data/pressure';
 
@@ -34,7 +35,7 @@ const PRESSURE_CELLS = 14;
 interface ActionRollProps {
   track: DJActionTrack;
   soloing: boolean;
-  totalT: number;
+  layoutHorizonBeats: number;
   pxPerBeat: number;
   rowHeight: number;
   playheadT?: number;
@@ -43,7 +44,7 @@ interface ActionRollProps {
 export function ActionRoll({
   track,
   soloing,
-  totalT,
+  layoutHorizonBeats,
   pxPerBeat,
   rowHeight,
   playheadT = 0,
@@ -58,7 +59,8 @@ export function ActionRoll({
     .sort((a, b) => a - b);
   const pitchCount = pitchesAsc.length;
   const totalH = pitchCount * rowHeight;
-  const lanesWidth = totalT * pxPerBeat;
+  const thin = layoutHorizonBeats > GRID_TICK_THINNING_THRESHOLD_BEATS;
+  const lanesWidth = layoutHorizonBeats * pxPerBeat;
 
   /* topForPitch maps a pitch to its row's `top` offset in the lanes
      coordinate system. With ascending-sorted pitches, index 0 is the
@@ -87,7 +89,10 @@ export function ActionRoll({
   });
 
   const ticks: JSX.Element[] = [];
-  for (let i = 0; i <= totalT; i++) {
+  for (let i = 0; i <= layoutHorizonBeats; i++) {
+    if (thin && i !== 0 && i !== layoutHorizonBeats && i % 4 !== 0) {
+      continue;
+    }
     const major = i % 4 === 0;
     ticks.push(
       <div

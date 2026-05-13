@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { GRID_TICK_THINNING_THRESHOLD_BEATS } from '../../session/layoutHorizon';
 import { PianoKeys } from './PianoKeys';
 import { isBlackKey, notesInMarquee, type Marquee, type Note } from './notes';
 import './PianoRoll.css';
@@ -12,6 +13,8 @@ interface PianoRollProps {
   lo?: number;
   hi?: number;
   totalT?: number;
+  /** Stripe / grid extent in beats (defaults to totalT). */
+  layoutHorizonBeats?: number;
   playheadT?: number;
   pxPerBeat?: number;
   rowHeight?: number;
@@ -26,6 +29,7 @@ export function PianoRoll({
   lo = 48,
   hi = 76,
   totalT = 16,
+  layoutHorizonBeats: layoutHorizonBeatsProp,
   playheadT = 0,
   pxPerBeat = DEFAULT_PX_PER_BEAT,
   rowHeight = DEFAULT_ROW_HEIGHT,
@@ -33,9 +37,11 @@ export function PianoRoll({
   selectedIdx,
   trackColor,
 }: PianoRollProps) {
+  const stripeEnd = layoutHorizonBeatsProp ?? totalT;
+  const thin = stripeEnd > GRID_TICK_THINNING_THRESHOLD_BEATS;
   const range = hi - lo;
   const height = range * rowHeight;
-  const lanesWidth = totalT * pxPerBeat;
+  const lanesWidth = stripeEnd * pxPerBeat;
   const width = KEYS_COLUMN_WIDTH + lanesWidth;
 
   const effectiveSel = useMemo<number[]>(() => {
@@ -59,7 +65,10 @@ export function PianoRoll({
   }
 
   const ticks: JSX.Element[] = [];
-  for (let i = 0; i <= totalT; i++) {
+  for (let i = 0; i <= stripeEnd; i++) {
+    if (thin && i !== 0 && i !== stripeEnd && i % 4 !== 0) {
+      continue;
+    }
     const major = i % 4 === 0;
     ticks.push(
       <div

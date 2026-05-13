@@ -53,6 +53,10 @@ The browser scrollbar SHALL be hidden via `scrollbar-width: none` and the WebKit
 
 `.mr-timeline` (or `.mr-timeline__inner`) SHALL carry the global `data-soloing="true"` attribute when any channel/roll/lane/dj-action-track in the session has `soloed === true`, per the `channels` and `dj-action-tracks` capabilities. The flag combines contributions from both kinds; it is track-kind-independent.
 
+The timeline's horizontal intrinsic width SHALL equal `KEYS_COLUMN_WIDTH + layoutHorizonBeats * pxPerBeat`, where `layoutHorizonBeats` is furnished by session-level derivation per `session-model` ADDED requirement "Timeline layout horizon derives from session extent".
+
+After any programmatic or user-authored horizontal adjustment to `.mr-timeline`, its `scrollLeft` property SHALL be clamped such that `scrollLeft >= 0`, preventing the viewpoint from drifting past beat `0` into negative musical time relative to lane coordinates.
+
 #### Scenario: Timeline fills remaining vertical space
 
 - **WHEN** the viewport height changes
@@ -61,7 +65,7 @@ The browser scrollbar SHALL be hidden via `scrollbar-width: none` and the WebKit
 
 #### Scenario: Timeline owns the shared horizontal scrollbar
 
-- **WHEN** the timeline content's intrinsic width (`KEYS_COLUMN_WIDTH + totalT * pxPerBeat ≈ 1464px` at default zoom) exceeds `.mr-timeline`'s visible width
+- **WHEN** the timeline content's intrinsic width (`KEYS_COLUMN_WIDTH + layoutHorizonBeats * pxPerBeat`) exceeds `.mr-timeline`'s visible width
 - **THEN** exactly one horizontal scrollbar SHALL appear, attached to `.mr-timeline`
 - **AND** dragging that scrollbar (or wheel/touch scroll) SHALL scroll the Ruler ticks, every channel's `.mr-track__roll`'s lane area, every `.mr-param-lane__plot`, and every dj-action-track's `.mr-djtrack__body` in lockstep
 - **AND** no other element in the shell SHALL show its own horizontal scrollbar
@@ -88,6 +92,12 @@ The browser scrollbar SHALL be hidden via `scrollbar-width: none` and the WebKit
 - **THEN** `.mr-timeline` (or `.mr-timeline__inner`) SHALL carry `data-soloing="true"`
 - **AND** no `.mr-multi-track-stage` or other intermediate orchestrator element SHALL carry `data-soloing` (those elements no longer exist as orchestrators)
 - **AND** the flag SHALL NOT depend on the kind of track that is soloed — channel-track solo and dj-action-track solo both contribute
+
+#### Scenario: Horizontal scroll stays at beat zero boundary
+
+- **WHEN** an implementation emits a programmatic `scrollTo`/`scrollLeft` assignment that would set `.mr-timeline.scrollLeft` below `0`
+- **THEN** the resulting `scrollLeft` SHALL clamp to exactly `0`
+- **AND** the left edge of the lane column SHALL align with musical beat `0` for ruler and stripes
 
 ### Requirement: Region surfaces use panel tokens
 

@@ -1,8 +1,9 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
-import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
+import type { CCPoint } from '../../hooks/useChannels';
 import { laneCCLabel, type ParamLane as ParamLaneType } from '../../hooks/useChannels';
+import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
 import { ParamMinimap } from './ParamMinimap';
 import './ParamLane.css';
 
@@ -20,36 +21,22 @@ interface ParamLaneProps {
   interp?: { a: number | null; b: number | null };
 }
 
-const RESOLUTION = 64;
 const TRACK_H = 56;
 const TOP = 8;
 const BAR_W = 1.5;
 
-interface Bar {
-  v: number;
+function sortedPoints(points: CCPoint[]): CCPoint[] {
+  return [...points].sort((a, b) => a.t - b.t || a.v - b.v);
 }
 
-function resampleBars(points: ParamLaneType['points'], viewT0: number, totalT: number): Bar[] {
-  // An empty CC lane (no recorded events) renders no bars. The previous
-  // behavior of returning 64 v=0 bars left visible cap rectangles along the
-  // bottom of the plot, which read as "events".
-  if (!points.length) return [];
-  const cellT = totalT / RESOLUTION;
-  const out: Bar[] = [];
-  for (let i = 0; i < RESOLUTION; i++) {
-    const tCenter = viewT0 + (i + 0.5) * cellT;
-    let best = points[0];
-    let bestD = Math.abs(points[0].t - tCenter);
-    for (let j = 1; j < points.length; j++) {
-      const d = Math.abs(points[j].t - tCenter);
-      if (d < bestD) {
-        best = points[j];
-        bestD = d;
-      }
-    }
-    out.push({ v: best.v });
+/** MIDI-style held value: last point at or before `t` (otherwise 0). */
+function heldValue(pointsSorted: CCPoint[], t: number): number {
+  let v = 0;
+  for (const p of pointsSorted) {
+    if (p.t > t) break;
+    v = p.v;
   }
-  return out;
+  return v;
 }
 
 export function ParamLane({
@@ -63,22 +50,19 @@ export function ParamLane({
   onToggleMuted,
   onToggleSoloed,
 }: ParamLaneProps) {
-  const [hover, setHover] = useState<{ idx: number; v: number } | null>(null);
+  const [hover, setHover] = useState<{ px: number; v: number } | null>(null);
 
   const plotW = totalT * pxPerBeat;
+  const viewT1 = viewT0 + totalT;
 
-  const bars = useMemo(
-    () => resampleBars(lane.points, viewT0, totalT),
-    [lane.points, viewT0, totalT],
-  );
-
-  const cellW = plotW / RESOLUTION;
+  const pointsSorted = useMemo(() => sortedPoints(lane.points), [lane.points]);
 
   const onMouseMove = (event: MouseEvent<HTMLDivElement>) => {
-    if (plotW <= 0 || lane.collapsed || bars.length === 0) return;
-    const idx = Math.max(0, Math.min(RESOLUTION - 1, Math.floor((event.nativeEvent.offsetX / plotW) * RESOLUTION)));
-    const v = bars[idx]?.v ?? 0;
-    setHover({ idx, v });
+    if (plotW <= 0 || lane.collapsed || pointsSorted.length === 0) return;
+    const offsetX = event.nativeEvent.offsetX;
+    const t = viewT0 + offsetX / pxPerBeat;
+    const v = heldValue(pointsSorted, t);
+    setHover({ px: offsetX, v });
   };
   const onMouseLeave = () => setHover(null);
   const onHeaderClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -130,14 +114,16 @@ export function ParamLane({
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
           >
-            {plotW > 0 && bars.length > 0 && (
+            {plotW > 0 && pointsSorted.length > 0 && (
               <svg width={plotW} height="100%" preserveAspectRatio="none" viewBox={`0 0 ${plotW} 72`}>
-                {bars.map((b, i) => {
-                  const h = b.v * TRACK_H;
-                  const x = i * cellW + (cellW - BAR_W) / 2;
+                {pointsSorted.map((p, i) => {
+                  if (p.t < viewT0 || p.t > viewT1) return null;
+                  const xMid = (p.t - viewT0) * pxPerBeat;
+                  const x = xMid - BAR_W / 2;
+                  const h = p.v * TRACK_H;
                   const y = TOP + (TRACK_H - h);
                   return (
-                    <g key={i}>
+                    <g key={`${p.t}-${i}`}>
                       <rect
                         x={x}
                         y={y}
@@ -159,42 +145,50 @@ export function ParamLane({
                     </g>
                   );
                 })}
-                {hover && (() => {
-                  const cellX = hover.idx * cellW;
-                  const tickX = cellX + (cellW - BAR_W) / 2;
-                  const h = hover.v * TRACK_H;
-                  const y = TOP + (TRACK_H - h);
-                  return (
-                    <g>
-                      <rect
-                        x={cellX}
-                        y={TOP}
-                        width={cellW}
-                        height={TRACK_H}
-                        fill="var(--mr-accent)"
-                        opacity={0.1}
-                        shapeRendering="crispEdges"
-                      />
-                      <rect
-                        x={tickX}
-                        y={y}
-                        width={BAR_W}
-                        height={h}
-                        fill="var(--mr-accent)"
-                        opacity={0.7}
-                        shapeRendering="crispEdges"
-                      />
-                    </g>
-                  );
-                })()}
+                {hover && (
+                  <g shapeRendering="crispEdges">
+                    <rect
+                      x={Math.max(0, hover.px - 10)}
+                      y={TOP}
+                      width={20}
+                      height={TRACK_H}
+                      fill="var(--mr-accent)"
+                      opacity={0.1}
+                    />
+                    {(() => {
+                      const v = hover.v;
+                      const h = v * TRACK_H;
+                      const y = TOP + (TRACK_H - h);
+                      const tickX = hover.px - BAR_W / 2;
+                      return (
+                        <>
+                          <line
+                            x1={hover.px}
+                            y1={TOP}
+                            x2={hover.px}
+                            y2={TOP + TRACK_H}
+                            stroke="var(--mr-accent)"
+                            strokeOpacity={0.45}
+                            strokeWidth={1}
+                          />
+                          <rect
+                            x={tickX}
+                            y={y}
+                            width={BAR_W}
+                            height={h}
+                            fill="var(--mr-accent)"
+                            opacity={0.7}
+                          />
+                        </>
+                      );
+                    })()}
+                  </g>
+                )}
               </svg>
             )}
             <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
             {hover && (
-              <span
-                className="mr-param-lane__readout"
-                style={{ left: hover.idx * cellW + cellW / 2 }}
-              >
+              <span className="mr-param-lane__readout" style={{ left: hover.px, transform: 'translateX(-50%)' }}>
                 {Math.round(hover.v * 127)}
               </span>
             )}

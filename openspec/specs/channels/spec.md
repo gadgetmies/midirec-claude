@@ -504,3 +504,12 @@ The string `cc-lane` SHALL NOT appear in any selector inside the channels styles
 - **WHEN** `setChannelInputSourceChannels(1, 'a', [2, 3])` is called
 - **THEN** the row for `'a'` SHALL read `[2, 3]`
 
+### Requirement: ChannelGroup propagates orchestrated horizon
+
+`<ChannelGroup>` SHALL accept `layoutHorizonBeats` from `AppShell` and propagate it verbatim to `<Track>` and `<ParamLane>` children so intra-channel vertical stacks stay coherent.
+
+#### Scenario: Multi-lane stacks share horizon
+
+- **WHEN** `layoutHorizonBeats` increases beyond previous render
+- **THEN** subsequent paint frames SHALL widen every lane row uniformly without desynchronizing horizontally nested sticky headers
+

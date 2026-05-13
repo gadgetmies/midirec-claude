@@ -25,6 +25,7 @@ interface TrackProps {
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
   audible: boolean;
+  layoutHorizonBeats: number;
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
@@ -40,6 +41,7 @@ export function Track({
   marquee,
   selectedIdx,
   audible,
+  layoutHorizonBeats,
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
@@ -101,7 +103,7 @@ export function Track({
             notes={roll.notes}
             color={channel.color}
             viewT0={viewProps.viewT0 ?? 0}
-            totalT={viewProps.totalT ?? 16}
+            totalT={layoutHorizonBeats}
             pxPerBeat={viewProps.pxPerBeat ?? DEFAULT_PX_PER_BEAT}
           />
           <div
@@ -125,6 +127,7 @@ export function Track({
             lo={viewProps.lo}
             hi={viewProps.hi}
             totalT={viewProps.totalT}
+            layoutHorizonBeats={layoutHorizonBeats}
             playheadT={viewProps.playheadT}
           />
         </div>
