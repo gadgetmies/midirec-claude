@@ -10,7 +10,7 @@
    `as const` everywhere so literal types survive — `DJ_DEVICES.deck1.color`
    is the literal string, not just `string`. */
 
-export type CategoryId = 'deck' | 'mixer' | 'fx' | 'global';
+export type CategoryId = 'deck' | 'browser' | 'mixer' | 'fx' | 'global';
 
 export type DeviceId =
   | 'deck1'
@@ -110,7 +110,11 @@ export function normalizeOutputMapping(m: OutputMapping): OutputMapping {
 }
 
 export function normalizeActionMapEntry(e: ActionMapEntry): ActionMapEntry {
-  const n: ActionMapEntry = { ...e };
+  let base: ActionMapEntry = e;
+  if ((base.id === 'load_a' || base.id === 'load_b') && base.cat === 'mixer') {
+    base = { ...base, cat: 'browser' };
+  }
+  const n: ActionMapEntry = { ...base };
   if (n.midiInputChannel !== undefined) {
     n.midiInputChannel = Math.max(1, Math.min(16, Math.round(n.midiInputChannel)));
   }
@@ -211,10 +215,11 @@ export function djActionRowOrderTopToBottom(
 
 /* Action categories — Map Note chips + grouping in DEFAULT_ACTION_MAP. */
 export const DJ_CATEGORIES: Record<CategoryId, { label: string }> = {
-  deck:   { label: 'Deck'   },
-  mixer:  { label: 'Mixer'  },
-  fx:     { label: 'FX'     },
-  global: { label: 'Global' },
+  deck:    { label: 'Deck'    },
+  browser: { label: 'Browser' },
+  mixer:   { label: 'Mixer'   },
+  fx:      { label: 'FX'      },
+  global:  { label: 'Global'  },
 } as const;
 
 /* Devices — drive color. Each device == a controller surface
@@ -260,8 +265,8 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   69: { id: 'hc1_b',     cat: 'deck', label: 'Hot Cue 1',    short: 'HC1',   device: 'deck2', pad: true, pressure: true },
   70: { id: 'hc2_b',     cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2', pad: true },
   // Mixer
-  73: { id: 'load_a',    cat: 'mixer', label: 'Load Deck 1',  short: 'LD·1', device: 'mixer' },
-  74: { id: 'load_b',    cat: 'mixer', label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
+  73: { id: 'load_a',    cat: 'browser', label: 'Load Deck 1',  short: 'LD·1', device: 'mixer' },
+  74: { id: 'load_b',    cat: 'browser', label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
   // Global
   75: { id: 'tap',       cat: 'global', label: 'Tap Tempo',    short: 'TAP',   device: 'global' },
   76: { id: 'beat_jump', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck1', pad: true },

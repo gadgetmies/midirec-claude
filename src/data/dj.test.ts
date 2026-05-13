@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
   DEFAULT_ACTION_MAP,
+  DJ_CATEGORIES,
   actionMode,
   defaultMixerOutputCc,
+  normalizeActionMapEntry,
   type ActionMapEntry,
   type TriggerMode,
 } from './dj';
@@ -45,8 +47,9 @@ describe('actionMode', () => {
     expect(actionMode(fx1On)).toBe('fallback');
   });
 
-  test('fallback for mixer without pad/pressure', () => {
+  test('fallback for load-deck rows without pad/pressure', () => {
     const loadA = DEFAULT_ACTION_MAP[73];
+    expect(loadA.cat).toBe('browser');
     expect(actionMode(loadA)).toBe('fallback');
   });
 
@@ -64,6 +67,27 @@ describe('actionMode', () => {
   test('velocity-sensitive beats trigger when both predicates would match', () => {
     /* Synthetic: trigger-style id + pad: true. Velocity wins. */
     expect(actionMode(make({ id: 'hc2', cat: 'deck', pad: true }))).toBe('velocity-sensitive');
+  });
+});
+
+describe('normalizeActionMapEntry', () => {
+  test('migrates load_a / load_b from legacy mixer cat to browser', () => {
+    const legacy73 = normalizeActionMapEntry({
+      ...(DEFAULT_ACTION_MAP[73] as ActionMapEntry),
+      cat: 'mixer',
+    });
+    expect(legacy73.cat).toBe('browser');
+    const legacy74 = normalizeActionMapEntry({
+      ...(DEFAULT_ACTION_MAP[74] as ActionMapEntry),
+      cat: 'mixer',
+    });
+    expect(legacy74.cat).toBe('browser');
+  });
+});
+
+describe('DJ_CATEGORIES order', () => {
+  test('insertion order drives Map Note tabs', () => {
+    expect(Object.keys(DJ_CATEGORIES)).toEqual(['deck', 'browser', 'mixer', 'fx', 'global']);
   });
 });
 

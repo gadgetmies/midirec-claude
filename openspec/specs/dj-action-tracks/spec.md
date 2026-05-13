@@ -7,9 +7,9 @@ TBD - created by archiving change dj-mode-shell. Update Purpose after archive.
 
 The codebase SHALL expose a `src/data/dj.ts` module exporting:
 
-- `DJ_CATEGORIES: Record<CategoryId, { label: string }>`. Keys: `'deck' | 'mixer' | 'fx' | 'global'`.
+- `DJ_CATEGORIES: Record<CategoryId, { label: string }>`. Keys: `'deck' | 'browser' | 'mixer' | 'fx' | 'global'` in that insertion order.
 - `DJ_DEVICES: Record<DeviceId, { label: string; short: string; color: string }>` — verbatim. Keys: `'deck1' | 'deck2' | 'deck3' | 'deck4' | 'fx1' | 'fx2' | 'mixer' | 'global'`. Each entry's `color` is an OKLCH string.
-- `DEFAULT_ACTION_MAP: Record<number, ActionMapEntry>` — same pitch coverage as today; every entry's `cat` SHALL be one of the four `CategoryId` literals. Former transport/cue/loop/hotcue semantics are represented with `cat: 'deck'` except where noted below. Tap Tempo SHALL use `cat: 'global'`. Load Deck actions (`load_a`, `load_b`) SHALL use `cat: 'mixer'`. Continuous mixer controls (crossfader, per-channel volumes, per-channel EQ bands) in `DEFAULT_ACTION_MAP` SHALL remain `cat: 'mixer'` with `pad: true` as today; implementations SHALL pair them with **default output CC numbers** (see `design.md` in change `mixer-dj-cc-messages`) so playback targets CC without per-user configuration in the common case.
+- `DEFAULT_ACTION_MAP: Record<number, ActionMapEntry>` — same pitch coverage as today; every entry's `cat` SHALL be one of the five `CategoryId` literals. Former transport/cue/loop/hotcue semantics are represented with `cat: 'deck'` except where noted below. Tap Tempo SHALL use `cat: 'global'`. Load Deck actions (`load_a`, `load_b`) SHALL use `cat: 'browser'` (their `device` remains `mixer` unless a future device split is specified). Continuous mixer controls (crossfader, per-channel volumes, per-channel EQ bands) in `DEFAULT_ACTION_MAP` SHALL remain `cat: 'mixer'` with `pad: true` as today; implementations SHALL pair them with **default output CC numbers** (see `design.md` in change `mixer-dj-cc-messages`) so playback targets CC without per-user configuration in the common case.
 - `TriggerMode` type: `'momentary' | 'toggle'`.
 - `ActionMapEntry` type: `{ id: string; cat: CategoryId; label: string; short: string; device: DeviceId; pad?: boolean; pressure?: boolean; trigger?: TriggerMode; midiInputCc?: number }`. The optional `midiInputCc` field, when present, SHALL be in the inclusive range `0..127` and SHALL select **incoming Control Change** as the record trigger for this row (see `midi-recording`).
 - `OutputMapping` type: `{ device: DeviceId; channel: number; pitch: number; cc?: number }`. `channel` is in the inclusive range `1..16`; `pitch` is in the inclusive range `0..127`. The optional `cc` field, when present, SHALL be in the inclusive range `0..127` and SHALL mean **playback emits Control Change** with that controller number on the resolved MIDI channel instead of note-on/note-off (see `midi-playback`).
@@ -47,10 +47,15 @@ The `trigger` field SHALL be optional on every `ActionMapEntry`. When absent (as
 - **AND** its `channel` and `pitch` SHALL be numbers (consumer-side clamping enforces `1..16` and `0..127` respectively)
 - **AND** when `cc` is present, it SHALL be an integer in `0..127`
 
-#### Scenario: Category keys are the four Map Note tabs
+#### Scenario: Category keys match Map Note tabs
 
 - **WHEN** a reader enumerates `Object.keys(DJ_CATEGORIES)` in insertion order
-- **THEN** it SHALL yield exactly `deck`, `mixer`, `fx`, `global`
+- **THEN** it SHALL yield exactly `deck`, `browser`, `mixer`, `fx`, `global`
+
+#### Scenario: Load Deck templates use browser category
+
+- **WHEN** a reader inspects `DEFAULT_ACTION_MAP` entries whose `id` is `load_a` or `load_b`
+- **THEN** each `entry.cat` SHALL be `'browser'`
 
 #### Scenario: Tap Tempo is categorized as global
 
