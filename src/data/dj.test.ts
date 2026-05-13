@@ -18,7 +18,7 @@ const make = (over: Partial<ActionMapEntry> = {}): ActionMapEntry => ({
 describe('actionMode', () => {
   test('pressure-bearing wins over pad and trigger predicates', () => {
     /* Hot Cue 1 in the seeded action map has pressure: true AND pad: true,
-       AND its category (hotcue) is in the trigger set. Pressure wins. */
+       AND its id would be trigger-style if pressure did not win. */
     const hc1 = DEFAULT_ACTION_MAP[56];
     expect(actionMode(hc1)).toBe('pressure-bearing');
   });
@@ -29,12 +29,12 @@ describe('actionMode', () => {
     expect(actionMode(hc2)).toBe('velocity-sensitive');
   });
 
-  test('trigger for transport without pad/pressure', () => {
+  test('trigger for play id without pad/pressure', () => {
     const play = DEFAULT_ACTION_MAP[48];
     expect(actionMode(play)).toBe('trigger');
   });
 
-  test('trigger for cue category', () => {
+  test('trigger for cue id', () => {
     const cue = DEFAULT_ACTION_MAP[49];
     expect(actionMode(cue)).toBe('trigger');
   });
@@ -61,9 +61,8 @@ describe('actionMode', () => {
   });
 
   test('velocity-sensitive beats trigger when both predicates would match', () => {
-    /* Synthetic: hotcue category (would match trigger) + pad: true. Velocity
-       wins. */
-    expect(actionMode(make({ cat: 'hotcue', pad: true }))).toBe('velocity-sensitive');
+    /* Synthetic: trigger-style id + pad: true. Velocity wins. */
+    expect(actionMode(make({ id: 'hc2', cat: 'deck', pad: true }))).toBe('velocity-sensitive');
   });
 });
 

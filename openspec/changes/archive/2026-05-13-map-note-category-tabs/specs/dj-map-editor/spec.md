@@ -1,46 +1,8 @@
-# dj-map-editor Specification
+## ADDED Requirements
 
-## Purpose
-TBD - created by archiving change dj-map-editor. Update Purpose after archive.
-## Requirements
-### Requirement: Sidebar exposes a Map Note panel for the selected DJ action row
+(none — behavior captured under MODIFIED requirements below)
 
-The codebase SHALL expose an `<InputMappingPanel>` React component at `src/components/sidebar/InputMappingPanel.tsx`. The component SHALL be mounted exactly once, from `Sidebar.tsx`, after `TrackInputMappingPanel` in the authored JSX order (below track-input surfaces).
-
-The panel SHALL render only when ALL of the following hold:
-
-1. `useStage().djActionSelection !== null`.
-2. The referenced `trackId` resolves to a `DJActionTrack` in `useStage().djActionTracks`.
-3. The referenced `pitch` is a key in that track's `actionMap`.
-
-When any of the above fails, the component MUST return `null` (no DOM contribution).
-
-The panel's outer wrapper element SHALL carry `data-mr-dj-selection-region="true"` so the global outside-click handler treats clicks inside it as "keep selection".
-
-The panel SHALL use the existing `<Panel>` primitive (`src/components/sidebar/Panel.tsx`) with title text `Map Note`.
-
-#### Scenario: Panel is absent when no selection
-
-- **WHEN** `useStage().djActionSelection === null`
-- **THEN** there SHALL be no element with class `.mr-map-form` anywhere in the Sidebar
-
-#### Scenario: Panel mounts when a DJ action row is selected
-
-- **WHEN** the user clicks the action row for pitch 56 on the seeded track `dj1` and `actionMap[56].label === 'Hot Cue 1'`
-- **THEN** the Sidebar SHALL contain a `<Panel>` whose head text content includes `Map Note`
-- **AND** the panel body SHALL contain exactly one `.mr-map-form` element
-- **AND** the `.mr-map-form__hd-title` SHALL contain the text `Hot Cue 1`
-- **AND** the `.mr-map-form__hd-sub` SHALL contain the text `G♯3 · note 56`
-
-#### Scenario: Panel is absent when selection points to a missing entry
-
-- **WHEN** `djActionSelection === { trackId: 'dj1', pitch: 56 }` but `actionMap[56]` is `undefined` (e.g. just deleted)
-- **THEN** the Sidebar SHALL contain no `.mr-map-form` element
-
-#### Scenario: Outer wrapper carries the selection-region attribute
-
-- **WHEN** the panel is rendered
-- **THEN** an ancestor of `.mr-map-form` SHALL carry `data-mr-dj-selection-region="true"`
+## MODIFIED Requirements
 
 ### Requirement: Map Note form renders category chips, action, device, trigger
 
@@ -48,7 +10,7 @@ The form SHALL contain, in DOM order:
 
 1. A header row with a 24×24px swatch element whose `background` is `devColor(entry.device)`, and a two-line label group containing the action's `label` (top, e.g. `Hot Cue 1`) and a mono subtitle `<pitchLabel> · note <pitch>` (e.g. `G♯3 · note 56`). If `entry.label` is the empty string, the header SHALL render the literal text `— unmapped —` instead.
 2. A `Category` section: a small uppercase label `Category` and a wrapping row of category chips, one per key of `DJ_CATEGORIES` (in declared key order: `deck`, `mixer`, `fx`, `global`). The chip whose key equals the current `entry.cat` SHALL carry `data-on="true"` and visually highlight in that category's color (border, text, and tinted background via `color-mix(in oklab, <color> 14%, transparent)`).
-3. An `Action` section: a small uppercase label `Action` and a full-width `<select class="mr-select">`. Options SHALL be populated from `DEFAULT_ACTION_MAP` entries whose `cat` equals the current `entry.cat`, with this exception: when `entry.cat === 'deck'`, the select SHALL list **at most one** option per distinct pair of `(label, short)` among matching entries (deduplicating Deck 1 vs Deck 2 template duplicates). Options SHALL be sorted by ascending numeric pitch of their representing template row (the lowest pitch within each dedupe group). Each option's `value` SHALL be the canonical `id` for that group (lowest pitch). For `cat === 'deck'`, the `<select>`'s controlled value SHALL be that canonical `id` for the entry's `(label, short)` group so the same option appears selected for sibling templates such as `play` and `play_b`. For other categories, the controlled value SHALL be `entry.id`.
+3. An `Action` section: a small uppercase label `Action` and a full-width `<select class="mr-select">`. Options SHALL be populated from `DEFAULT_ACTION_MAP` entries whose `cat` equals the current `entry.cat`, with this exception: when `entry.cat === 'deck'`, the select SHALL list **at most one** option per distinct pair of `(label, short)` among matching entries (deduplicating Deck 1 vs Deck 2 template duplicates). Options SHALL be sorted by ascending numeric pitch of their representing template row (the lowest pitch within each dedupe group). Each option's `value` SHALL still be an entry `id` from `DEFAULT_ACTION_MAP` (the id of the representing template after dedupe resolution). The select's current value SHALL be `entry.id`.
 4. A two-column grid containing a `Device` section and a `Trigger` section. The `Device` `<select>` SHALL list every key of `DJ_DEVICES` (in declared order: `deck1`, `deck2`, `deck3`, `deck4`, `fx1`, `fx2`, `mixer`, `global`), each option's text equal to `devLabel(key)`. The `Trigger` `<select>` SHALL contain exactly two options with text `momentary` and `toggle`.
 5. A footer row containing a single button with `data-danger="true"` and text content `Delete mapping`.
 
@@ -120,15 +82,6 @@ When the user changes the **device** or **trigger** select, the committed entry 
 - **WHEN** the panel is open for an entry with `cat === 'deck'` and the user clicks the `FX` chip
 - **THEN** `setActionEntry` SHALL be called with an entry whose `cat === 'fx'` AND `id === 'fx1_on'` (the first FX entry in `DEFAULT_ACTION_MAP` by numeric pitch order)
 
-### Requirement: Delete mapping button removes the entry
+## REMOVED Requirements
 
-The form's `Delete mapping` button SHALL call `useStage().deleteActionEntry(trackId, pitch)` when clicked. After deletion, the panel SHALL render `null` (because the entry no longer resolves), AND the `useStage().djActionSelection` SHALL be cleared by the same call (via the cascading clear in the hook), AND the corresponding action row in `<ActionKeys>` SHALL no longer render.
-
-#### Scenario: Delete removes the entry and clears selection
-
-- **WHEN** the panel is open for `pitch: 56` and the user clicks `Delete mapping`
-- **THEN** `deleteActionEntry` SHALL be called once with `(trackId, 56)`
-- **AND** after the next render the panel SHALL be absent (`.mr-map-form` no longer in the DOM)
-- **AND** `useStage().djActionSelection` SHALL be `null`
-- **AND** the DJ action track's keys column SHALL contain no row for pitch 56
-
+(none)

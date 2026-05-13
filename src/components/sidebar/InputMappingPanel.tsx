@@ -66,6 +66,36 @@ function firstActionInCategory(cat: CategoryId): ActionMapEntry | undefined {
   return actionsInCategory(cat)[0]?.entry;
 }
 
+function deckActionDedupeKey(e: ActionMapEntry): string {
+  return `${e.label}\0${e.short}`;
+}
+
+function actionRowsForMapSelect(cat: CategoryId): Array<{ pitch: number; entry: ActionMapEntry }> {
+  const rows = actionsInCategory(cat);
+  if (cat !== 'deck') return rows;
+  const byKey = new Map<string, { pitch: number; entry: ActionMapEntry }>();
+  for (const row of rows) {
+    const k = deckActionDedupeKey(row.entry);
+    const cur = byKey.get(k);
+    if (!cur || row.pitch < cur.pitch) byKey.set(k, row);
+  }
+  return [...byKey.values()].sort((a, b) => a.pitch - b.pitch);
+}
+
+function actionIdForSelect(entry: ActionMapEntry, cat: CategoryId): string {
+  if (cat !== 'deck') return entry.id;
+  const rows = actionsInCategory('deck');
+  const rowForId = rows.find((r) => r.entry.id === entry.id);
+  if (!rowForId) return entry.id;
+  const k = deckActionDedupeKey(rowForId.entry);
+  let best = rowForId;
+  for (const r of rows) {
+    if (deckActionDedupeKey(r.entry) !== k) continue;
+    if (r.pitch < best.pitch) best = r;
+  }
+  return best.entry.id;
+}
+
 export function InputMappingPanel() {
   const stage = useStage();
   const { inputs } = useMidiInputs();
@@ -107,7 +137,6 @@ export function InputMappingPanel() {
       id: first.id,
       label: first.label,
       short: first.short,
-      device: first.device,
       pad: first.pad,
       pressure: first.pressure,
       midiInputDeviceIds: entry.midiInputDeviceIds,
@@ -117,6 +146,36 @@ export function InputMappingPanel() {
   };
 
   const handleAction = (id: string) => {
+    if (entry.cat === 'deck') {
+      const rows = actionsInCategory('deck');
+      const picked = rows.find((r) => r.entry.id === id);
+      if (!picked) {
+        writeEntry({
+          id,
+          midiInputDeviceIds: entry.midiInputDeviceIds,
+          midiInputChannel: entry.midiInputChannel,
+          midiInputNote: entry.midiInputNote,
+        });
+        return;
+      }
+      const k = deckActionDedupeKey(picked.entry);
+      const siblings = rows.filter((r) => deckActionDedupeKey(r.entry) === k);
+      const useRow =
+        siblings.find((r) => r.entry.device === entry.device) ??
+        siblings.slice().sort((a, b) => a.pitch - b.pitch)[0]!;
+      writeEntry({
+        id: useRow.entry.id,
+        label: useRow.entry.label,
+        short: useRow.entry.short,
+        device: useRow.entry.device,
+        pad: useRow.entry.pad,
+        pressure: useRow.entry.pressure,
+        midiInputDeviceIds: entry.midiInputDeviceIds,
+        midiInputChannel: entry.midiInputChannel,
+        midiInputNote: entry.midiInputNote,
+      });
+      return;
+    }
     const found = actionsInCategory(entry.cat).find((r) => r.entry.id === id);
     if (!found) {
       writeEntry({
@@ -182,7 +241,8 @@ function Form({
   onTrigger,
   onDelete,
 }: FormProps) {
-  const filtered = useMemo(() => actionsInCategory(entry.cat), [entry.cat]);
+  const mapActionRows = useMemo(() => actionRowsForMapSelect(entry.cat), [entry.cat]);
+  const actionSelectId = actionIdForSelect(entry, entry.cat);
   const captureNote = entry.midiInputNote ?? pitch;
   return (
     <div className="mr-map-form">
@@ -234,10 +294,10 @@ function Form({
         <span className="mr-map-form__lbl">Action</span>
         <select
           className="mr-select"
-          value={entry.id}
+          value={actionSelectId}
           onChange={(e) => onAction(e.target.value)}
         >
-          {filtered.map(({ pitch: p, entry: e }) => (
+          {mapActionRows.map(({ pitch: p, entry: e }) => (
             <option key={p} value={e.id}>
               {e.label}
             </option>

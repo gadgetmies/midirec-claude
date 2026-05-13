@@ -270,7 +270,7 @@ When `outputSnapshot === undefined`, the dispatch loop SHALL be a no-op for ever
 
 #### Scenario: DJ track events emit during play
 
-- **GIVEN** the transport is in `mode === 'play'`, `tempoSnapshot = 120` (so `msPerBeat = 500`), `playheadMs = 1000`, and a DJ track `dj1` whose `events` includes `{ pitch: 48, t: 2.1, dur: 0.5, vel: 0.8 }` with `actionMap[48]` of category `'transport'` (no `pad`, no `pressure`) and `outputMap[48] = { device: 'global', channel: 5, pitch: 60 }`
+- **GIVEN** the transport is in `mode === 'play'`, `tempoSnapshot = 120` (so `msPerBeat = 500`), `playheadMs = 1000`, and a DJ track `dj1` whose `events` includes `{ pitch: 48, t: 2.1, dur: 0.5, vel: 0.8 }` with `actionMap[48]` of category `'deck'` (no `pad`, no `pressure`) and `outputMap[48] = { device: 'global', channel: 5, pitch: 60 }`
 - **WHEN** the rAF tick fires
 - **THEN** the scheduler SHALL have called `output.send([0x94, 60, 102], <tsOn>)` and `output.send([0x84, 60, 0], <tsOff>)` exactly once each
 - **AND** `<tsOn>` SHALL be approximately `now + (2.1 * 500 - 1000) = now + 50` ms (±2 ms jitter)
@@ -369,7 +369,7 @@ The cursor SHALL advance past the event after dispatch, so subsequent ticks do n
 
 #### Scenario: outputMap override emits with mapping.pitch and event.vel * 127
 
-- **GIVEN** an audible DJ event `{ pitch: 48, t: 1.0, dur: 0.5, vel: 0.5 }` with `actionMap[48].cat === 'transport'` (no `pad`, no `pressure`) and `outputMap[48] = { device: 'global', channel: 3, pitch: 60 }`, `tempoSnapshot = 120`, `playheadMs` such that the event lands in the lookahead window
+- **GIVEN** an audible DJ event `{ pitch: 48, t: 1.0, dur: 0.5, vel: 0.5 }` with `actionMap[48].cat === 'deck'` (no `pad`, no `pressure`) and `outputMap[48] = { device: 'global', channel: 3, pitch: 60 }`, `tempoSnapshot = 120`, `playheadMs` such that the event lands in the lookahead window
 - **WHEN** the rAF tick fires
 - **THEN** `output.send([0x92, 60, 64], <tsOn>)` SHALL be called exactly once (channel byte 2 = channel 3 minus 1, velocity 64 = round(0.5 * 127))
 - **AND** `output.send([0x82, 60, 0], <tsOff>)` SHALL be called exactly once

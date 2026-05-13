@@ -387,7 +387,7 @@ describe('createScheduler — tempo snapshot', () => {
 
 function makeAction(opts: Partial<ActionMapEntry> & { id: string }): ActionMapEntry {
   return {
-    cat: opts.cat ?? 'transport',
+    cat: opts.cat ?? 'deck',
     label: opts.label ?? opts.id,
     short: opts.short ?? opts.id,
     device: opts.device ?? 'global',
@@ -452,7 +452,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.5)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 3, pitch: 60 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -474,7 +474,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 0.0, 0.1, 0.001)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -489,7 +489,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 0.0, 0.1, 1.0)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -505,7 +505,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const track = makeDJTrack({
       midiChannel: 16,
       events: [djEvent(48, 0.0, 0.1, 0.8)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: {},
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -524,7 +524,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const track = makeDJTrack({
       midiChannel: 16,
       events: [djEvent(48, 0.0, 0.1, 0.8)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 3, pitch: 60 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -554,7 +554,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 5.0, 0.5, 0.8)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -570,7 +570,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 0.5, 0.1, 0.8)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
     });
     scheduler.start(1000, 120, [], false, [track]);
@@ -586,7 +586,7 @@ describe('createScheduler — DJ mute / solo', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.8)],
-      actionMap: { 48: makeAction({ id: 'play', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
       muted: true,
     });
@@ -602,8 +602,8 @@ describe('createScheduler — DJ mute / solo', () => {
     const track = makeDJTrack({
       events: [djEvent(48, 0.05, 0.1, 0.8), djEvent(49, 0.06, 0.1, 0.8)],
       actionMap: {
-        48: makeAction({ id: 'a', cat: 'transport' }),
-        49: makeAction({ id: 'b', cat: 'transport' }),
+        48: makeAction({ id: 'a', cat: 'deck' }),
+        49: makeAction({ id: 'b', cat: 'deck' }),
       },
       outputMap: {
         48: { device: 'global', channel: 1, pitch: 60 },
@@ -625,7 +625,7 @@ describe('createScheduler — DJ mute / solo', () => {
     const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.8)],
-      actionMap: { 48: makeAction({ id: 'a', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'a', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 2, pitch: 72 } },
       soloed: true,
     });
@@ -645,8 +645,8 @@ describe('createScheduler — DJ mute / solo', () => {
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.8), djEvent(49, 0.1, 0.1, 0.8)],
       actionMap: {
-        48: makeAction({ id: 'a', cat: 'transport' }),
-        49: makeAction({ id: 'b', cat: 'transport' }),
+        48: makeAction({ id: 'a', cat: 'deck' }),
+        49: makeAction({ id: 'b', cat: 'deck' }),
       },
       outputMap: {
         48: { device: 'global', channel: 2, pitch: 72 },
@@ -669,7 +669,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8)],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -689,7 +689,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8, { pressure: [] })],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -710,7 +710,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
     ];
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8, { pressure: points })],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -736,7 +736,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
     ];
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 0.03, 0.8, { pressure: points })],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -765,7 +765,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
         djEvent(56, tEvent1, dur, 0.8, { perPitchIndex: 1 }),
         djEvent(56, tEvent2, dur, 0.8, { perPitchIndex: 2 }),
       ],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -794,7 +794,7 @@ describe('createScheduler — DJ seek and panic', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(48, 0.05, 0.01, 0.8), djEvent(48, 0.15, 0.01, 0.8, { perPitchIndex: 1 })],
-      actionMap: { 48: makeAction({ id: 'a', cat: 'transport' }) },
+      actionMap: { 48: makeAction({ id: 'a', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 1, pitch: 60 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -813,7 +813,7 @@ describe('createScheduler — DJ seek and panic', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 10.0, 0.8)],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);
@@ -841,7 +841,7 @@ describe('createScheduler — DJ seek and panic', () => {
     const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8)],
-      actionMap: { 56: makeAction({ id: 'hc1', cat: 'hotcue', pressure: true }) },
+      actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
       outputMap: { 56: { device: 'deck1', channel: 1, pitch: 36 } },
     });
     scheduler.start(0, 120, [], false, [track]);

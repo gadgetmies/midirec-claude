@@ -7,9 +7,9 @@ TBD - created by archiving change dj-mode-shell. Update Purpose after archive.
 
 The codebase SHALL expose a `src/data/dj.ts` module exporting:
 
-- `DJ_CATEGORIES: Record<CategoryId, { label: string }>` — verbatim from the prototype's `dj.jsx`. Keys: `'transport' | 'cue' | 'hotcue' | 'loop' | 'fx' | 'deck' | 'mixer'`.
+- `DJ_CATEGORIES: Record<CategoryId, { label: string }>`. Keys: `'deck' | 'mixer' | 'fx' | 'global'`.
 - `DJ_DEVICES: Record<DeviceId, { label: string; short: string; color: string }>` — verbatim. Keys: `'deck1' | 'deck2' | 'deck3' | 'deck4' | 'fx1' | 'fx2' | 'mixer' | 'global'`. Each entry's `color` is an OKLCH string.
-- `DEFAULT_ACTION_MAP: Record<number, ActionMapEntry>` — verbatim. Keys are MIDI pitch numbers from 48 (C3) to 75 (D♯5). 28 entries.
+- `DEFAULT_ACTION_MAP: Record<number, ActionMapEntry>` — same pitch coverage as today; every entry's `cat` SHALL be one of the four `CategoryId` literals. Former transport/cue/loop/hotcue semantics are represented with `cat: 'deck'` except where noted below. Tap Tempo SHALL use `cat: 'global'`. Load Deck actions (`load_a`, `load_b`) SHALL use `cat: 'mixer'`.
 - `TriggerMode` type: `'momentary' | 'toggle'`.
 - `ActionMapEntry` type: `{ id: string; cat: CategoryId; label: string; short: string; device: DeviceId; pad?: boolean; pressure?: boolean; trigger?: TriggerMode }`.
 - `OutputMapping` type: `{ device: DeviceId; channel: number; pitch: number }`. `channel` is in the inclusive range `1..16`; `pitch` is in the inclusive range `0..127`.
@@ -45,6 +45,16 @@ The `trigger` field SHALL be optional on every `ActionMapEntry`. When absent (as
 - **WHEN** a reader inspects an `OutputMapping` value
 - **THEN** its `device` SHALL be a `DeviceId`
 - **AND** its `channel` and `pitch` SHALL be numbers (consumer-side clamping enforces `1..16` and `0..127` respectively)
+
+#### Scenario: Category keys are the four Map Note tabs
+
+- **WHEN** a reader enumerates `Object.keys(DJ_CATEGORIES)` in insertion order
+- **THEN** it SHALL yield exactly `deck`, `mixer`, `fx`, `global`
+
+#### Scenario: Tap Tempo is categorized as global
+
+- **WHEN** a reader inspects the `DEFAULT_ACTION_MAP` entry whose `id` is `tap`
+- **THEN** `entry.cat` SHALL be `'global'`
 
 ### Requirement: DJActionTrack data shape
 
@@ -490,7 +500,7 @@ The lanes SHALL share the timeline's `pxPerBeat` constant (or equivalent) so bea
 
 Each `.mr-djtrack__note` SHALL select its rendering mode based on the corresponding `actionMap[event.pitch]` entry:
 
-- **trigger** mode applies when `action.cat ∈ {'transport', 'cue', 'hotcue'}` AND `action.pressure !== true`. The note SHALL render as a 6px-wide rectangle with `background: devColor(action.device)` and a soft outer glow (`box-shadow: 0 0 6px color-mix(in oklab, ${devColor} 60%, transparent)`). The note's width SHALL NOT depend on `event.dur`.
+- **trigger** mode applies when `action` satisfies the codebase's trigger-style predicate for deck transport buttons (the predicate that replaces the retired rule `action.cat ∈ {'transport', 'cue', 'hotcue'}`), AND `action.pressure !== true`. The note SHALL render as a 6px-wide rectangle with `background: devColor(action.device)` and a soft outer glow (`box-shadow: 0 0 6px color-mix(in oklab, ${devColor} 60%, transparent)`). The note's width SHALL NOT depend on `event.dur`.
 - **velocity-sensitive** mode applies when `action.pad === true` AND `action.pressure !== true`. The note SHALL render as a variable-width bar of width `max(3, event.dur * pxPerBeat)` with background `color-mix(in oklab, ${devColor} ${40 + event.vel * 50}%, transparent)` (encoding velocity into opacity). A single 2px-wide white tick SHALL render at the note's left edge with opacity `0.4 + event.vel * 0.5` to indicate velocity at note-on.
 - **pressure-bearing** mode applies when `action.pressure === true`. The note SHALL render as a wider bar (typically `> 30px`) with background `color-mix(in oklab, ${devColor} 85%, transparent)`. The note's interior SHALL render an SVG containing pressure cells; each cell SHALL be a vertical rect representing the pressure value at that horizontal sample. An "AT" badge SHALL render at the top-right of the note element when the note's rendered width exceeds 30px.
 
@@ -502,7 +512,7 @@ When an action satisfies more than one mode's predicate (e.g. `pressure: true` A
 
 #### Scenario: Trigger mode rendering
 
-- **WHEN** a `.mr-djtrack__note` renders for an event whose action has `cat === 'transport'` and no `pressure` and no `pad`
+- **WHEN** a `.mr-djtrack__note` renders for an event whose action uses `DEFAULT_ACTION_MAP` pitch `48` (Play / Pause on Deck 1: `id === 'play'`, `cat === 'deck'`) with no `pressure` and no `pad`
 - **THEN** the note's rendered width SHALL be 6px
 - **AND** the note SHALL carry the class `.mr-djtrack__note--trigger` (or equivalent data-mode attribute)
 - **AND** the note SHALL NOT contain an `svg` child

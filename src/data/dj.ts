@@ -10,14 +10,7 @@
    `as const` everywhere so literal types survive — `DJ_DEVICES.deck1.color`
    is the literal string, not just `string`. */
 
-export type CategoryId =
-  | 'transport'
-  | 'cue'
-  | 'hotcue'
-  | 'loop'
-  | 'fx'
-  | 'deck'
-  | 'mixer';
+export type CategoryId = 'deck' | 'mixer' | 'fx' | 'global';
 
 export type DeviceId =
   | 'deck1'
@@ -93,18 +86,26 @@ export interface ActionEvent {
 
 /* Render mode dispatched from an action's flags. Precedence (highest first):
    pressure-bearing > velocity-sensitive > trigger > fallback.
-   - trigger: `cat ∈ {transport, cue, hotcue}` and not pressure-bearing.
+   - trigger: momentary deck buttons (Play/Cue/Sync/Rev templates) via id set; not pressure-bearing.
    - velocity-sensitive: `pad === true` and not pressure-bearing.
    - pressure-bearing: `pressure === true`.
-   - fallback: anything else (e.g. mixer/loop without pad/pressure). */
+   - fallback: anything else (e.g. FX, pads, loop controls without trigger id). */
 export type ActionMode = 'trigger' | 'velocity-sensitive' | 'pressure-bearing' | 'fallback';
+
+const TRIGGER_STYLE_ACTION_IDS = new Set([
+  'play',
+  'play_b',
+  'cue',
+  'cue_b',
+  'sync',
+  'sync_b',
+  'rev',
+]);
 
 export function actionMode(action: ActionMapEntry): ActionMode {
   if (action.pressure === true) return 'pressure-bearing';
   if (action.pad === true) return 'velocity-sensitive';
-  if (action.cat === 'transport' || action.cat === 'cue' || action.cat === 'hotcue') {
-    return 'trigger';
-  }
+  if (TRIGGER_STYLE_ACTION_IDS.has(action.id)) return 'trigger';
   return 'fallback';
 }
 
@@ -123,15 +124,12 @@ export function djActionRowOrderTopToBottom(
 }
 
 
-/* Action categories — used for grouping/labeling only. */
+/* Action categories — Map Note chips + grouping in DEFAULT_ACTION_MAP. */
 export const DJ_CATEGORIES: Record<CategoryId, { label: string }> = {
-  transport: { label: 'Transport' },
-  cue:       { label: 'Cue'       },
-  hotcue:    { label: 'Hot Cue'   },
-  loop:      { label: 'Loop'      },
-  fx:        { label: 'FX'        },
-  deck:      { label: 'Deck'      },
-  mixer:     { label: 'Mixer'     },
+  deck:   { label: 'Deck'   },
+  mixer:  { label: 'Mixer'  },
+  fx:     { label: 'FX'     },
+  global: { label: 'Global' },
 } as const;
 
 /* Devices — drive color. Each device == a controller surface
@@ -150,18 +148,18 @@ export const DJ_DEVICES = {
 /* Default action map. Pitch → action. */
 export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   // Deck 1
-  48: { id: 'play',      cat: 'transport', label: 'Play / Pause', short: 'PLAY',  device: 'deck1' },
-  49: { id: 'cue',       cat: 'cue',       label: 'Cue',          short: 'CUE',   device: 'deck1' },
-  50: { id: 'sync',      cat: 'transport', label: 'Sync',         short: 'SYNC',  device: 'deck1' },
-  51: { id: 'rev',       cat: 'transport', label: 'Reverse',      short: 'REV',   device: 'deck1' },
-  52: { id: 'loop_in',   cat: 'loop',      label: 'Loop In',      short: 'L·IN',  device: 'deck1' },
-  53: { id: 'loop_out',  cat: 'loop',      label: 'Loop Out',     short: 'L·OUT', device: 'deck1' },
-  54: { id: 'loop_x2',   cat: 'loop',      label: 'Loop ×2', short: 'L×2',   device: 'deck1' },
-  55: { id: 'loop_half', cat: 'loop',      label: 'Loop ÷2', short: 'L÷2',   device: 'deck1' },
-  56: { id: 'hc1',       cat: 'hotcue',    label: 'Hot Cue 1',    short: 'HC1',   device: 'deck1', pad: true, pressure: true },
-  57: { id: 'hc2',       cat: 'hotcue',    label: 'Hot Cue 2',    short: 'HC2',   device: 'deck1', pad: true },
-  58: { id: 'hc3',       cat: 'hotcue',    label: 'Hot Cue 3',    short: 'HC3',   device: 'deck1', pad: true },
-  59: { id: 'hc4',       cat: 'hotcue',    label: 'Hot Cue 4',    short: 'HC4',   device: 'deck1', pad: true },
+  48: { id: 'play',      cat: 'deck', label: 'Play / Pause', short: 'PLAY',  device: 'deck1' },
+  49: { id: 'cue',       cat: 'deck', label: 'Cue',          short: 'CUE',   device: 'deck1' },
+  50: { id: 'sync',      cat: 'deck', label: 'Sync',         short: 'SYNC',  device: 'deck1' },
+  51: { id: 'rev',       cat: 'deck', label: 'Reverse',      short: 'REV',   device: 'deck1' },
+  52: { id: 'loop_in',   cat: 'deck', label: 'Loop In',      short: 'L·IN',  device: 'deck1' },
+  53: { id: 'loop_out',  cat: 'deck', label: 'Loop Out',     short: 'L·OUT', device: 'deck1' },
+  54: { id: 'loop_x2',   cat: 'deck', label: 'Loop ×2', short: 'L×2',   device: 'deck1' },
+  55: { id: 'loop_half', cat: 'deck', label: 'Loop ÷2', short: 'L÷2',   device: 'deck1' },
+  56: { id: 'hc1',       cat: 'deck', label: 'Hot Cue 1',    short: 'HC1',   device: 'deck1', pad: true, pressure: true },
+  57: { id: 'hc2',       cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck1', pad: true },
+  58: { id: 'hc3',       cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck1', pad: true },
+  59: { id: 'hc4',       cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck1', pad: true },
   // FX 1
   60: { id: 'fx1_on',    cat: 'fx',        label: 'FX 1 On',      short: 'ON',    device: 'fx1' },
   61: { id: 'fx1_beat',  cat: 'fx',        label: 'FX 1 Beats',   short: 'BEATS', device: 'fx1' },
@@ -170,21 +168,21 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   63: { id: 'fx2_on',    cat: 'fx',        label: 'FX 2 On',      short: 'ON',    device: 'fx2' },
   64: { id: 'fx2_beat',  cat: 'fx',        label: 'FX 2 Beats',   short: 'BEATS', device: 'fx2' },
   // Deck 2
-  65: { id: 'play_b',    cat: 'transport', label: 'Play / Pause', short: 'PLAY',  device: 'deck2' },
-  66: { id: 'cue_b',     cat: 'cue',       label: 'Cue',          short: 'CUE',   device: 'deck2' },
-  67: { id: 'sync_b',    cat: 'transport', label: 'Sync',         short: 'SYNC',  device: 'deck2' },
-  68: { id: 'loop_in_b', cat: 'loop',      label: 'Loop In',      short: 'L·IN',  device: 'deck2' },
-  69: { id: 'hc1_b',     cat: 'hotcue',    label: 'Hot Cue 1',    short: 'HC1',   device: 'deck2', pad: true, pressure: true },
-  70: { id: 'hc2_b',     cat: 'hotcue',    label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2', pad: true },
+  65: { id: 'play_b',    cat: 'deck', label: 'Play / Pause', short: 'PLAY',  device: 'deck2' },
+  66: { id: 'cue_b',     cat: 'deck', label: 'Cue',          short: 'CUE',   device: 'deck2' },
+  67: { id: 'sync_b',    cat: 'deck', label: 'Sync',         short: 'SYNC',  device: 'deck2' },
+  68: { id: 'loop_in_b', cat: 'deck', label: 'Loop In',      short: 'L·IN',  device: 'deck2' },
+  69: { id: 'hc1_b',     cat: 'deck', label: 'Hot Cue 1',    short: 'HC1',   device: 'deck2', pad: true, pressure: true },
+  70: { id: 'hc2_b',     cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2', pad: true },
   // Mixer
-  73: { id: 'load_a',    cat: 'deck',      label: 'Load Deck 1',  short: 'LD·1', device: 'mixer' },
-  74: { id: 'load_b',    cat: 'deck',      label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
+  73: { id: 'load_a',    cat: 'mixer', label: 'Load Deck 1',  short: 'LD·1', device: 'mixer' },
+  74: { id: 'load_b',    cat: 'mixer', label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
   // Global
-  75: { id: 'tap',       cat: 'transport', label: 'Tap Tempo',    short: 'TAP',   device: 'global' },
-  76: { id: 'beat_jump', cat: 'loop',      label: 'Beat Jump',    short: 'BJ',    device: 'deck1', pad: true },
-  77: { id: 'beat_jump_b', cat: 'loop',    label: 'Beat Jump',    short: 'BJ',    device: 'deck2', pad: true },
-  78: { id: 'hc3_b',     cat: 'hotcue',    label: 'Hot Cue 3',    short: 'HC3',   device: 'deck2', pad: true },
-  79: { id: 'hc4_b',     cat: 'hotcue',    label: 'Hot Cue 4',    short: 'HC4',   device: 'deck2', pad: true },
+  75: { id: 'tap',       cat: 'global', label: 'Tap Tempo',    short: 'TAP',   device: 'global' },
+  76: { id: 'beat_jump', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck1', pad: true },
+  77: { id: 'beat_jump_b', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck2', pad: true },
+  78: { id: 'hc3_b',     cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck2', pad: true },
+  79: { id: 'hc4_b',     cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck2', pad: true },
   80: { id: 'xfade_pos', cat: 'mixer',     label: 'Crossfader',   short: 'XF',    device: 'mixer', pad: true },
   81: { id: 'ch1_vol',   cat: 'mixer',     label: 'Ch 1 Volume',  short: '2V',    device: 'mixer', pad: true },
   82: { id: 'ch2_vol',   cat: 'mixer',     label: 'Ch 2 Volume',  short: '1V',    device: 'mixer', pad: true },
@@ -194,8 +192,8 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   86: { id: 'ch2_eq_hi', cat: 'mixer',     label: 'Ch 2 EQ High', short: '2H',    device: 'mixer', pad: true },
   87: { id: 'ch2_eq_mid', cat: 'mixer',    label: 'Ch 2 EQ Mid',  short: '2M',    device: 'mixer', pad: true },
   88: { id: 'ch2_eq_lo', cat: 'mixer',     label: 'Ch 2 EQ Low',  short: '2L',    device: 'mixer', pad: true },
-  89: { id: 'beat_jump_size', cat: 'loop', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck1', pad: true },
-  90: { id: 'beat_jump_size_b', cat: 'loop', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck2', pad: true },
+  89: { id: 'beat_jump_size', cat: 'deck', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck1', pad: true },
+  90: { id: 'beat_jump_size_b', cat: 'deck', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck2', pad: true },
 };
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
