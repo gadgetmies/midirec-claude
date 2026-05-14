@@ -75,14 +75,14 @@ function normalizeActionMidiDeviceIds(ids: string[] | undefined): string[] {
   return out;
 }
 
-function effectiveMidiInputDeviceIds(track: DJActionTrack, entry: ActionMapEntry): string[] {
+export function effectiveMidiInputDeviceIds(track: DJActionTrack, entry: ActionMapEntry): string[] {
   const row = normalizeActionMidiDeviceIds(entry.midiInputDeviceIds);
   if (row.length > 0) return row;
   const d = track.defaultMidiInputDeviceId.trim();
   return d ? [d] : [];
 }
 
-function portMatchesActionDevices(ids: string[], portId: string): boolean {
+export function portMatchesActionDevices(ids: string[], portId: string): boolean {
   if (ids.length === 0) return true;
   return ids.includes(portId);
 }

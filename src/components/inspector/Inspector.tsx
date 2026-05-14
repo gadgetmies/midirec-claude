@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useStage } from '../../hooks/useStage';
 import type { Note } from '../piano-roll/notes';
 import { formatBBT, formatPitch, summarizeSelection } from './summary';
@@ -14,6 +14,8 @@ import {
 } from '../../data/dj';
 import type { DJActionTrack } from '../../hooks/useDJActionTracks';
 import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
+import { useMidiLearn } from '../../midi/useMidiLearn';
+import type { MidiLearnWireMessage } from '../../midi/midiLearn';
 import { PressureEditor } from './PressureEditor';
 import './Inspector.css';
 
@@ -22,6 +24,60 @@ const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
 function clampInt(value: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function OutputMappingMidiLearn({
+  showCcOut,
+  commit,
+}: {
+  showCcOut: boolean;
+  commit: (next: Partial<OutputMapping>) => void;
+}) {
+  const [armed, setArmed] = useState(false);
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+  const tryCapture = useCallback(
+    (msg: MidiLearnWireMessage): boolean => {
+      if (msg.kind === 'noteOn') {
+        commitRef.current({
+          channel: clampInt(msg.channel1to16, 1, 16, 1),
+          pitch: clampInt(msg.note, 0, 127, 0),
+          cc: undefined,
+        });
+        return true;
+      }
+      if (showCcOut && msg.kind === 'controlChange') {
+        commitRef.current({
+          channel: clampInt(msg.channel1to16, 1, 16, 1),
+          cc: clampInt(msg.controller, 0, 127, 0),
+        });
+        return true;
+      }
+      return false;
+    },
+    [showCcOut],
+  );
+
+  useMidiLearn({
+    armed,
+    setArmed,
+    portFilter: () => true,
+    tryCapture,
+  });
+
+  return (
+    <div className="mr-kv">
+      <span className="mr-kv__k">Learn</span>
+      <button
+        type="button"
+        className="mr-btn mr-insp__field"
+        aria-pressed={armed}
+        onClick={() => setArmed((v) => !v)}
+      >
+        {armed ? 'Listening…' : 'MIDI learn'}
+      </button>
+    </div>
+  );
 }
 
 type Tab = 'Note' | 'Pressure' | 'Channel';
@@ -228,6 +284,7 @@ function DJTrackOutputMappingPanel({ track }: { track: DJActionTrack }) {
                   ))}
                 </select>
               </div>
+              <OutputMappingMidiLearn showCcOut={showCcOut} commit={commitRow} />
               <div className="mr-kv">
                 <span className="mr-kv__k">Channel</span>
                 <input
@@ -400,6 +457,7 @@ function ActionPanel({
           ))}
         </select>
       </div>
+      <OutputMappingMidiLearn showCcOut={showCcOut} commit={commit} />
       <div className="mr-kv">
         <span className="mr-kv__k">Channel</span>
         <input

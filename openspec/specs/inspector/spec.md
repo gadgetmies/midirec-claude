@@ -223,10 +223,11 @@ The panel SHALL render, in DOM order:
 2. An eyebrow row with the uppercase text `Output`.
 3. When `track.outputMap[pitch]` is `undefined`, a hint line with the text `No output configured. Editing any field below will create the mapping.` (placed below the eyebrow, above the input rows).
 4. A `.mr-kv` row with key text `Device` and a value that is a `<select class="mr-select">` populated with the keys of `DJ_DEVICES` in declared order; each option's text is `devLabel(key)`. The select's current value SHALL be the existing `outputMap[pitch].device` if set, otherwise the input binding's `entry.device`.
-5. A `.mr-kv` row with key text `Channel` and a value that is an `<input type="number" min="1" max="16" class="mr-input">`. The current value SHALL be the existing `outputMap[pitch].channel` if set, otherwise `1`.
-6. A `.mr-kv` row with key text `Pitch` and a value that contains an `<input type="number" min="0" max="127" class="mr-input">` followed by a `<span>` showing `pitchLabel(currentPitch)`. The input's current value SHALL be the existing `outputMap[pitch].pitch` if set, otherwise the input binding's `pitch`.
-7. When `outputMap[pitch]` is set (i.e. the mapping has been created), a footer row containing a single button with `data-danger="true"` and text content `Delete output`.
-8. When ALL of the following hold — `djEventSelection !== null`, the event selection refers to the same `(trackId, pitch)` as `djActionSelection`, `actionMap[pitch]?.pressure === true`, and `track.events[djEventSelection.eventIdx] !== undefined` — a Pressure section SHALL render below the Output rows (see the `dj-pressure-editor` capability for the section's internal layout). When any of those conditions is false, the Pressure section SHALL NOT render.
+5. A row exposing **MIDI learn** for this output mapping: a control that complies with the **midi-learn** capability (arm/disarm, single capture into `setOutputMapping` while retaining the virtual `device` key). The row SHALL use `.mr-kv` layout consistency with neighboring rows (key label e.g. `Learn` or action-only value cell as implemented) **and** SHALL appear **after** the Device row **and before** the Channel row.
+6. A `.mr-kv` row with key text `Channel` and a value that is an `<input type="number" min="1" max="16" class="mr-input">`. The current value SHALL be the existing `outputMap[pitch].channel` if set, otherwise `1`.
+7. A `.mr-kv` row with key text `Pitch` and a value that contains an `<input type="number" min="0" max="127" class="mr-input">` followed by a `<span>` showing `pitchLabel(currentPitch)`. The input's current value SHALL be the existing `outputMap[pitch].pitch` if set, otherwise the input binding's `pitch`.
+8. When `outputMap[pitch]` is set (i.e. the mapping has been created), a footer row containing a single button with `data-danger="true"` and text content `Delete output`.
+9. When ALL of the following hold — `djEventSelection !== null`, the event selection refers to the same `(trackId, pitch)` as `djActionSelection`, `actionMap[pitch]?.pressure === true`, and `track.events[djEventSelection.eventIdx] !== undefined` — a Pressure section SHALL render below the Output rows (see the `dj-pressure-editor` capability for the section's internal layout). When any of those conditions is false, the Pressure section SHALL NOT render.
 
 #### Scenario: Output panel renders for a selected DJ action row with no existing outputMap
 
@@ -276,6 +277,12 @@ The panel SHALL render, in DOM order:
 - **WHEN** `djActionSelection === { trackId: 'dj1', pitch: 48 }` AND `djEventSelection === { trackId: 'dj1', pitch: 48, eventIdx: 0 }` AND `actionMap[48].pressure !== true`
 - **THEN** the Inspector body SHALL contain the Output rows for the action
 - **AND** the Inspector body SHALL NOT contain any `.mr-pressure` element
+
+#### Scenario: Output learn appears between Device and Channel
+
+- **WHEN** the row-level Output mapping panel is rendered for `djActionSelection` with a valid `actionMap` entry
+- **THEN** the element tree SHALL contain the Device `.mr-kv` row before the Learn row
+- **AND** the Learn row SHALL appear before the Channel `.mr-kv` row
 
 ### Requirement: Output form changes auto-save via setOutputMapping
 

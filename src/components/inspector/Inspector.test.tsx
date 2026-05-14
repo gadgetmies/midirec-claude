@@ -46,12 +46,24 @@ vi.mock('../../hooks/useStage', () => ({
   }),
 }));
 
-vi.mock('../../midi/MidiRuntimeProvider', () => ({
-  useMidiOutputs: () => ({
+vi.mock('../../midi/MidiRuntimeProvider', () => {
+  const granted = {
     status: 'granted' as const,
-    outputs: [{ id: 'midi-1', name: 'Interface' }],
-  }),
-}));
+    access: { inputs: new Map(), outputs: new Map() },
+    inputs: [] as { id: string; name: string }[],
+    outputs: [] as { id: string; name: string }[],
+  };
+  return {
+    useMidiOutputs: () => ({
+      status: 'granted' as const,
+      outputs: [{ id: 'midi-1', name: 'Interface' }],
+    }),
+    useMidiRuntime: () => ({
+      state: granted,
+      retry: vi.fn(),
+    }),
+  };
+});
 
 describe('Inspector — DJ track output mapping', () => {
   test('Note tab shows track mapping panel when a DJ timeline track is focused', () => {

@@ -9,11 +9,18 @@
    action" — pure input-side semantics, hence "recording" context. The
    companion output-mapping form lives in the Inspector on the right. */
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Panel } from './Panel';
 import { FilterIcon } from '../icons/transport';
 import { useStage } from '../../hooks/useStage';
 import { useMidiInputs } from '../../midi/MidiRuntimeProvider';
+import {
+  effectiveMidiInputDeviceIds,
+  portMatchesActionDevices,
+} from '../../midi/recorder';
+import { useMidiLearn } from '../../midi/useMidiLearn';
+import type { MidiLearnWireMessage } from '../../midi/midiLearn';
+import type { DJActionTrack } from '../../hooks/useDJActionTracks';
 import type { MidiDevice } from '../../midi/access';
 import {
   DEFAULT_ACTION_MAP,
@@ -212,6 +219,7 @@ export function InputMappingPanel() {
     <div data-mr-dj-selection-region="true">
       <Panel icon={<FilterIcon />} title="Map Note">
         <Form
+          track={track}
           entry={entry}
           pitch={pitch}
           midiInputs={inputs}
@@ -228,6 +236,7 @@ export function InputMappingPanel() {
 }
 
 interface FormProps {
+  track: DJActionTrack;
   entry: ActionMapEntry;
   pitch: number;
   midiInputs: MidiDevice[];
@@ -240,6 +249,7 @@ interface FormProps {
 }
 
 function Form({
+  track,
   entry,
   pitch,
   midiInputs,
@@ -250,10 +260,53 @@ function Form({
   onTrigger,
   onDelete,
 }: FormProps) {
+  const [learnArmed, setLearnArmed] = useState(false);
   const mapActionRows = useMemo(() => actionRowsForMapSelect(entry.cat), [entry.cat]);
   const actionSelectId = actionIdForSelect(entry, entry.cat);
   const captureNote = entry.midiInputNote ?? pitch;
   const inKind = resolvedMidiInputKind(entry);
+
+  const tryCapture = useCallback(
+    (msg: MidiLearnWireMessage): boolean => {
+      const ch = entry.midiInputChannel ?? 1;
+      if (inKind === 'note' && msg.kind === 'noteOn') {
+        commitPartial({
+          midiInputChannel: clampMidiChannel(msg.channel1to16, ch),
+          midiInputNote: clampMidiNote(msg.note, captureNote),
+        });
+        return true;
+      }
+      if (inKind === 'cc' && msg.kind === 'controlChange') {
+        commitPartial({
+          midiInputChannel: clampMidiChannel(msg.channel1to16, ch),
+          midiInputCc: clampMidiCc(msg.controller, entry.midiInputCc ?? 0),
+        });
+        return true;
+      }
+      if (inKind === 'at' && msg.kind === 'channelPressure') {
+        commitPartial({
+          midiInputChannel: clampMidiChannel(msg.channel1to16, ch),
+        });
+        return true;
+      }
+      if (inKind === 'pb' && msg.kind === 'pitchBend') {
+        commitPartial({
+          midiInputChannel: clampMidiChannel(msg.channel1to16, ch),
+        });
+        return true;
+      }
+      return false;
+    },
+    [inKind, entry.midiInputChannel, entry.midiInputCc, captureNote, commitPartial],
+  );
+
+  const allowIds = effectiveMidiInputDeviceIds(track, entry);
+  useMidiLearn({
+    armed: learnArmed,
+    setArmed: setLearnArmed,
+    portFilter: (portId) => portMatchesActionDevices(allowIds, portId),
+    tryCapture,
+  });
   return (
     <div className="mr-map-form">
       <div className="mr-map-form__hd">
@@ -410,6 +463,22 @@ function Form({
               })}
             </div>
           </>
+        )}
+      </div>
+
+      <div className="mr-map-form__section">
+        <span className="mr-map-form__lbl">MIDI in · learn</span>
+        {midiInputs.length === 0 ? (
+          <p className="mr-map-form__note">Grant MIDI access to use learn.</p>
+        ) : (
+          <button
+            type="button"
+            className="mr-btn"
+            aria-pressed={learnArmed}
+            onClick={() => setLearnArmed((a) => !a)}
+          >
+            {learnArmed ? 'Listening… (Esc to cancel)' : 'Learn'}
+          </button>
         )}
       </div>
 
