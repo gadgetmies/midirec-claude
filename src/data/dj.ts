@@ -60,6 +60,8 @@ export interface OutputMapping {
   channel: number;
   pitch: number;
   cc?: number;
+  /** Web MIDI output port id; when absent, DJ playback uses the track default output port. */
+  midiOutputDeviceId?: string;
 }
 
 /** Default output MIDI CC numbers for continuous mixer template actions (DJ mixer surface). */
@@ -120,6 +122,10 @@ export function normalizeOutputMapping(m: OutputMapping): OutputMapping {
   const channel = Math.max(1, Math.min(16, Math.round(Number(m.channel)) || 1));
   const pitch = Math.max(0, Math.min(127, Math.round(Number(m.pitch)) || 0));
   const next: OutputMapping = { device: m.device, channel, pitch };
+  if (m.midiOutputDeviceId !== undefined && m.midiOutputDeviceId !== null) {
+    const id = String(m.midiOutputDeviceId).trim();
+    if (id) next.midiOutputDeviceId = id;
+  }
   if (m.cc !== undefined && Number.isFinite(m.cc)) {
     next.cc = Math.max(0, Math.min(127, Math.round(m.cc)));
   }

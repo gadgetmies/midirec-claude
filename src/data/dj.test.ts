@@ -102,6 +102,28 @@ describe('defaultMixerOutputCc', () => {
   });
 });
 
+describe('normalizeOutputMapping — midiOutputDeviceId', () => {
+  test('preserves trimmed non-empty id', () => {
+    const m = normalizeOutputMapping({
+      device: 'global',
+      channel: 1,
+      pitch: 60,
+      midiOutputDeviceId: '  port-1 ',
+    });
+    expect(m.midiOutputDeviceId).toBe('port-1');
+  });
+
+  test('omits id when empty after trim', () => {
+    const m = normalizeOutputMapping({
+      device: 'global',
+      channel: 1,
+      pitch: 60,
+      midiOutputDeviceId: ' \t ',
+    });
+    expect(m.midiOutputDeviceId).toBeUndefined();
+  });
+});
+
 describe('resolvedDjRowOutputCc', () => {
   const xfade = DEFAULT_ACTION_MAP[80]!;
   const play = DEFAULT_ACTION_MAP[48]!;

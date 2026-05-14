@@ -8,7 +8,7 @@ function trackWith(actions: Record<number, ActionMapEntry>): DJActionTrack {
     id: 't1',
     name: 'T',
     color: '#000',
-    midiChannel: 16,
+    midiChannel: 1,
     actionMap: actions,
     outputMap: {},
     events: [],
@@ -20,6 +20,7 @@ function trackWith(actions: Record<number, ActionMapEntry>): DJActionTrack {
     mutedRows: [],
     soloedRows: [],
     defaultMidiInputDeviceId: '',
+    defaultMidiOutputDeviceId: '',
   };
 }
 

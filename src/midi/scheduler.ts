@@ -35,6 +35,7 @@ export interface DJTrackSnapshot {
   soloedRows: number[];
   actionMap: Record<number, ActionMapEntry>;
   outputMap: Record<number, OutputMapping>;
+  defaultMidiOutputDeviceId: string;
   events: DJEventSnapshot[];
 }
 
@@ -44,13 +45,16 @@ export interface SchedulerOutput {
 }
 
 export interface SchedulerDeps {
-  output: SchedulerOutput | null;
-  outputName: string | undefined;
+  primaryOutput: SchedulerOutput | null;
+  primaryOutputName: string | undefined;
+  /** Empty or undefined port id selects `primaryOutput`. */
+  getMidiOutput: (portId: string | undefined) => SchedulerOutput | null;
   toast: (message: string) => void;
   lookaheadMs?: number;
 }
 
 interface ActiveNoteOn {
+  outputId: string;
   channelByte: number;
   pitch: number;
 }
@@ -138,6 +142,20 @@ function isDJRowAudible(
   if (track.soloedRows.includes(pitch)) return true;
   if (track.soloed && track.soloedRows.length === 0) return true;
   return false;
+}
+
+function resolveDJPortId(track: DJTrackSnapshot, pitch: number): string {
+  const rowId = track.outputMap[pitch]?.midiOutputDeviceId;
+  if (typeof rowId === 'string') {
+    const t = rowId.trim();
+    if (t) return t;
+  }
+  const def = track.defaultMidiOutputDeviceId;
+  if (typeof def === 'string') {
+    const t = def.trim();
+    if (t) return t;
+  }
+  return '';
 }
 
 function resolveChannelEmit(
@@ -230,16 +248,18 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   let lastPlayheadMs = 0;
   const cursors = new Map<string, number>();
   const activeNoteOns = new Map<string, ActiveNoteOn>();
-  const channelsActivated = new Map<string, number>();
-  const atLastEmitMsByChannel = new Map<number, number>();
+  const channelsActivated = new Map<string, { outputId: string; channelByte: number }>();
+  const atLastEmitMsByChannel = new Map<string, number>();
 
-  function noteOnKey(channelByte: number, pitch: number): string {
-    const outputId = deps.output?.id ?? '';
+  function noteOnKey(outputId: string, channelByte: number, pitch: number): string {
     return `${outputId}|${channelByte}|${pitch}`;
   }
 
-  function channelActKey(channelByte: number): string {
-    const outputId = deps.output?.id ?? '';
+  function channelActKey(outputId: string, channelByte: number): string {
+    return `${outputId}|${channelByte}`;
+  }
+
+  function atChannelKey(outputId: string, channelByte: number): string {
     return `${outputId}|${channelByte}`;
   }
 
@@ -267,6 +287,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   }
 
   function emitNoteEvent(
+    output: SchedulerOutput | null,
     channelByte: number,
     pitch: number,
     vel: number,
@@ -276,29 +297,35 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     playheadMs: number,
     pressure: PressurePoint[] | undefined,
   ): void {
-    if (!deps.output) return;
+    if (!output) return;
     const nowFloor = typeof performance !== 'undefined' ? performance.now() : now;
     const tsOn = Math.max(nowFloor, now + (eventStartPlayheadMs - playheadMs));
     const tsOff = Math.max(nowFloor, now + (eventEndPlayheadMs - playheadMs));
-    deps.output.send([0x90 | channelByte, pitch, vel], tsOn);
-    deps.output.send([0x80 | channelByte, pitch, 0], tsOff);
-    activeNoteOns.set(noteOnKey(channelByte, pitch), { channelByte, pitch });
-    channelsActivated.set(channelActKey(channelByte), channelByte);
+    output.send([0x90 | channelByte, pitch, vel], tsOn);
+    output.send([0x80 | channelByte, pitch, 0], tsOff);
+    activeNoteOns.set(noteOnKey(output.id, channelByte, pitch), {
+      outputId: output.id,
+      channelByte,
+      pitch,
+    });
+    channelsActivated.set(channelActKey(output.id, channelByte), { outputId: output.id, channelByte });
     if (pressure && pressure.length > 0) {
       const eventDurMs = eventEndPlayheadMs - eventStartPlayheadMs;
+      const atMapKey = atChannelKey(output.id, channelByte);
       for (const point of pressure) {
         const tsAtRel = eventStartPlayheadMs + point.t * eventDurMs;
-        const lastAt = atLastEmitMsByChannel.get(channelByte);
+        const lastAt = atLastEmitMsByChannel.get(atMapKey);
         if (lastAt !== undefined && tsAtRel - lastAt < AT_MIN_GAP_MS) continue;
         const atValue = Math.min(127, Math.max(0, Math.round(point.v * 127)));
         const tsAt = Math.max(nowFloor, now + (tsAtRel - playheadMs));
-        deps.output.send([PRESSURE_AT_STATUS | channelByte, atValue], tsAt);
-        atLastEmitMsByChannel.set(channelByte, tsAtRel);
+        output.send([PRESSURE_AT_STATUS | channelByte, atValue], tsAt);
+        atLastEmitMsByChannel.set(atMapKey, tsAtRel);
       }
     }
   }
 
   function emitControlChange(
+    output: SchedulerOutput | null,
     channelByte: number,
     cc: number,
     value: number,
@@ -306,11 +333,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     now: number,
     playheadMs: number,
   ): void {
-    if (!deps.output) return;
+    if (!output) return;
     const nowFloor = typeof performance !== 'undefined' ? performance.now() : now;
     const ts = Math.max(nowFloor, now + (eventStartPlayheadMs - playheadMs));
-    deps.output.send([0xb0 | channelByte, cc, value], ts);
-    channelsActivated.set(channelActKey(channelByte), channelByte);
+    output.send([0xb0 | channelByte, cc, value], ts);
+    channelsActivated.set(channelActKey(output.id, channelByte), { outputId: output.id, channelByte });
   }
 
   function start(
@@ -328,10 +355,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     channelsActivated.clear();
     atLastEmitMsByChannel.clear();
     rebindCursors(buildSources(channels, djTracks), playheadMs);
-    if (!deps.output) {
+    if (!deps.primaryOutput) {
       deps.toast('No output device available');
     } else {
-      const name = deps.outputName ?? '(unnamed device)';
+      const name = deps.primaryOutputName ?? '(unnamed device)';
       deps.toast(`Playing to ${name}`);
     }
   }
@@ -348,7 +375,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (playheadMs < lastPlayheadMs - SEEK_BACK_EPSILON_MS) {
       rebindCursors(sources, playheadMs);
     }
-    if (!deps.output || tempoSnapshot <= 0) {
+    if (tempoSnapshot <= 0) {
       lastPlayheadMs = playheadMs;
       return;
     }
@@ -373,9 +400,17 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
             ? resolveChannelEmit(source, event as Note, sessionAnySoloed)
             : resolveDJEmit(source, event as DJEventSnapshot, sessionAnySoloed);
         if (emit) {
+          const evPitch = (event as DJEventSnapshot).pitch;
+          const midiOut =
+            source.kind === 'channel'
+              ? deps.getMidiOutput(undefined)
+              : deps.getMidiOutput(
+                  resolveDJPortId(source.track, evPitch) || undefined,
+                );
           const endMs = (event.t + event.dur) * msPerBeat;
           if (emit.ccOut !== undefined) {
             emitControlChange(
+              midiOut,
               emit.channelByte,
               emit.ccOut,
               emit.vel,
@@ -385,6 +420,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
             );
           } else {
             emitNoteEvent(
+              midiOut,
               emit.channelByte,
               emit.pitch,
               emit.vel,
@@ -412,12 +448,16 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       return;
     }
     running = false;
-    if (deps.output) {
-      for (const [, entry] of activeNoteOns) {
-        deps.output.send([0x80 | entry.channelByte, entry.pitch, 0]);
+    for (const [, entry] of activeNoteOns) {
+      const out = deps.getMidiOutput(entry.outputId);
+      if (out) {
+        out.send([0x80 | entry.channelByte, entry.pitch, 0]);
       }
-      for (const [, channelByte] of channelsActivated) {
-        deps.output.send([0xb0 | channelByte, 0x7b, 0x00]);
+    }
+    for (const [, { outputId, channelByte }] of channelsActivated) {
+      const out = deps.getMidiOutput(outputId);
+      if (out) {
+        out.send([0xb0 | channelByte, 0x7b, 0x00]);
       }
     }
     activeNoteOns.clear();
@@ -487,6 +527,7 @@ function buildDJTrackSnapshots(djActionTracks: DJActionTrack[]): DJTrackSnapshot
       soloedRows: track.soloedRows,
       actionMap: track.actionMap,
       outputMap: track.outputMap,
+      defaultMidiOutputDeviceId: track.defaultMidiOutputDeviceId,
       events,
     };
   });
@@ -517,15 +558,23 @@ export function useMidiScheduler(): void {
   useEffect(() => {
     if (mode !== 'play') return;
 
+    const access = runtimeState.status === 'granted' ? runtimeState.access : null;
     const outputSnapshot = outputs[0];
-    const midiOutput =
-      outputSnapshot && runtimeState.status === 'granted'
-        ? runtimeState.access.outputs.get(outputSnapshot.id) ?? null
-        : null;
+    const midiPrimary =
+      outputSnapshot && access ? access.outputs.get(outputSnapshot.id) ?? null : null;
+
+    const getMidiOutput = (portId: string | undefined): SchedulerOutput | null => {
+      if (!access) return null;
+      if (portId === undefined || portId === '') {
+        return midiPrimary as SchedulerOutput | null;
+      }
+      return access.outputs.get(portId) ?? null;
+    };
 
     const scheduler = createScheduler({
-      output: midiOutput as SchedulerOutput | null,
-      outputName: outputSnapshot?.name,
+      primaryOutput: midiPrimary as SchedulerOutput | null,
+      primaryOutputName: outputSnapshot?.name,
+      getMidiOutput,
       toast: (msg) => toast.show(msg),
     });
 
@@ -547,7 +596,7 @@ export function useMidiScheduler(): void {
       }
       scheduler.panic();
     };
-  }, [mode]);
+  }, [mode, outputs, runtimeState.status, runtimeState]);
 }
 
 export function MidiSchedulerRunner(): null {

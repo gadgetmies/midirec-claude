@@ -22,7 +22,7 @@ const baseTrack = (over: Partial<DJActionTrack> = {}): DJActionTrack => ({
   id: 'dj1',
   name: 'DJ',
   color: 'oklch(70% 0.04 80)',
-  midiChannel: 16,
+  midiChannel: 1,
   actionMap: {
     48: DEFAULT_ACTION_MAP[48],
     56: DEFAULT_ACTION_MAP[56],
@@ -38,6 +38,7 @@ const baseTrack = (over: Partial<DJActionTrack> = {}): DJActionTrack => ({
   mutedRows: [],
   soloedRows: [],
   defaultMidiInputDeviceId: '',
+  defaultMidiOutputDeviceId: '',
   ...over,
 });
 

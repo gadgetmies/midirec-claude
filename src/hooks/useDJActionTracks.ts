@@ -60,6 +60,8 @@ export interface DJActionTrack {
   soloedRows: number[];
   /** Web MIDI port id used when an action omits `midiInputDeviceIds`. Empty = first available port at record time. */
   defaultMidiInputDeviceId: string;
+  /** Web MIDI output port id for playback when a row omits `outputMap[pitch].midiOutputDeviceId`. Empty = session primary output. */
+  defaultMidiOutputDeviceId: string;
 }
 
 export interface UseDJActionTracksReturn {
@@ -76,6 +78,7 @@ export interface UseDJActionTracksReturn {
   setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
   clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
   setDJTrackDefaultMidiInputDevice: (id: DJTrackId, inputDeviceId: string) => void;
+  setDJTrackDefaultMidiOutputDevice: (id: DJTrackId, outputDeviceId: string) => void;
   appendDJActionEvent: (id: DJTrackId, event: ActionEvent) => void;
 }
 
@@ -196,7 +199,7 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       id: 'dj-deck1',
       name: 'Deck 1',
       color: DJ_DEVICES.deck1.color,
-      midiChannel: 14,
+      midiChannel: 1,
       actionMap: sliceActionMap(DEMO_DECK1_PITCHES),
       outputMap: {},
       events: ev(SEEDED_EVENTS_DECK1),
@@ -208,12 +211,13 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       mutedRows: [],
       soloedRows: [],
       defaultMidiInputDeviceId: '',
+      defaultMidiOutputDeviceId: '',
     },
     {
       id: 'dj-deck2',
       name: 'Deck 2',
       color: DJ_DEVICES.deck2.color,
-      midiChannel: 15,
+      midiChannel: 1,
       actionMap: sliceActionMap(DEMO_DECK2_PITCHES),
       outputMap: {},
       events: ev(SEEDED_EVENTS_DECK2),
@@ -225,14 +229,15 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       mutedRows: [],
       soloedRows: [],
       defaultMidiInputDeviceId: '',
+      defaultMidiOutputDeviceId: '',
     },
     {
       id: 'dj-mixer',
       name: 'Mixer',
       color: DJ_DEVICES.mixer.color,
-      midiChannel: 16,
+      midiChannel: 1,
       actionMap: mixerAm,
-      outputMap: mixerDefaultOutputMap(mixerAm, 16),
+      outputMap: mixerDefaultOutputMap(mixerAm, 1),
       events: ev(SEEDED_EVENTS_MIXER),
       inputRouting: emptyRoute,
       outputRouting: emptyRoute,
@@ -242,6 +247,7 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       mutedRows: [],
       soloedRows: [],
       defaultMidiInputDeviceId: '',
+      defaultMidiOutputDeviceId: '',
     },
   ];
   return tracks.slice().sort((a, b) =>
@@ -352,6 +358,16 @@ export function useDJActionTracks(
     });
   }, []);
 
+  const setDJTrackDefaultMidiOutputDevice = useCallback((id: DJTrackId, outputDeviceId: string) => {
+    setDJActionTracks((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx < 0) return prev;
+      const next = prev.slice();
+      next[idx] = { ...next[idx]!, defaultMidiOutputDeviceId: outputDeviceId };
+      return next;
+    });
+  }, []);
+
   const appendDJActionEvent = useCallback((id: DJTrackId, event: ActionEvent) => {
     setDJActionTracks((prev) => {
       const idx = prev.findIndex((t) => t.id === id);
@@ -377,6 +393,7 @@ export function useDJActionTracks(
     setEventPressure,
     clearEventPressure,
     setDJTrackDefaultMidiInputDevice,
+    setDJTrackDefaultMidiOutputDevice,
     appendDJActionEvent,
   };
 }

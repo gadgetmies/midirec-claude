@@ -13,6 +13,7 @@ import {
   type OutputMapping,
 } from '../../data/dj';
 import type { DJActionTrack } from '../../hooks/useDJActionTracks';
+import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
 import { PressureEditor } from './PressureEditor';
 import './Inspector.css';
 
@@ -61,7 +62,14 @@ export function Inspector() {
 }
 
 function NotePanel() {
-  const { resolvedSelection, rolls, channels, djActionSelection, djActionTracks } = useStage();
+  const {
+    resolvedSelection,
+    rolls,
+    channels,
+    djActionSelection,
+    djActionTracks,
+    selectedTimelineTrack,
+  } = useStage();
 
   /* DJ action-row selection takes precedence over channel/roll selection.
      When set, the Inspector renders the Action panel and ignores
@@ -78,6 +86,13 @@ function NotePanel() {
         entry={entry}
       />
     );
+  }
+
+  if (selectedTimelineTrack?.kind === 'dj') {
+    const track = djActionTracks.find((t) => t.id === selectedTimelineTrack.trackId);
+    if (track) {
+      return <DJTrackOutputMappingPanel track={track} />;
+    }
   }
 
   if (!resolvedSelection || resolvedSelection.indexes.length === 0) {
@@ -103,6 +118,177 @@ function NotePanel() {
   );
 }
 
+function DJTrackOutputMappingPanel({ track }: { track: DJActionTrack }) {
+  const { outputs } = useMidiOutputs();
+  const { setOutputMapping, setDJTrackDefaultMidiOutputDevice } = useStage();
+  const rowOrder = Object.keys(track.actionMap)
+    .map(Number)
+    .filter((p) => Object.prototype.hasOwnProperty.call(track.actionMap, p))
+    .sort((a, b) => a - b);
+
+  return (
+    <div data-mr-dj-selection-region="true" className="mr-insp__dj-track-map">
+      <div className="mr-insp__hd">
+        <div className="mr-insp-swatch" style={{ background: track.color }} />
+        <div className="mr-insp__hd-meta">
+          <div className="mr-insp__hd-title">{track.name}</div>
+          <div className="mr-insp__hd-sub">DJ track · output mapping</div>
+        </div>
+      </div>
+
+      <div className="mr-insp-eyebrow">Track MIDI output</div>
+      <div className="mr-kv">
+        <span className="mr-kv__k">Default port</span>
+        <select
+          className="mr-select mr-insp__field"
+          value={track.defaultMidiOutputDeviceId}
+          onChange={(e) => setDJTrackDefaultMidiOutputDevice(track.id, e.target.value)}
+        >
+          <option value="">Session default (first output)</option>
+          {outputs.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name || d.id}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mr-insp-eyebrow">Actions</div>
+      <div className="mr-insp__dj-track-map-rows">
+        {rowOrder.map((pitch) => {
+          const entry = track.actionMap[pitch]!;
+          const existing = track.outputMap[pitch];
+          const suggestedCc = defaultMixerOutputCc(entry.id);
+          const showCcOut = suggestedCc !== undefined || existing?.cc !== undefined;
+          const current: OutputMapping = existing ?? {
+            device: entry.device,
+            channel: track.midiChannel,
+            pitch,
+          };
+          const commitRow = (next: Partial<OutputMapping>) => {
+            const merged: OutputMapping = { ...current, ...next };
+            if (next.cc === undefined && 'cc' in next) {
+              delete merged.cc;
+            }
+            if (next.midiOutputDeviceId === undefined && 'midiOutputDeviceId' in next) {
+              delete merged.midiOutputDeviceId;
+            }
+            setOutputMapping(track.id, pitch, merged);
+          };
+          const setMidiPort = (v: string) => {
+            if (v === '') {
+              const merged: OutputMapping = { ...current };
+              delete merged.midiOutputDeviceId;
+              setOutputMapping(track.id, pitch, merged);
+            } else {
+              commitRow({ midiOutputDeviceId: v });
+            }
+          };
+
+          return (
+            <div key={pitch} className="mr-insp__dj-track-map-row">
+              <div className="mr-insp__dj-track-map-row-hd">
+                <div
+                  className="mr-insp-swatch mr-insp-swatch--row"
+                  style={{ background: devColor(entry.device) }}
+                />
+                <div className="mr-insp__hd-meta">
+                  <div className="mr-insp__hd-title">{entry.label}</div>
+                  <div className="mr-insp__hd-sub">
+                    in {pitchLabel(pitch)} · note {pitch}
+                  </div>
+                </div>
+              </div>
+              <div className="mr-kv">
+                <span className="mr-kv__k">MIDI out</span>
+                <select
+                  className="mr-select mr-insp__field"
+                  value={current.midiOutputDeviceId ?? ''}
+                  onChange={(e) => setMidiPort(e.target.value)}
+                >
+                  <option value="">Track default</option>
+                  {outputs.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name || d.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mr-kv">
+                <span className="mr-kv__k">Device</span>
+                <select
+                  className="mr-select mr-insp__field"
+                  value={current.device}
+                  onChange={(e) => commitRow({ device: e.target.value as DeviceId })}
+                >
+                  {DEVICE_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {devLabel(key)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mr-kv">
+                <span className="mr-kv__k">Channel</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={16}
+                  className="mr-input mr-insp__field"
+                  value={current.channel}
+                  onChange={(e) =>
+                    commitRow({ channel: clampInt(e.target.valueAsNumber, 1, 16, current.channel) })
+                  }
+                />
+              </div>
+              {showCcOut ? (
+                <div className="mr-kv">
+                  <span className="mr-kv__k">CC#</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={127}
+                    className="mr-input mr-insp__field"
+                    value={current.cc ?? ''}
+                    placeholder={suggestedCc !== undefined ? String(suggestedCc) : undefined}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        commitRow({ cc: undefined });
+                        return;
+                      }
+                      commitRow({ cc: clampInt(e.target.valueAsNumber, 0, 127, suggestedCc ?? 0) });
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="mr-kv">
+                  <span className="mr-kv__k">Pitch</span>
+                  <div className="mr-insp__pitch-row">
+                    <input
+                      type="number"
+                      min={0}
+                      max={127}
+                      className="mr-input mr-insp__field"
+                      value={current.pitch}
+                      onChange={(e) =>
+                        commitRow({
+                          pitch: clampInt(e.target.valueAsNumber, 0, 127, current.pitch),
+                        })
+                      }
+                    />
+                    <span className="mr-insp__pitch-label">{pitchLabel(current.pitch)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ActionPanel({
   track,
   pitch,
@@ -113,6 +299,7 @@ function ActionPanel({
   entry: ActionMapEntry;
 }) {
   const { setOutputMapping, deleteOutputMapping, djEventSelection } = useStage();
+  const { outputs } = useMidiOutputs();
   const existing = track.outputMap[pitch];
 
   /* Pressure section is gated on: an event selection that matches this
@@ -146,7 +333,20 @@ function ActionPanel({
     if (next.cc === undefined && 'cc' in next) {
       delete merged.cc;
     }
+    if (next.midiOutputDeviceId === undefined && 'midiOutputDeviceId' in next) {
+      delete merged.midiOutputDeviceId;
+    }
     setOutputMapping(track.id, pitch, merged);
+  };
+
+  const setMidiPort = (v: string) => {
+    if (v === '') {
+      const merged: OutputMapping = { ...current };
+      delete merged.midiOutputDeviceId;
+      setOutputMapping(track.id, pitch, merged);
+    } else {
+      commit({ midiOutputDeviceId: v });
+    }
   };
 
   return (
@@ -171,6 +371,21 @@ function ActionPanel({
         </div>
       )}
 
+      <div className="mr-kv">
+        <span className="mr-kv__k">MIDI out</span>
+        <select
+          className="mr-select mr-insp__field"
+          value={current.midiOutputDeviceId ?? ''}
+          onChange={(e) => setMidiPort(e.target.value)}
+        >
+          <option value="">Track default</option>
+          {outputs.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name || d.id}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="mr-kv">
         <span className="mr-kv__k">Device</span>
         <select

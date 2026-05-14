@@ -28,7 +28,7 @@ function miniTrack(over: Partial<DJActionTrack> = {}): DJActionTrack {
     id: 'dj1',
     name: 'DJ',
     color: '#fff',
-    midiChannel: 16,
+    midiChannel: 1,
     actionMap: { 80: DEFAULT_ACTION_MAP[80]! },
     outputMap: {
       80: normalizeOutputMapping({ device: 'mixer', channel: 16, pitch: 80, cc: 16 }),
@@ -42,6 +42,7 @@ function miniTrack(over: Partial<DJActionTrack> = {}): DJActionTrack {
     mutedRows: [],
     soloedRows: [],
     defaultMidiInputDeviceId: '',
+    defaultMidiOutputDeviceId: '',
     ...over,
   };
 }

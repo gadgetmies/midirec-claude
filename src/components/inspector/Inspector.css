@@ -255,3 +255,39 @@ input.mr-insp__field {
   padding: 0 10px;
   font-size: var(--mr-fs-10);
 }
+
+.mr-insp__dj-track-map {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mr-insp__dj-track-map-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mr-insp__dj-track-map-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: var(--mr-bw-1) solid var(--mr-line-1);
+}
+
+.mr-insp__dj-track-map-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.mr-insp__dj-track-map-row-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mr-insp-swatch--row {
+  width: 22px;
+  height: 22px;
+}

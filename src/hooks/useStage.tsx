@@ -119,6 +119,7 @@ export interface StageState {
   selectDJTimelineTrack: (trackId: DJTrackId) => void;
   setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
   setDJTrackDefaultMidiInputDevice: (trackId: DJTrackId, inputDeviceId: string) => void;
+  setDJTrackDefaultMidiOutputDevice: (trackId: DJTrackId, outputDeviceId: string) => void;
   appendDJActionEvent: (trackId: DJTrackId, event: ActionEvent) => void;
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
@@ -306,6 +307,7 @@ function useStageState(): StageState {
     selectDJTimelineTrack,
     setChannelInputSourceChannels: channels.setChannelInputSourceChannels,
     setDJTrackDefaultMidiInputDevice: djTracks.setDJTrackDefaultMidiInputDevice,
+    setDJTrackDefaultMidiOutputDevice: djTracks.setDJTrackDefaultMidiOutputDevice,
     appendDJActionEvent: djTracks.appendDJActionEvent,
     djActionTracks: djTracks.djActionTracks,
     djActionSelection,

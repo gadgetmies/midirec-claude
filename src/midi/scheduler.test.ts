@@ -6,6 +6,7 @@ import {
   type ChannelSnapshot,
   type DJEventSnapshot,
   type DJTrackSnapshot,
+  type SchedulerDeps,
   type SchedulerOutput,
 } from './scheduler';
 
@@ -34,6 +35,26 @@ function makeToast(): { show: (m: string) => void; messages: string[] } {
   return {
     show: (m: string) => messages.push(m),
     messages,
+  };
+}
+
+function schedDeps(
+  primary: SchedulerOutput | null,
+  toastFn: (m: string) => void,
+  primaryName?: string,
+  getMidiOutput?: (portId: string | undefined) => SchedulerOutput | null,
+): SchedulerDeps {
+  return {
+    primaryOutput: primary,
+    primaryOutputName: primaryName,
+    getMidiOutput:
+      getMidiOutput ??
+      ((id) => {
+        if (id === undefined || id === '') return primary;
+        if (primary && id === primary.id) return primary;
+        return null;
+      }),
+    toast: toastFn,
   };
 }
 
@@ -69,7 +90,7 @@ describe('createScheduler — dispatch within lookahead window', () => {
   test('dispatches note-on and note-off for a note within the lookahead window', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'MicroFreak', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show, 'MicroFreak'));
     const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
     scheduler.start(0, 120, channels);
     const now = performance.now();
@@ -88,7 +109,7 @@ describe('createScheduler — dispatch within lookahead window', () => {
   test('notes past the lookahead window are deferred', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(5.0, 0.5, 64, 90)])];
     scheduler.start(0, 120, channels);
     scheduler.tick(performance.now(), 0, channels);
@@ -101,7 +122,7 @@ describe('createScheduler — dispatch within lookahead window', () => {
   test('notes before the playhead are skipped without emit', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.5, 0.5, 60, 100)])];
     scheduler.start(1000, 120, channels);
     scheduler.tick(performance.now(), 1000, channels);
@@ -111,7 +132,7 @@ describe('createScheduler — dispatch within lookahead window', () => {
   test('timestamp is clamped to at least performance.now()', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.0, 0.1, 60, 100)])];
     scheduler.start(0, 120, channels);
     const now = performance.now();
@@ -126,7 +147,7 @@ describe('createScheduler — mute and solo', () => {
   test('muted channel emits zero send calls', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.1, 0.1, 60, 100)], { muted: true })];
     scheduler.start(0, 120, channels);
     scheduler.tick(performance.now(), 0, channels);
@@ -136,7 +157,7 @@ describe('createScheduler — mute and solo', () => {
   test('solo on one channel silences the rest', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [
       channel(1, [note(0.1, 0.1, 60, 100)], { soloed: true }),
       channel(2, [note(0.1, 0.1, 64, 100)]),
@@ -153,7 +174,7 @@ describe('createScheduler — mute and solo', () => {
   test('roll-level mute also silences the channel', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [
       {
         id: 1,
@@ -172,7 +193,7 @@ describe('createScheduler — mute and solo', () => {
   test('external solo (e.g. lane) silences all channel notes when no channel/roll is soloed', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [
       channel(1, [note(0.1, 0.1, 60, 100)]),
       channel(2, [note(0.1, 0.1, 64, 100)]),
@@ -185,7 +206,7 @@ describe('createScheduler — mute and solo', () => {
   test('external solo plus channel solo: only soloed channel plays', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [
       channel(1, [note(0.1, 0.1, 60, 100)], { soloed: true }),
       channel(2, [note(0.1, 0.1, 64, 100)]),
@@ -200,7 +221,7 @@ describe('createScheduler — mute and solo', () => {
   test('roll-level solo silences channels with no solo at either level', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels: ChannelSnapshot[] = [
       {
         id: 1,
@@ -229,7 +250,7 @@ describe('createScheduler — mute and solo', () => {
   test('mid-playback un-mute does not retroactively dispatch past notes', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const mutedCh = channel(1, [note(0.5, 0.1, 60, 100), note(10.0, 0.1, 72, 100)], {
       muted: true,
     });
@@ -252,7 +273,7 @@ describe('createScheduler — panic on stop', () => {
   test('emits note-off and All Notes Off, with note-offs first', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [
       channel(1, [note(0.0, 10.0, 60, 100)]),
       channel(3, [note(0.0, 10.0, 36, 90)]),
@@ -280,7 +301,7 @@ describe('createScheduler — panic on stop', () => {
 
   test('panic with no output is a no-op and does not throw', () => {
     const toast = makeToast();
-    const scheduler = createScheduler({ output: null, outputName: undefined, toast: toast.show });
+    const scheduler = createScheduler(schedDeps(null, toast.show, undefined));
     const channels = [channel(1, [note(0.0, 10.0, 60, 100)])];
     scheduler.start(0, 120, channels);
     scheduler.tick(performance.now(), 0, channels);
@@ -290,7 +311,7 @@ describe('createScheduler — panic on stop', () => {
   test('activeNoteCount is zero after panic', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.0, 10.0, 60, 100)])];
     scheduler.start(0, 120, channels);
     scheduler.tick(performance.now(), 0, channels);
@@ -302,7 +323,7 @@ describe('createScheduler — panic on stop', () => {
   test('rapid play/stop/play leaves activeNoteOns empty at start of second play', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.0, 10.0, 60, 100)])];
     scheduler.start(0, 120, channels);
     scheduler.tick(performance.now(), 0, channels);
@@ -316,7 +337,7 @@ describe('createScheduler — panic on stop', () => {
 describe('createScheduler — toasts', () => {
   test('no output emits the no-output toast exactly once', () => {
     const toast = makeToast();
-    const scheduler = createScheduler({ output: null, outputName: undefined, toast: toast.show });
+    const scheduler = createScheduler(schedDeps(null, toast.show, undefined));
     scheduler.start(0, 120, []);
     scheduler.tick(performance.now(), 0, []);
     scheduler.tick(performance.now(), 50, []);
@@ -326,11 +347,7 @@ describe('createScheduler — toasts', () => {
   test('with output emits playing-to toast exactly once with output name', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({
-      output,
-      outputName: 'MicroFreak',
-      toast: toast.show,
-    });
+    const scheduler = createScheduler(schedDeps(output, toast.show, 'MicroFreak'));
     scheduler.start(0, 120, []);
     scheduler.tick(performance.now(), 0, []);
     scheduler.tick(performance.now(), 50, []);
@@ -340,11 +357,7 @@ describe('createScheduler — toasts', () => {
   test('empty-name output falls back to (unnamed device)', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({
-      output,
-      outputName: undefined,
-      toast: toast.show,
-    });
+    const scheduler = createScheduler(schedDeps(output, toast.show, undefined));
     scheduler.start(0, 120, []);
     expect(toast.messages).toEqual(['Playing to (unnamed device)']);
   });
@@ -354,7 +367,7 @@ describe('createScheduler — seek and loop wrap', () => {
   test('seek backward resets cursors so later notes still fire', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [
       channel(1, [note(0.1, 0.1, 60, 100), note(2.0, 0.1, 64, 100)]),
     ];
@@ -374,7 +387,7 @@ describe('createScheduler — tempo snapshot', () => {
   test('tempo snapshot persists across mid-playback bpm changes', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
     scheduler.start(0, 120, channels);
     const now1 = performance.now();
@@ -421,6 +434,7 @@ function makeDJTrack(opts: {
   events?: DJEventSnapshot[];
   actionMap?: Record<number, ActionMapEntry>;
   outputMap?: Record<number, OutputMapping>;
+  defaultMidiOutputDeviceId?: string;
   muted?: boolean;
   soloed?: boolean;
   mutedRows?: number[];
@@ -428,10 +442,11 @@ function makeDJTrack(opts: {
 }): DJTrackSnapshot {
   return {
     id: opts.id ?? 'dj1',
-    midiChannel: opts.midiChannel ?? 16,
+    midiChannel: opts.midiChannel ?? 1,
     events: opts.events ?? [],
     actionMap: opts.actionMap ?? {},
     outputMap: opts.outputMap ?? {},
+    defaultMidiOutputDeviceId: opts.defaultMidiOutputDeviceId ?? '',
     muted: opts.muted ?? false,
     soloed: opts.soloed ?? false,
     mutedRows: opts.mutedRows ?? [],
@@ -449,7 +464,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('emits note-on/note-off using mapping.pitch and scaled velocity', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.5)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
@@ -468,10 +483,56 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     expect(noteOffs[0]!.timestamp).toBeCloseTo(now + 100, 1);
   });
 
+  test('DJ row midiOutputDeviceId routes to named output', () => {
+    const outA = makeFakeOutput('out-a');
+    const outB = makeFakeOutput('out-b');
+    const toast = makeToast();
+    const scheduler = createScheduler(
+      schedDeps(outA, toast.show, 'A', (id) => {
+        if (id === undefined || id === '') return outA;
+        if (id === 'out-b') return outB;
+        return null;
+      }),
+    );
+    const track = makeDJTrack({
+      events: [djEvent(48, 0.1, 0.1, 0.5)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
+      outputMap: {
+        48: { device: 'global', channel: 1, pitch: 60, midiOutputDeviceId: 'out-b' },
+      },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(outA.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
+    expect(outB.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90).length).toBeGreaterThan(0);
+  });
+
+  test('DJ track defaultMidiOutputDeviceId routes when row omits port override', () => {
+    const outA = makeFakeOutput('out-a');
+    const outB = makeFakeOutput('out-b');
+    const toast = makeToast();
+    const scheduler = createScheduler(
+      schedDeps(outA, toast.show, 'A', (id) => {
+        if (id === undefined || id === '') return outA;
+        if (id === 'out-b') return outB;
+        return null;
+      }),
+    );
+    const track = makeDJTrack({
+      defaultMidiOutputDeviceId: 'out-b',
+      events: [djEvent(48, 0.1, 0.1, 0.5)],
+      actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
+      outputMap: {},
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(outB.calls.some((c) => (c.data[0]! & 0xf0) === 0x90)).toBe(true);
+  });
+
   test('velocity floor is 1 even when event.vel rounds to 0', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.0, 0.1, 0.001)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
@@ -486,7 +547,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('velocity ceiling is 127 when event.vel is 1.0', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.0, 0.1, 1.0)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
@@ -501,9 +562,9 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('missing outputMap entry falls back to track.midiChannel + event.pitch', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show, 'X'));
     const track = makeDJTrack({
-      midiChannel: 16,
+      midiChannel: 1,
       events: [djEvent(48, 0.0, 0.1, 0.8)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: {},
@@ -512,17 +573,17 @@ describe('createScheduler — DJ note-mode dispatch', () => {
     scheduler.tick(performance.now(), 0, [], false, [track]);
     const noteOns = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90);
     expect(noteOns).toHaveLength(1);
-    /* channel byte = 16 - 1 = 15 (0x0F), output pitch = event.pitch (48), velocity = round(0.8 * 127) = 102 */
-    expect(noteOns[0]!.data).toEqual([0x9f, 48, 102]);
+    /* channel byte = 0 (track channel 1), output pitch = event.pitch (48), velocity = round(0.8 * 127) = 102 */
+    expect(noteOns[0]!.data).toEqual([0x90, 48, 102]);
     expect(toast.messages).toEqual(['Playing to X']);
   });
 
   test('outputMap entry overrides track.midiChannel and event.pitch', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
-      midiChannel: 16,
+      midiChannel: 1,
       events: [djEvent(48, 0.0, 0.1, 0.8)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
       outputMap: { 48: { device: 'global', channel: 3, pitch: 60 } },
@@ -537,7 +598,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('missing actionMap entry silently skips event', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.0, 0.1, 0.8)],
       actionMap: {},
@@ -551,7 +612,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('events past lookahead window are deferred', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 5.0, 0.5, 0.8)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
@@ -567,7 +628,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('events before playhead are skipped', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.5, 0.1, 0.8)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
@@ -581,7 +642,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('outputMap with cc emits control change, not notes', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(80, 0.0, 1.0, 0.5)],
       actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
@@ -600,7 +661,7 @@ describe('createScheduler — DJ note-mode dispatch', () => {
   test('CC-out value can be zero', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(80, 0.0, 0.5, 0.0)],
       actionMap: { 80: makeAction({ id: 'ch1_vol', cat: 'mixer', pad: true }) },
@@ -617,7 +678,7 @@ describe('createScheduler — DJ mute / solo', () => {
   test('track-level muted DJ track emits zero events', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.8)],
       actionMap: { 48: makeAction({ id: 'play', cat: 'deck' }) },
@@ -632,7 +693,7 @@ describe('createScheduler — DJ mute / solo', () => {
   test('row-level muted row emits nothing; other rows in same track continue', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.05, 0.1, 0.8), djEvent(49, 0.06, 0.1, 0.8)],
       actionMap: {
@@ -655,7 +716,7 @@ describe('createScheduler — DJ mute / solo', () => {
   test('DJ track solo silences channel-roll dispatch', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.8)],
@@ -674,7 +735,7 @@ describe('createScheduler — DJ mute / solo', () => {
   test('DJ row solo silences channel-roll dispatch and non-soloed rows', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const channels = [channel(1, [note(0.1, 0.1, 60, 100)])];
     const track = makeDJTrack({
       events: [djEvent(48, 0.1, 0.1, 0.8), djEvent(49, 0.1, 0.1, 0.8)],
@@ -700,7 +761,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
   test('emits note envelope and 14 AT messages for well-spaced synthesised curve', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8)],
       actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
@@ -720,7 +781,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
   test('empty pressure array emits zero AT messages', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8, { pressure: [] })],
       actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
@@ -736,7 +797,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
   test('non-empty stored pressure emits one AT per point', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const points: PressurePoint[] = [
       { t: 0.0, v: 0.0 },
       { t: 0.5, v: 1.0 },
@@ -757,7 +818,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
   test('throttle drops AT messages closer than 10ms apart', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     /* event dur=0.03 → 15ms duration at tempo 120. Points at curve-t 0, 1/3,
        1.0 → abs-times 0, 5, 15ms. With 10ms throttle:
          - point 1 at 0ms emits  (last = 0)
@@ -784,7 +845,7 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
   test('perPitchIndex selects pressure shape via synthesizePressure', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     /* Three events on same pitch 56 with perPitchIndex 0, 1, 2 → arch, rise,
        center-peak shapes. First point of each: arch=0.05, rise=0.2, center=0.2.
        Middle point of each (curve-t 0.5): arch=0.85, rise=0.55, center=0.6.
@@ -825,7 +886,7 @@ describe('createScheduler — DJ seek and panic', () => {
   test('seek-back rebinds DJ cursor so later events still fire', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(48, 0.05, 0.01, 0.8), djEvent(48, 0.15, 0.01, 0.8, { perPitchIndex: 1 })],
       actionMap: { 48: makeAction({ id: 'a', cat: 'deck' }) },
@@ -844,7 +905,7 @@ describe('createScheduler — DJ seek and panic', () => {
   test('panic emits matching note-off and ANO; does NOT emit channel-pressure zero', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 10.0, 0.8)],
       actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
@@ -872,7 +933,7 @@ describe('createScheduler — DJ seek and panic', () => {
   test('panic clears throttle and cursor state so second play starts fresh', () => {
     const output = makeFakeOutput();
     const toast = makeToast();
-    const scheduler = createScheduler({ output, outputName: 'X', toast: toast.show });
+    const scheduler = createScheduler(schedDeps(output, toast.show));
     const track = makeDJTrack({
       events: [djEvent(56, 0.0, 2.0, 0.8)],
       actionMap: { 56: makeAction({ id: 'hc1', cat: 'deck', pressure: true }) },
