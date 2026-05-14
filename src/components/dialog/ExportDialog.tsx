@@ -5,94 +5,42 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type SyntheticEvent,
 } from 'react';
-import { useStage, type LoopRegion, type ResolvedSelection } from '../../hooks/useStage';
+import { useStage } from '../../hooks/useStage';
 import { useToast } from '../toast/Toast';
 import type {
   ChannelId,
   ParamLane,
   PianoRollTrack,
 } from '../../hooks/useChannels';
+import {
+  buildExportRows,
+  collectDjExportJsonLines,
+  computeResolvedExportRange,
+  countDjCatalogEvents,
+  countExportTallyEvents,
+  type ExportRow,
+} from '../../session/exportDialogModel';
+import {
+  EXPORT_FILENAME_EXT,
+  type ExportFormatChoice,
+  useExportDialogRange,
+  useExportFormatChoice,
+} from './exportDialogRange';
+import { ExportFormatCard } from './ExportFormatCard';
+import { ExportRangeRadio } from './ExportRangeRadio';
 import './Dialog.css';
-
-type Format = 'mid' | 'ndjson';
-type Range = 'whole' | 'selection' | 'loop';
-
-const EXT: Record<Format, string> = { mid: 'mid', ndjson: 'ndjson' };
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function defaultFilename(format: Format): string {
-  return `session-${todayISO()}.${EXT[format]}`;
+function defaultFilename(format: ExportFormatChoice): string {
+  return `session-${todayISO()}.${EXPORT_FILENAME_EXT[format]}`;
 }
 
-function computeRange(
-  range: Range,
-  rolls: PianoRollTrack[],
-  lanes: ParamLane[],
-  resolvedSelection: ResolvedSelection | null,
-  loopRegion: LoopRegion | null,
-): [number, number] {
-  if (range === 'loop' && loopRegion) {
-    return [loopRegion.start, loopRegion.end];
-  }
-  if (range === 'selection' && resolvedSelection) {
-    const roll = rolls.find((r) => r.channelId === resolvedSelection.channelId);
-    if (roll) {
-      let lo = Infinity;
-      let hi = -Infinity;
-      for (const idx of resolvedSelection.indexes) {
-        const n = roll.notes[idx];
-        if (!n) continue;
-        if (n.t < lo) lo = n.t;
-        if (n.t + n.dur > hi) hi = n.t + n.dur;
-      }
-      if (Number.isFinite(lo)) return [lo, hi];
-    }
-  }
-  let hi = 0;
-  for (const r of rolls) {
-    for (const n of r.notes) {
-      const end = n.t + n.dur;
-      if (end > hi) hi = end;
-    }
-  }
-  for (const l of lanes) {
-    for (const p of l.points) {
-      if (p.t > hi) hi = p.t;
-    }
-  }
-  return [0, hi];
-}
-
-function countEventsInRange(
-  rolls: PianoRollTrack[],
-  lanes: ParamLane[],
-  [t0, t1]: [number, number],
-  tracksOn: Set<ChannelId>,
-  includeCC: boolean,
-): number {
-  let count = 0;
-  for (const r of rolls) {
-    if (!tracksOn.has(r.channelId)) continue;
-    for (const n of r.notes) {
-      if (n.t >= t0 && n.t < t1) count++;
-    }
-  }
-  if (includeCC) {
-    for (const l of lanes) {
-      if (!tracksOn.has(l.channelId)) continue;
-      for (const p of l.points) {
-        if (p.t >= t0 && p.t < t1) count++;
-      }
-    }
-  }
-  return count;
-}
-
-function countChannelEvents(
+function countChannelArtifacts(
   channelId: ChannelId,
   rolls: PianoRollTrack[],
   lanes: ParamLane[],
@@ -106,6 +54,19 @@ function countChannelEvents(
     if (l.channelId === channelId) points += l.points.length;
   }
   return { notes, points };
+}
+
+function downloadTextBlob(contents: string, filename: string, mimeType: string): void {
+  const blob = new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function isMacPlatform(): boolean {
@@ -123,40 +84,71 @@ const FOCUSABLE_SELECTOR = [
 ].join(',');
 
 function getFocusable(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) => !el.hasAttribute('disabled') && el.offsetParent !== null,
-  );
+  return Array.from(root.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
+    (el) =>
+      el instanceof HTMLElement &&
+      !el.hasAttribute('disabled') &&
+      el.offsetParent !== null,
+  ) as HTMLElement[];
+}
+
+function initialTracksOn(rows: ExportRow[]) {
+  return new Set(rows.map((r) => r.key));
 }
 
 export function ExportDialog() {
   const stage = useStage();
-  const { channels, rolls, lanes, resolvedSelection, loopRegion, closeExportDialog } = stage;
+  const {
+    channels,
+    rolls,
+    lanes,
+    djActionTracks,
+    resolvedSelection,
+    loopRegion,
+    closeExportDialog,
+    soloing,
+  } = stage;
   const { show: showToast } = useToast();
 
-  const [format, setFormat] = useState<Format>('mid');
-  const [filename, setFilename] = useState<string>(() => defaultFilename('mid'));
+  const [format, setFormat] = useExportFormatChoice();
+  const [filename, setFilename] = useState(() => defaultFilename('mid'));
   const [userEdited, setUserEdited] = useState(false);
-  const [range, setRange] = useState<Range>('whole');
-  const [tracksOn, setTracksOn] = useState<Set<ChannelId>>(
-    () => new Set(channels.map((c) => c.id)),
+  const [range, setRange] = useExportDialogRange();
+  const [tracksOn, setTracksOn] = useState(() =>
+    initialTracksOn(buildExportRows(channels, rolls, lanes, djActionTracks)),
   );
   const [quantize, setQuantize] = useState(false);
   const [includeCC, setIncludeCC] = useState(true);
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<Element | null>(null);
+  const dialogRef = useRef(null as HTMLDivElement | null);
+  const previousFocusRef = useRef(null as Element | null);
+
+  const exportRows = useMemo(
+    () => buildExportRows(channels, rolls, lanes, djActionTracks),
+    [channels, rolls, lanes, djActionTracks],
+  );
 
   const selectionAvailable = resolvedSelection !== null;
   const loopAvailable = loopRegion !== null;
 
   const resolvedRange = useMemo(
-    () => computeRange(range, rolls, lanes, resolvedSelection, loopRegion),
-    [range, rolls, lanes, resolvedSelection, loopRegion],
+    () =>
+      computeResolvedExportRange(range, rolls, lanes, djActionTracks, resolvedSelection, loopRegion),
+    [range, rolls, lanes, djActionTracks, resolvedSelection, loopRegion],
   );
 
   const eventCount = useMemo(
-    () => countEventsInRange(rolls, lanes, resolvedRange, tracksOn, includeCC),
-    [rolls, lanes, resolvedRange, tracksOn, includeCC],
+    () =>
+      countExportTallyEvents(
+        rolls,
+        lanes,
+        djActionTracks,
+        resolvedRange,
+        tracksOn,
+        includeCC,
+        soloing,
+      ),
+    [rolls, lanes, djActionTracks, resolvedRange, tracksOn, includeCC, soloing],
   );
 
   const bars = useMemo(() => {
@@ -167,8 +159,12 @@ export function ExportDialog() {
   const tracksCheckedCount = tracksOn.size;
   const canSave = eventCount > 0 && tracksOn.size > 0 && resolvedRange[1] > resolvedRange[0];
 
+  const channelById = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
+
+  const djTrackById = useMemo(() => new Map(djActionTracks.map((t) => [t.id, t])), [djActionTracks]);
+
   const handleFormatChange = useCallback(
-    (next: Format) => {
+    (next: ExportFormatChoice) => {
       setFormat(next);
       if (!userEdited) setFilename(defaultFilename(next));
     },
@@ -180,23 +176,44 @@ export function ExportDialog() {
     setUserEdited(true);
   }, []);
 
-  const toggleTrack = useCallback((id: ChannelId) => {
+  const toggleRow = useCallback((key: string) => {
     setTracksOn((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
 
   const handleSave = useCallback(() => {
     if (!canSave) return;
-    showToast(`Exported "${filename}" · ${eventCount} events`);
+
+    const [t0, t1] = resolvedRange;
+    const safeName = filename.trim() || defaultFilename(format);
+
+    if (format === 'jsonl') {
+      const objs = collectDjExportJsonLines(djActionTracks, tracksOn, soloing, [t0, t1]);
+      const text = objs.map((o) => JSON.stringify(o)).join('\n') + (objs.length ? '\n' : '');
+      downloadTextBlob(text, safeName, 'application/json');
+    }
+
+    showToast(`Exported "${safeName}" · ${eventCount} events`);
     closeExportDialog();
-  }, [canSave, filename, eventCount, showToast, closeExportDialog]);
+  }, [
+    canSave,
+    resolvedRange,
+    filename,
+    format,
+    djActionTracks,
+    tracksOn,
+    soloing,
+    eventCount,
+    showToast,
+    closeExportDialog,
+  ]);
 
   const handleScrimClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (e: SyntheticEvent) => {
       if (e.target === e.currentTarget) closeExportDialog();
     },
     [closeExportDialog],
@@ -269,17 +286,17 @@ export function ExportDialog() {
         </div>
         <div className="mr-dialog__body">
           <div className="mr-fmt-grid">
-            <FormatCard
+            <ExportFormatCard
               title="Standard MIDI File"
               subtitle=".mid · type 1"
-              on={format === 'mid'}
+              active={format === 'mid'}
               onSelect={() => handleFormatChange('mid')}
             />
-            <FormatCard
-              title="NDJSON"
-              subtitle=".ndjson · raw events"
-              on={format === 'ndjson'}
-              onSelect={() => handleFormatChange('ndjson')}
+            <ExportFormatCard
+              title="JSON Lines"
+              subtitle=".jsonl · raw events"
+              active={format === 'jsonl'}
+              onSelect={() => handleFormatChange('jsonl')}
             />
           </div>
 
@@ -297,25 +314,25 @@ export function ExportDialog() {
           <div className="mr-row">
             <span className="mr-row-lbl">Range</span>
             <div className="mr-range-radios">
-              <RangeRadio
-                label="Whole session"
+              <ExportRangeRadio
+                lbl="Whole session"
                 value="whole"
                 checked={range === 'whole'}
-                onChange={setRange}
+                selectRange={setRange}
               />
-              <RangeRadio
-                label="Selection"
+              <ExportRangeRadio
+                lbl="Selection"
                 value="selection"
                 checked={range === 'selection'}
                 disabled={!selectionAvailable}
-                onChange={setRange}
+                selectRange={setRange}
               />
-              <RangeRadio
-                label="Loop region"
+              <ExportRangeRadio
+                lbl="Loop region"
                 value="loop"
                 checked={range === 'loop'}
                 disabled={!loopAvailable}
-                onChange={setRange}
+                selectRange={setRange}
               />
             </div>
           </div>
@@ -323,22 +340,44 @@ export function ExportDialog() {
           <div className="mr-row mr-row--top">
             <span className="mr-row-lbl">Tracks</span>
             <div className="mr-trk-list">
-              {channels.map((channel) => {
-                const counts = countChannelEvents(channel.id, rolls, lanes);
+              {exportRows.map((row) => {
+                if (row.kind === 'channel') {
+                  const ch = channelById.get(row.channelId);
+                  if (!ch) return null;
+                  const counts = countChannelArtifacts(ch.id, rolls, lanes);
+                  return (
+                    <label key={row.key} className="mr-trk-row">
+                      <input
+                        type="checkbox"
+                        checked={tracksOn.has(row.key)}
+                        onChange={() => toggleRow(row.key)}
+                      />
+                      <span
+                        className="mr-trk-swatch"
+                        style={{ '--ch-color': ch.color } as CSSProperties}
+                      />
+                      <span className="mr-trk-name">{ch.name}</span>
+                      <span className="mr-trk-count">
+                        {counts.notes} notes · {counts.points} points
+                      </span>
+                    </label>
+                  );
+                }
+
+                const t = djTrackById.get(row.trackId);
+                if (!t) return null;
+                const { actions, events } = countDjCatalogEvents(t);
                 return (
-                  <label key={channel.id} className="mr-trk-row">
+                  <label key={row.key} className="mr-trk-row">
                     <input
                       type="checkbox"
-                      checked={tracksOn.has(channel.id)}
-                      onChange={() => toggleTrack(channel.id)}
+                      checked={tracksOn.has(row.key)}
+                      onChange={() => toggleRow(row.key)}
                     />
-                    <span
-                      className="mr-trk-swatch"
-                      style={{ '--ch-color': channel.color } as CSSProperties}
-                    />
-                    <span className="mr-trk-name">{channel.name}</span>
+                    <span className="mr-trk-swatch" style={{ '--ch-color': t.color } as CSSProperties} />
+                    <span className="mr-trk-name">{t.name}</span>
                     <span className="mr-trk-count">
-                      {counts.notes} notes · {counts.points} points
+                      {actions} actions · {events} events
                     </span>
                   </label>
                 );
@@ -389,48 +428,3 @@ export function ExportDialog() {
   );
 }
 
-interface FormatCardProps {
-  title: string;
-  subtitle: string;
-  on: boolean;
-  onSelect: () => void;
-}
-
-function FormatCard({ title, subtitle, on, onSelect }: FormatCardProps) {
-  return (
-    <button
-      type="button"
-      className="mr-fmt-card"
-      data-on={on ? 'true' : 'false'}
-      aria-pressed={on}
-      onClick={onSelect}
-    >
-      <span className="mr-fmt-card__title">{title}</span>
-      <span className="mr-fmt-card__sub">{subtitle}</span>
-    </button>
-  );
-}
-
-interface RangeRadioProps {
-  label: string;
-  value: Range;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: Range) => void;
-}
-
-function RangeRadio({ label, value, checked, disabled, onChange }: RangeRadioProps) {
-  return (
-    <label className="mr-range-radio" data-disabled={disabled ? 'true' : undefined}>
-      <input
-        type="radio"
-        name="mr-export-range"
-        value={value}
-        checked={checked}
-        disabled={disabled}
-        onChange={() => onChange(value)}
-      />
-      <span>{label}</span>
-    </label>
-  );
-}

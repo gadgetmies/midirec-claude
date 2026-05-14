@@ -1,56 +1,12 @@
-## Purpose
+## RENAMED Requirements
 
-Define the Export Dialog overlay (Slice 6b): the `<ExportDialog>` component rendered as a scrim-and-card overlay child of `.mr-shell`, the Toolstrip's Export button as the entry point, the dialog open/close state and actions exposed on `useStage` (`dialogOpen`, `openExportDialog`, `closeExportDialog`), the dialog's six form fields (Format radio, Filename input, Range radio, Tracks checkbox list, Quantize switch, Include CC lanes switch), the Cancel and Save footer buttons, the keyboard semantics (`Escape` closes, `⌘S`/`Ctrl+S` saves, `Tab`/`Shift+Tab` focus trap, scrim click cancels, focus return on close), and the Save action emitting a success toast via `useToast().show(...)` while closing the dialog. Real serialisation of MIDI/NDJSON files (Blob creation, downloads) is explicitly out of scope and deferred to Slice 10 — the dialog is a UI-only flow that summarises the resolved export and acknowledges it via toast.
-## Requirements
-### Requirement: Toolstrip exposes an Export button as its first functional control
+- FROM: `### Requirement: Format radio offers Standard MIDI File and NDJSON`
+- TO: `### Requirement: Format radio offers Standard MIDI File and JSON Lines`
 
-The codebase SHALL expose a `<Toolstrip>` React component at `src/components/toolstrip/Toolstrip.tsx`. `AppShell.tsx` SHALL mount exactly one `<Toolstrip>` element inside the `.mr-toolstrip` region, replacing the prior `<span class="mr-stub">Toolstrip</span>` placeholder.
+- FROM: `### Requirement: Save toast describes the resolved export`
+- TO: `### Requirement: Save outcomes by format`
 
-The Toolstrip SHALL contain at minimum a single `<button class="mr-tool" title="Export">` element rendering the download SVG glyph (matching the prototype's `Icon.download` path in `design_handoff_midi_recorder/prototype/components.jsx:31`). Clicking this button SHALL call `useStage().openExportDialog()`.
-
-Other Toolstrip controls (select arrow, transpose, quantize, etc. from the prototype's `Toolstrip()`) SHALL NOT be ported in this slice.
-
-#### Scenario: Toolstrip replaces the stub
-
-- **WHEN** the app is rendered
-- **THEN** the `.mr-toolstrip` region SHALL contain exactly one Toolstrip component root element
-- **AND** the `.mr-toolstrip` region SHALL NOT contain any `.mr-stub` element
-- **AND** the prior placeholder text "Toolstrip" SHALL NOT appear
-
-#### Scenario: Export button opens the dialog
-
-- **WHEN** the user clicks the Toolstrip's Export button
-- **THEN** `useStage().openExportDialog()` SHALL be called
-- **AND** the `dialogOpen` field on stage state SHALL transition from `false` to `true`
-- **AND** the `<ExportDialog>` overlay SHALL appear in the DOM as a child of `.mr-shell`
-
-### Requirement: Stage exposes dialog open/close state and actions
-
-The `StageState` interface returned by `useStage()` SHALL expose:
-
-- `dialogOpen: boolean` — whether the Export Dialog is currently open. Defaults to `false` on initial render.
-- `openExportDialog: () => void` — sets `dialogOpen` to `true`. No-op if already open.
-- `closeExportDialog: () => void` — sets `dialogOpen` to `false`. No-op if already closed.
-
-The dialog's open state SHALL NOT depend on URL search params, recording state, or any other field. It is purely user-driven via `openExportDialog` and `closeExportDialog`.
-
-#### Scenario: Initial dialog state is closed
-
-- **WHEN** the app first renders
-- **THEN** `useStage().dialogOpen` SHALL be `false`
-- **AND** no `<ExportDialog>` element SHALL exist in the DOM
-
-#### Scenario: openExportDialog opens the dialog
-
-- **WHEN** `useStage().openExportDialog()` is called while `dialogOpen` is `false`
-- **THEN** the next render SHALL have `dialogOpen === true`
-- **AND** the `<ExportDialog>` element SHALL exist in the DOM
-
-#### Scenario: closeExportDialog closes the dialog
-
-- **WHEN** `useStage().closeExportDialog()` is called while `dialogOpen` is `true`
-- **THEN** the next render SHALL have `dialogOpen === false`
-- **AND** the `<ExportDialog>` element SHALL be removed from the DOM
+## MODIFIED Requirements
 
 ### Requirement: Export Dialog renders as a scrim-and-card overlay
 
@@ -78,6 +34,32 @@ The body and footer styling SHALL match the prototype's `app.css` lines 1027–1
 - **AND** `{M}` SHALL equal the count of currently-checked rows in the Tracks list
 - **AND** `{K}` SHALL equal the count of export tally events in the resolved range whose source row is checked: channel notes (`t ∈ [t0,t1)`), optional lane points per Include CC lanes, plus DJ action events (`t ∈ [t0,t1)`, pitch in `actionMap`, subject to track/row mute and solo visibility rules mirrored from the DJ timeline)
 - **AND** `{N}` SHALL equal `(resolvedRangeT1 - resolvedRangeT0) / 4` rounded to one decimal (4 beats per bar)
+
+### Requirement: Format radio offers Standard MIDI File and JSON Lines
+
+The dialog body SHALL render a Format field as a 2-column grid containing two `.mr-fmt-card` elements:
+
+1. **Standard MIDI File** — title `Standard MIDI File`, subtitle `.mid · type 1`, default selected.
+2. **JSON Lines** — title `JSON Lines`, subtitle `.jsonl · raw events`.
+
+The selected card SHALL carry `data-on="true"` and SHALL be styled with `border: 1px solid var(--mr-accent); background: var(--mr-accent-soft)`. The non-selected card SHALL carry `data-on="false"` (or no `data-on` attribute) and SHALL be styled with `border: 1px solid var(--mr-line-2); background: transparent`.
+
+Clicking a card SHALL set it as the selected format. The selection SHALL be local to the dialog component (via `useState`) and SHALL reset to `Standard MIDI File` each time the dialog re-opens.
+
+The format selection SHALL update the default filename extension (`.mid` for Standard MIDI File, `.jsonl` for JSON Lines) only if the user has not manually edited the filename input.
+
+#### Scenario: Default format is Standard MIDI File
+
+- **WHEN** the dialog opens
+- **THEN** the `.mr-fmt-card` for Standard MIDI File SHALL have `data-on="true"`
+- **AND** the `.mr-fmt-card` for JSON Lines SHALL NOT have `data-on="true"`
+
+#### Scenario: Clicking a format card switches selection
+
+- **WHEN** the user clicks the JSON Lines `.mr-fmt-card`
+- **THEN** the JSON Lines card SHALL transition to `data-on="true"`
+- **AND** the Standard MIDI File card SHALL transition to `data-on="false"`
+- **AND** the filename input value SHALL change its extension from `.mid` to `.jsonl` (only if the user has not manually edited the filename)
 
 ### Requirement: Filename input is editable text with a sensible default
 
@@ -171,27 +153,6 @@ If every rendered row is unchecked, the Save button SHALL become disabled.
 - **THEN** the header sub-line's `${events}` count SHALL decrease by exactly `11`
 - **AND** the `${tracks}` count SHALL decrease by `1`
 
-### Requirement: Quantize and Include CC lanes switches
-
-The dialog body SHALL render two `.mr-row` rows below the Tracks field:
-
-1. **Quantize on export** — a `.mr-switch` with `data-on="false"` by default. Visual stub (no underlying quantize logic in this slice).
-2. **Include CC lanes** — a `.mr-switch` with `data-on="true"` by default. Toggling to `false` SHALL exclude lane points from the events count in the header sub-line.
-
-Both switches SHALL reuse the `.mr-switch` primitive from `src/styles/forms.css`. Both SHALL be implemented as `<button>` elements for keyboard accessibility (Enter/Space toggles), with `aria-pressed` reflecting the `data-on` value.
-
-#### Scenario: Default switch states
-
-- **WHEN** the dialog opens
-- **THEN** the Quantize switch SHALL have `data-on="false"`
-- **AND** the Include CC lanes switch SHALL have `data-on="true"`
-
-#### Scenario: Toggling Include CC lanes updates the events count
-
-- **WHEN** the user toggles Include CC lanes from `true` to `false`
-- **THEN** the Quantize switch's state SHALL be unchanged
-- **AND** the header sub-line's `${events}` count SHALL recompute, excluding lane points
-
 ### Requirement: Footer Cancel and Save buttons
 
 The dialog footer SHALL contain two buttons in this order, right-aligned:
@@ -223,6 +184,23 @@ The Save button SHALL be `disabled` when the resolved range is empty (`resolvedR
 - **WHEN** Standard MIDI File is selected AND Save is enabled
 - **THEN** clicking Save emits the acknowledgement toast matching the existing MID stub behaviour
 - **AND** SHALL NOT synthesise downloadable JSON Lines
+
+### Requirement: Save outcomes by format
+
+When Save fires (`click` or `⌘S`/`Ctrl+S` while enabled), the dialog SHALL calculate resolved range `[t0, t1)` and counted events `N` per the Header sub-line rule.
+
+If the selected format is **Standard MIDI File**, the dialog SHALL **not** create a downloadable file (Slice 10 still owns MIDI binary export). No `Blob` SHALL be instantiated for MIDI from this hook.
+
+If the selected format is **JSON Lines**, the dialog SHALL synthesise newline-delimited JSON objects UTF-8 encoded and trigger a browser download (`Blob`/`URL.createObjectURL` permitted). Each exported DJ action event counted toward `N` SHALL produce one JSON object `kind: 'dj.action'`, numeric `version: 2`, `message` `'note'` or `'cc'` per row output semantics, numeric `tick` and `durationTicks` (notes only; CC rows omit duration) derived from beats using `beats × tpq`, integer `tpq` defaults to standard MIDI divisions per quarter (480), plus `midiChannel`, `trackId`, `trackName`, `actionId`. Note rows SHALL include `pitch`, `velocity` (and optional `pressure`); CC rows SHALL include `controller` and `value` (zero–127) instead of pitch/duration/velocity semantics.
+
+The success toast MUST always read `Exported "<filename>" · <N> events` with default toast options whenever Save completes successfully.
+
+#### Scenario: JSON Lines emits Blob for DJ demos
+
+- **WHEN** JSON Lines chosen AND Whole session spanning DJ clips AND DJ row checked with content
+- **AND** Save is invoked
+- **THEN** execution SHALL instantiate `Blob`/`URL.createObjectURL` for UTF-8 JSON Lines
+- **AND** at least one line SHALL parse as JSON referencing the DJ track identifier
 
 ### Requirement: Dialog supports keyboard semantics
 
@@ -282,47 +260,3 @@ This state SHALL NOT be persisted across dialog closes; each open initialises fr
 - **WHEN** the user opens the dialog, edits the filename to `take-1.mid`, then closes via Cancel
 - **AND** later re-opens the dialog
 - **THEN** the filename input SHALL show the default `session-${YYYY-MM-DD}.mid` again, not `take-1.mid`
-
-### Requirement: Format radio offers Standard MIDI File and JSON Lines
-
-The dialog body SHALL render a Format field as a 2-column grid containing two `.mr-fmt-card` elements:
-
-1. **Standard MIDI File** — title `Standard MIDI File`, subtitle `.mid · type 1`, default selected.
-2. **JSON Lines** — title `JSON Lines`, subtitle `.jsonl · raw events`.
-
-The selected card SHALL carry `data-on="true"` and SHALL be styled with `border: 1px solid var(--mr-accent); background: var(--mr-accent-soft)`. The non-selected card SHALL carry `data-on="false"` (or no `data-on` attribute) and SHALL be styled with `border: 1px solid var(--mr-line-2); background: transparent`.
-
-Clicking a card SHALL set it as the selected format. The selection SHALL be local to the dialog component (via `useState`) and SHALL reset to `Standard MIDI File` each time the dialog re-opens.
-
-The format selection SHALL update the default filename extension (`.mid` for Standard MIDI File, `.jsonl` for JSON Lines) only if the user has not manually edited the filename input.
-
-#### Scenario: Default format is Standard MIDI File
-
-- **WHEN** the dialog opens
-- **THEN** the `.mr-fmt-card` for Standard MIDI File SHALL have `data-on="true"`
-- **AND** the `.mr-fmt-card` for JSON Lines SHALL NOT have `data-on="true"`
-
-#### Scenario: Clicking a format card switches selection
-
-- **WHEN** the user clicks the JSON Lines `.mr-fmt-card`
-- **THEN** the JSON Lines card SHALL transition to `data-on="true"`
-- **AND** the Standard MIDI File card SHALL transition to `data-on="false"`
-- **AND** the filename input value SHALL change its extension from `.mid` to `.jsonl` (only if the user has not manually edited the filename)
-
-### Requirement: Save outcomes by format
-
-When Save fires (`click` or `⌘S`/`Ctrl+S` while enabled), the dialog SHALL calculate resolved range `[t0, t1)` and counted events `N` per the Header sub-line rule.
-
-If the selected format is **Standard MIDI File**, the dialog SHALL **not** create a downloadable file (Slice 10 still owns MIDI binary export). No `Blob` SHALL be instantiated for MIDI from this hook.
-
-If the selected format is **JSON Lines**, the dialog SHALL synthesise newline-delimited JSON objects UTF-8 encoded and trigger a browser download (`Blob`/`URL.createObjectURL` permitted). Each exported DJ action event counted toward `N` SHALL produce one JSON object `kind: 'dj.action'`, numeric `version: 2`, `message` `'note'` or `'cc'` per row output semantics, numeric `tick` and `durationTicks` (notes only; CC rows omit duration) derived from beats using `beats × tpq`, integer `tpq` defaults to standard MIDI divisions per quarter (480), plus `midiChannel`, `trackId`, `trackName`, `actionId`. Note rows SHALL include `pitch`, `velocity` (and optional `pressure`); CC rows SHALL include `controller` and `value` (zero–127) instead of pitch/duration/velocity semantics.
-
-The success toast MUST always read `Exported "<filename>" · <N> events` with default toast options whenever Save completes successfully.
-
-#### Scenario: JSON Lines emits Blob for DJ demos
-
-- **WHEN** JSON Lines chosen AND Whole session spanning DJ clips AND DJ row checked with content
-- **AND** Save is invoked
-- **THEN** execution SHALL instantiate `Blob`/`URL.createObjectURL` for UTF-8 JSON Lines
-- **AND** at least one line SHALL parse as JSON referencing the DJ track identifier
-

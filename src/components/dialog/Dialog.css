@@ -126,6 +126,7 @@
   flex: 1;
 }
 
+.mr-range-radio:has(input[type='radio']:disabled),
 .mr-range-radio[data-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
