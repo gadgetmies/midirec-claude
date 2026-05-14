@@ -143,7 +143,9 @@ function useStageState(): StageState {
     [],
   );
   const channels = useChannels(TOTAL_T, demo.instrumentSeed);
-  const djTracks = useDJActionTracks(demo.djDemo, demo.djDemoMessages);
+  const djAutomationDemoActive =
+    demo.djDemo && demo.djDemoMessages && demo.djAutomationDemo;
+  const djTracks = useDJActionTracks(demo.djDemo, demo.djDemoMessages, djAutomationDemoActive);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const openExportDialog = useCallback(() => setDialogOpen(true), []);

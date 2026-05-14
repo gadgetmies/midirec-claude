@@ -68,7 +68,7 @@ export interface OutputMapping {
 const MIXER_ACTION_DEFAULT_OUTPUT_CC: Partial<Record<string, number>> = {
   xfade_pos: 16,
   ch1_vol: 7,
-  ch2_vol: 7,
+  ch2_vol: 8,
   ch1_eq_hi: 17,
   ch1_eq_mid: 18,
   ch1_eq_lo: 19,

@@ -190,9 +190,68 @@ const SEEDED_EVENTS_MIXER: ActionEvent[] = [
   { pitch: 88, t: 6.5, dur: 0.4, vel: 0.52 },
 ];
 
-function seedDefault(includeMessages: boolean): DJActionTrack[] {
+const AUTOMATION_CC_STEP_DUR = 1 / 128;
+
+const SEEDED_EVENTS_AUTOMATION_DECK1: ActionEvent[] = [
+  { pitch: 89, t: 0, dur: 0.1, vel: 11 / 127 },
+  { pitch: 76, t: 1, dur: 0.1, vel: 1 },
+];
+
+const SEEDED_EVENTS_AUTOMATION_DECK2: ActionEvent[] = [
+  { pitch: 90, t: 0, dur: 0.1, vel: 11 / 127 },
+  { pitch: 77, t: 1, dur: 0.1, vel: 1 },
+  { pitch: 65, t: 3, dur: 0.1, vel: 1 },
+];
+
+function buildAutomationMixerEvents(): ActionEvent[] {
+  const out: ActionEvent[] = [];
+  for (let t = 4; t <= 20; t++) {
+    const midi = Math.round(((t - 4) / 16) * 127);
+    out.push({ pitch: 81, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  }
+  for (let t = 34; t <= 68; t++) {
+    const midi = Math.round(((68 - t) / 34) * 127);
+    out.push({ pitch: 82, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  }
+  out.push({ pitch: 88, t: 4, dur: AUTOMATION_CC_STEP_DUR, vel: 0 });
+  for (let t = 26; t <= 34; t++) {
+    const midi = Math.round(((t - 26) / 8) * 63);
+    out.push({ pitch: 88, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  }
+  for (let t = 26; t <= 34; t++) {
+    const midi = Math.round(((34 - t) / 8) * 63);
+    out.push({ pitch: 85, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  }
+  out.sort((a, b) => (a.t !== b.t ? a.t - b.t : a.pitch - b.pitch));
+  return out;
+}
+
+const SEEDED_EVENTS_AUTOMATION_MIXER: ActionEvent[] = buildAutomationMixerEvents();
+
+function pickDemoEventSets(
+  includeMessages: boolean,
+  automationDemo: boolean,
+): { deck1: ActionEvent[]; deck2: ActionEvent[]; mixer: ActionEvent[] } {
+  if (!includeMessages) {
+    return { deck1: [], deck2: [], mixer: [] };
+  }
+  if (automationDemo) {
+    return {
+      deck1: SEEDED_EVENTS_AUTOMATION_DECK1,
+      deck2: SEEDED_EVENTS_AUTOMATION_DECK2,
+      mixer: SEEDED_EVENTS_AUTOMATION_MIXER,
+    };
+  }
+  return {
+    deck1: SEEDED_EVENTS_DECK1,
+    deck2: SEEDED_EVENTS_DECK2,
+    mixer: SEEDED_EVENTS_MIXER,
+  };
+}
+
+function seedDefault(includeMessages: boolean, automationDemo: boolean): DJActionTrack[] {
   const emptyRoute = { channels: [] as ChannelId[] };
-  const ev = (xs: ActionEvent[]) => (includeMessages ? xs : []);
+  const { deck1, deck2, mixer } = pickDemoEventSets(includeMessages, automationDemo);
   const mixerAm = mixerDemoActionMap(DEMO_MIXER_PITCHES);
   const tracks: DJActionTrack[] = [
     {
@@ -202,7 +261,7 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       midiChannel: 1,
       actionMap: sliceActionMap(DEMO_DECK1_PITCHES),
       outputMap: {},
-      events: ev(SEEDED_EVENTS_DECK1),
+      events: deck1,
       inputRouting: emptyRoute,
       outputRouting: emptyRoute,
       collapsed: false,
@@ -220,7 +279,7 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       midiChannel: 1,
       actionMap: sliceActionMap(DEMO_DECK2_PITCHES),
       outputMap: {},
-      events: ev(SEEDED_EVENTS_DECK2),
+      events: deck2,
       inputRouting: emptyRoute,
       outputRouting: emptyRoute,
       collapsed: false,
@@ -238,7 +297,7 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
       midiChannel: 1,
       actionMap: mixerAm,
       outputMap: mixerDefaultOutputMap(mixerAm, 1),
-      events: ev(SEEDED_EVENTS_MIXER),
+      events: mixer,
       inputRouting: emptyRoute,
       outputRouting: emptyRoute,
       collapsed: false,
@@ -255,13 +314,22 @@ function seedDefault(includeMessages: boolean): DJActionTrack[] {
   );
 }
 
+/** @internal Initial DJ demo tracks for tests (`demo=dj` seed). */
+export function buildDjDemoSeedTracks(
+  includeMessages: boolean,
+  automationDemo = false,
+): DJActionTrack[] {
+  return seedDefault(includeMessages, automationDemo);
+}
+
 export function useDJActionTracks(
   djDemo: boolean = false,
   djDemoMessages: boolean = true,
+  djAutomationDemo: boolean = false,
 ): UseDJActionTracksReturn {
   const initial = useMemo(
-    () => (djDemo ? seedDefault(djDemoMessages) : []),
-    [djDemo, djDemoMessages],
+    () => (djDemo ? seedDefault(djDemoMessages, djAutomationDemo) : []),
+    [djDemo, djDemoMessages, djAutomationDemo],
   );
   const [djActionTracks, setDJActionTracks] = useState<DJActionTrack[]>(initial);
 

@@ -98,6 +98,8 @@ describe('defaultMixerOutputCc', () => {
   test('maps continuous mixer actions', () => {
     expect(defaultMixerOutputCc('xfade_pos')).toBe(16);
     expect(defaultMixerOutputCc('ch1_eq_mid')).toBe(18);
+    expect(defaultMixerOutputCc('ch1_vol')).toBe(7);
+    expect(defaultMixerOutputCc('ch2_vol')).toBe(8);
     expect(defaultMixerOutputCc('load_a')).toBeUndefined();
   });
 });

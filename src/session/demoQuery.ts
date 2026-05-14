@@ -5,6 +5,8 @@ export interface ParsedDemoFlags {
   djDemo: boolean;
   /** False when `demo=dj-empty` alone or combined with `demo=dj` (empty wins); true only for `demo=dj` without `dj-empty`. */
   djDemoMessages: boolean;
+  /** True iff `demo=dj-automation` appears. Effective for DJ demo events only when `djDemo` and `djDemoMessages` are both true (see `useStage`). */
+  djAutomationDemo: boolean;
   demoMarquee: boolean;
   demoNote: boolean;
 }
@@ -24,6 +26,7 @@ export function parseDemoQueryFlags(locationSearch: string): ParsedDemoFlags {
   const djFull = has('dj');
   const djDemo = djFull || djEmpty;
   const djDemoMessages = djFull && !djEmpty;
+  const djAutomationDemo = has('dj-automation');
 
-  return { instrumentSeed, djDemo, djDemoMessages, demoMarquee, demoNote };
+  return { instrumentSeed, djDemo, djDemoMessages, djAutomationDemo, demoMarquee, demoNote };
 }
