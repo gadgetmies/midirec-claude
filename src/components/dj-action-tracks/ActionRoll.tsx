@@ -19,13 +19,15 @@ import {
   devColor,
   djActionRowOrderTopToBottom,
   resolvedDjRowOutputCc,
-  type ActionEvent,
   type ActionMapEntry,
   type PressurePoint,
   type PressureRenderMode,
 } from '../../data/dj';
 import {
+  buildCcMergedGroupsByMemberIndex,
+  CC_GROUP_MAX_START_GAP_TICKS,
   isDJRowAudible,
+  type CcMergedGroup,
   type DJActionTrack,
 } from '../../hooks/useDJActionTracks';
 import { GRID_TICK_THINNING_THRESHOLD_TICKS } from '../../session/layoutHorizon';
@@ -35,18 +37,6 @@ import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTick
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 
 const PRESSURE_CELLS = 14;
-/** Merge consecutive CC lane events on the same pitch when their starts are within this many beats (converted to ticks). */
-const CC_GROUP_MAX_START_GAP_BEATS = 1;
-const CC_GROUP_MAX_START_GAP_TICKS = beatsToSessionTicks(CC_GROUP_MAX_START_GAP_BEATS, DEFAULT_MIDI_TPQ);
-
-interface CcMergedGroup {
-  pitch: number;
-  /** `track.events` index of the chronologically first message in the cluster (click + selection anchor). */
-  representativeIdx: number;
-  memberIndices: number[];
-  t0: number;
-  dur: number;
-}
 
 interface ActionRollProps {
   track: DJActionTrack;
@@ -228,67 +218,6 @@ export function ActionRoll({
       <div className="mr-playhead" style={{ left: playheadTicks * pxPerTick }} />
     </div>
   );
-}
-
-function buildCcMergedGroupsByMemberIndex(
-  track: DJActionTrack,
-  maxStartGapTicks: number,
-): Map<number, CcMergedGroup> {
-  const out = new Map<number, CcMergedGroup>();
-  const byPitch = new Map<number, { idx: number; ev: ActionEvent }[]>();
-
-  for (let i = 0; i < track.events.length; i++) {
-    const ev = track.events[i];
-    if (!Object.prototype.hasOwnProperty.call(track.actionMap, ev.pitch)) continue;
-    if (resolvedDjRowOutputCc(track.actionMap, track.outputMap, ev.pitch) === undefined) continue;
-    const list = byPitch.get(ev.pitch) ?? [];
-    list.push({ idx: i, ev });
-    byPitch.set(ev.pitch, list);
-  }
-
-  for (const [pitch, items] of byPitch) {
-    items.sort((a, b) => a.ev.tTicks - b.ev.tTicks);
-    let cluster: { idx: number; ev: ActionEvent }[] = [];
-
-    const flush = () => {
-      if (cluster.length === 0) return;
-      const t0 = sessionTicksToBeats(cluster[0].ev.tTicks);
-      const tEnd = Math.max(
-        ...cluster.map((x) => sessionTicksToBeats(x.ev.tTicks + x.ev.durTicks)),
-      );
-      const dur = Math.max(0, tEnd - t0);
-      const memberIndices = cluster.map((c) => c.idx);
-      const representativeIdx = cluster[0].idx;
-      const group: CcMergedGroup = {
-        pitch,
-        representativeIdx,
-        memberIndices,
-        t0,
-        dur,
-      };
-      for (const idx of memberIndices) {
-        out.set(idx, group);
-      }
-      cluster = [];
-    };
-
-    for (const item of items) {
-      if (cluster.length === 0) {
-        cluster.push(item);
-      } else {
-        const prevStart = cluster[cluster.length - 1].ev.tTicks;
-        if (item.ev.tTicks - prevStart < maxStartGapTicks) {
-          cluster.push(item);
-        } else {
-          flush();
-          cluster = [item];
-        }
-      }
-    }
-    flush();
-  }
-
-  return out;
 }
 
 function collapseCcMessagesByPixelX(

@@ -370,22 +370,24 @@ function ActionPanel({
   pitch: number;
   entry: ActionMapEntry;
 }) {
-  const { setOutputMapping, deleteOutputMapping, djEventSelection } = useStage();
+  const { setOutputMapping, deleteOutputMapping, djEventSelection, setDJEventTTicks } = useStage();
   const { outputs } = useMidiOutputs();
   const existing = track.outputMap[pitch];
 
-  /* Pressure section is gated on: an event selection that matches this
-     row, the action having pressure capability, and the referenced event
-     still existing on the track. Any mismatch and we render only the
-     Output rows above. */
-  const showPressure =
+  /* Both the Start editor and the Pressure section gate on the same
+     condition: an event selection that matches this row AND the referenced
+     event still exists on the track AND its pitch still matches the row.
+     The Pressure section additionally requires `entry.pressure === true`. */
+  const eventMatches =
     djEventSelection !== null &&
     djEventSelection.trackId === track.id &&
     djEventSelection.pitch === pitch &&
-    entry.pressure === true &&
     djEventSelection.eventIdx >= 0 &&
     djEventSelection.eventIdx < track.events.length &&
     track.events[djEventSelection.eventIdx].pitch === pitch;
+  const showStart = eventMatches;
+  const showPressure = eventMatches && entry.pressure === true;
+  const selectedEvent = eventMatches ? track.events[djEventSelection!.eventIdx] : null;
 
   const suggestedCc = defaultMixerOutputCc(entry.id);
   const showCcOut = suggestedCc !== undefined || existing?.cc !== undefined;
@@ -537,6 +539,16 @@ function ActionPanel({
         </div>
       )}
 
+      {showStart && selectedEvent && djEventSelection && (
+        <DjEventStartEditor
+          trackId={track.id}
+          pitch={pitch}
+          eventIdx={djEventSelection.eventIdx}
+          tTicks={selectedEvent.tTicks}
+          setDJEventTTicks={setDJEventTTicks}
+        />
+      )}
+
       {showPressure && djEventSelection && (
         <PressureEditor
           track={track}
@@ -545,6 +557,104 @@ function ActionPanel({
           entry={entry}
         />
       )}
+    </div>
+  );
+}
+
+function DjEventStartEditor({
+  trackId,
+  pitch,
+  eventIdx,
+  tTicks,
+  setDJEventTTicks,
+}: {
+  trackId: string;
+  pitch: number;
+  eventIdx: number;
+  tTicks: number;
+  setDJEventTTicks: (
+    id: string,
+    pitch: number,
+    eventIdx: number,
+    nextTTicks: number,
+  ) => void;
+}) {
+  const [bbtDraft, setBbtDraft] = useState(() =>
+    canonicalPhraseBarBeatFromTicks(tTicks, TPQ),
+  );
+  const [ticksDraft, setTicksDraft] = useState(() => String(tTicks));
+
+  useEffect(() => {
+    setBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
+    setTicksDraft(String(tTicks));
+  }, [trackId, pitch, eventIdx, tTicks]);
+
+  const commitPhraseBarBeat = useCallback(() => {
+    const trimmed = bbtDraft.trim();
+    const parsed = trimmed === '' ? null : parsePhraseBarBeatToTicks(trimmed);
+    if (parsed === null) {
+      setBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
+      return;
+    }
+    const next = Math.max(0, parsed);
+    if (next !== tTicks) setDJEventTTicks(trackId, pitch, eventIdx, next);
+    else setBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
+  }, [bbtDraft, eventIdx, pitch, setDJEventTTicks, tTicks, trackId]);
+
+  const commitTicks = useCallback(() => {
+    const raw = ticksDraft.trim();
+    if (!/^[0-9]+$/.test(raw)) {
+      setTicksDraft(String(tTicks));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n < 0) {
+      setTicksDraft(String(tTicks));
+      return;
+    }
+    if (n !== tTicks) setDJEventTTicks(trackId, pitch, eventIdx, n);
+    else setTicksDraft(String(tTicks));
+  }, [eventIdx, pitch, setDJEventTTicks, tTicks, ticksDraft, trackId]);
+
+  return (
+    <div className="mr-kv">
+      <span className="mr-kv__k">Start</span>
+      <div className="mr-insp__start-fields">
+        <input
+          title="Phrase · bar · beat (three numbers, matching timeline display)"
+          className="mr-input mr-insp__field mr-insp__start-bbt"
+          aria-label="Start phrase bar beat"
+          value={bbtDraft}
+          onChange={(e) => setBbtDraft(e.target.value)}
+          onBlur={() => commitPhraseBarBeat()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitPhraseBarBeat();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <span className="mr-insp__start-sep" aria-hidden>
+          /
+        </span>
+        <input
+          title="Session start ticks (integer MIDI ticks from session zero)"
+          className="mr-input mr-insp__field mr-insp__start-ticks"
+          aria-label="Start ticks"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={ticksDraft}
+          onChange={(e) => setTicksDraft(e.target.value)}
+          onBlur={() => commitTicks()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitTicks();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <span className="mr-insp__ticks-suffix">t</span>
+      </div>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   defaultMixerOutputCc,
   normalizeActionMapEntry,
   normalizeOutputMapping,
+  resolvedDjRowOutputCc,
   type ActionEvent,
   type ActionMapEntry,
   type OutputMapping,
@@ -79,6 +80,7 @@ export interface UseDJActionTracksReturn {
   deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
   setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
   clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
+  setDJEventTTicks: (id: DJTrackId, pitch: number, eventIdx: number, nextTTicks: number) => void;
   setDJTrackDefaultMidiInputDevice: (id: DJTrackId, inputDeviceId: string) => void;
   setDJTrackDefaultMidiOutputDevice: (id: DJTrackId, outputDeviceId: string) => void;
   appendDJActionEvent: (id: DJTrackId, event: ActionEvent) => void;
@@ -429,6 +431,13 @@ export function useDJActionTracks(
     [],
   );
 
+  const setDJEventTTicks = useCallback(
+    (id: DJTrackId, pitch: number, eventIdx: number, nextTTicks: number) => {
+      setDJActionTracks((prev) => applySetDJEventTTicks(prev, id, pitch, eventIdx, nextTTicks));
+    },
+    [],
+  );
+
   const setDJTrackDefaultMidiInputDevice = useCallback((id: DJTrackId, inputDeviceId: string) => {
     setDJActionTracks((prev) => {
       const idx = prev.findIndex((t) => t.id === id);
@@ -473,6 +482,7 @@ export function useDJActionTracks(
     deleteOutputMapping,
     setEventPressure,
     clearEventPressure,
+    setDJEventTTicks,
     setDJTrackDefaultMidiInputDevice,
     setDJTrackDefaultMidiOutputDevice,
     appendDJActionEvent,
@@ -592,6 +602,131 @@ export function applySetEventPressure(
   const nextEvent: ActionEvent = { ...event, pressure: points };
   const nextEvents = track.events.slice();
   nextEvents[eventIdx] = nextEvent;
+  const next = tracks.slice();
+  next[trackIdx] = { ...track, events: nextEvents };
+  return next;
+}
+
+/** Merge consecutive CC lane events on the same pitch when their starts are within this many beats. */
+export const CC_GROUP_MAX_START_GAP_BEATS = 1;
+export const CC_GROUP_MAX_START_GAP_TICKS = beatsToSessionTicks(
+  CC_GROUP_MAX_START_GAP_BEATS,
+  DEFAULT_MIDI_TPQ,
+);
+
+export interface CcMergedGroup {
+  pitch: number;
+  /** `track.events` index of the chronologically first message in the cluster (click + selection anchor). */
+  representativeIdx: number;
+  memberIndices: number[];
+  t0: number;
+  dur: number;
+}
+
+/* Group consecutive CC-output events per pitch into merged clusters whose
+   `tTicks` starts are within `maxStartGapTicks`. Returned map is keyed by
+   each member's original `track.events` index so callers can look up cluster
+   membership without re-scanning. */
+export function buildCcMergedGroupsByMemberIndex(
+  track: DJActionTrack,
+  maxStartGapTicks: number = CC_GROUP_MAX_START_GAP_TICKS,
+): Map<number, CcMergedGroup> {
+  const out = new Map<number, CcMergedGroup>();
+  const byPitch = new Map<number, { idx: number; ev: ActionEvent }[]>();
+
+  for (let i = 0; i < track.events.length; i++) {
+    const ev = track.events[i];
+    if (!Object.prototype.hasOwnProperty.call(track.actionMap, ev.pitch)) continue;
+    if (resolvedDjRowOutputCc(track.actionMap, track.outputMap, ev.pitch) === undefined) continue;
+    const list = byPitch.get(ev.pitch) ?? [];
+    list.push({ idx: i, ev });
+    byPitch.set(ev.pitch, list);
+  }
+
+  for (const [pitch, items] of byPitch) {
+    items.sort((a, b) => a.ev.tTicks - b.ev.tTicks);
+    let cluster: { idx: number; ev: ActionEvent }[] = [];
+
+    const flush = () => {
+      if (cluster.length === 0) return;
+      const t0Ticks = cluster[0].ev.tTicks;
+      const tEndTicks = Math.max(...cluster.map((x) => x.ev.tTicks + x.ev.durTicks));
+      const memberIndices = cluster.map((c) => c.idx);
+      const representativeIdx = cluster[0].idx;
+      const group: CcMergedGroup = {
+        pitch,
+        representativeIdx,
+        memberIndices,
+        t0: t0Ticks / DEFAULT_MIDI_TPQ,
+        dur: Math.max(0, (tEndTicks - t0Ticks) / DEFAULT_MIDI_TPQ),
+      };
+      for (const idx of memberIndices) {
+        out.set(idx, group);
+      }
+      cluster = [];
+    };
+
+    for (const item of items) {
+      if (cluster.length === 0) {
+        cluster.push(item);
+      } else {
+        const prevStart = cluster[cluster.length - 1].ev.tTicks;
+        if (item.ev.tTicks - prevStart < maxStartGapTicks) {
+          cluster.push(item);
+        } else {
+          flush();
+          cluster = [item];
+        }
+      }
+    }
+    flush();
+  }
+
+  return out;
+}
+
+/* Pure: update the start tick of the DJ event at `(id, pitch, eventIdx)` to
+   `nextTTicks` (clamped to >= 0). When the referenced event belongs to a
+   merged CC cluster (same row + within the start-gap threshold), every
+   member of that cluster SHALL be shifted by the same `deltaTicks` so the
+   strip moves as a unit. No-op (returns the input reference) for unknown
+   track ids, out-of-range eventIdx, or pitch mismatches.
+
+   Pressure samples are stored normalized to [0,1] of the event's duration
+   (`PressurePoint.t` in `src/data/dj.ts`), so they survive `tTicks` shifts
+   without re-mapping; no per-sample translation is needed. */
+export function applySetDJEventTTicks(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  eventIdx: number,
+  nextTTicks: number,
+): DJActionTrack[] {
+  const trackIdx = tracks.findIndex((t) => t.id === id);
+  if (trackIdx < 0) return tracks;
+  const track = tracks[trackIdx];
+  if (eventIdx < 0 || eventIdx >= track.events.length) return tracks;
+  const event = track.events[eventIdx];
+  if (event.pitch !== pitch) return tracks;
+  const clamped = Math.max(0, Math.round(nextTTicks));
+  const deltaTicks = clamped - event.tTicks;
+  if (deltaTicks === 0) return tracks;
+
+  const ccGroups = buildCcMergedGroupsByMemberIndex(track);
+  const group = ccGroups.get(eventIdx);
+  const memberSet =
+    group && group.representativeIdx === eventIdx ? new Set(group.memberIndices) : null;
+
+  const nextEvents = track.events.slice();
+  if (memberSet) {
+    for (const idx of memberSet) {
+      const member = nextEvents[idx];
+      nextEvents[idx] = { ...member, tTicks: Math.max(0, member.tTicks + deltaTicks) };
+    }
+  } else {
+    nextEvents[eventIdx] = { ...event, tTicks: clamped };
+  }
+
   const next = tracks.slice();
   next[trackIdx] = { ...track, events: nextEvents };
   return next;

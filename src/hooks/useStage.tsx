@@ -112,6 +112,7 @@ export interface StageState {
   deleteOutputMapping: (id: DJTrackId, pitch: number) => void;
   setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
   clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
+  setDJEventTTicks: (id: DJTrackId, pitch: number, eventIdx: number, nextTTicks: number) => void;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
@@ -368,6 +369,7 @@ function useStageState(): StageState {
     deleteOutputMapping: djTracks.deleteOutputMapping,
     setEventPressure: djTracks.setEventPressure,
     clearEventPressure: djTracks.clearEventPressure,
+    setDJEventTTicks: djTracks.setDJEventTTicks,
     toggleDJTrackCollapsed: djTracks.toggleDJTrackCollapsed,
     toggleDJTrackMuted: djTracks.toggleDJTrackMuted,
     toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,
