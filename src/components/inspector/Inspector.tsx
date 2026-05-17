@@ -10,6 +10,7 @@ import {
 } from './summary';
 import {
   DJ_DEVICES,
+  actionMode,
   defaultMixerOutputCc,
   devColor,
   devLabel,
@@ -18,13 +19,16 @@ import {
   type DeviceId,
   type OutputMapping,
 } from '../../data/dj';
-import type { DJActionTrack } from '../../hooks/useDJActionTracks';
+import {
+  buildCcMergedGroupsByMemberIndex,
+  type DJActionTrack,
+} from '../../hooks/useDJActionTracks';
 import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
 import { useMidiLearn } from '../../midi/useMidiLearn';
 import type { MidiLearnWireMessage } from '../../midi/midiLearn';
 import type { ChannelId } from '../../hooks/useChannels';
 import { PressureEditor } from './PressureEditor';
-import { sessionTicksToBeats } from '../../midi/sessionTicks';
+import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 import './Inspector.css';
 
@@ -370,7 +374,13 @@ function ActionPanel({
   pitch: number;
   entry: ActionMapEntry;
 }) {
-  const { setOutputMapping, deleteOutputMapping, djEventSelection, setDJEventTTicks } = useStage();
+  const {
+    setOutputMapping,
+    deleteOutputMapping,
+    djEventSelection,
+    setDJEventTTicks,
+    setDJEventDurTicks,
+  } = useStage();
   const { outputs } = useMidiOutputs();
   const existing = track.outputMap[pitch];
 
@@ -388,6 +398,29 @@ function ActionPanel({
   const showStart = eventMatches;
   const showPressure = eventMatches && entry.pressure === true;
   const selectedEvent = eventMatches ? track.events[djEventSelection!.eventIdx] : null;
+  /* For a CC merged cluster representative, the editor's Length/End should
+     reflect the cluster's full span, not the representative event's own
+     `durTicks`. `setDJEventDurTicks` already interprets `nextDurTicks` as
+     the cluster span when the selection is a representative, so passing the
+     effective span here makes the round-trip consistent. */
+  const selectedEffectiveDurTicks =
+    selectedEvent && djEventSelection
+      ? (() => {
+          const groups = buildCcMergedGroupsByMemberIndex(track);
+          const group = groups.get(djEventSelection.eventIdx);
+          if (group && group.representativeIdx === djEventSelection.eventIdx) {
+            const t0 = selectedEvent.tTicks;
+            let end = t0 + selectedEvent.durTicks;
+            for (const idx of group.memberIndices) {
+              const m = track.events[idx];
+              const e = m.tTicks + m.durTicks;
+              if (e > end) end = e;
+            }
+            return Math.max(1, end - t0);
+          }
+          return selectedEvent.durTicks;
+        })()
+      : 0;
 
   const suggestedCc = defaultMixerOutputCc(entry.id);
   const showCcOut = suggestedCc !== undefined || existing?.cc !== undefined;
@@ -540,12 +573,15 @@ function ActionPanel({
       )}
 
       {showStart && selectedEvent && djEventSelection && (
-        <DjEventStartEditor
+        <DjEventTimingEditor
           trackId={track.id}
           pitch={pitch}
           eventIdx={djEventSelection.eventIdx}
           tTicks={selectedEvent.tTicks}
+          durTicks={selectedEffectiveDurTicks}
+          showDuration={actionMode(entry) !== 'trigger'}
           setDJEventTTicks={setDJEventTTicks}
+          setDJEventDurTicks={setDJEventDurTicks}
         />
       )}
 
@@ -561,101 +597,265 @@ function ActionPanel({
   );
 }
 
-function DjEventStartEditor({
+function DjEventTimingEditor({
   trackId,
   pitch,
   eventIdx,
   tTicks,
+  durTicks,
+  showDuration,
   setDJEventTTicks,
+  setDJEventDurTicks,
 }: {
   trackId: string;
   pitch: number;
   eventIdx: number;
   tTicks: number;
-  setDJEventTTicks: (
+  durTicks: number;
+  showDuration: boolean;
+  setDJEventTTicks: (id: string, pitch: number, eventIdx: number, nextTTicks: number) => void;
+  setDJEventDurTicks: (
     id: string,
     pitch: number,
     eventIdx: number,
-    nextTTicks: number,
+    nextDurTicks: number,
   ) => void;
 }) {
-  const [bbtDraft, setBbtDraft] = useState(() =>
+  const [startBbtDraft, setStartBbtDraft] = useState(() =>
     canonicalPhraseBarBeatFromTicks(tTicks, TPQ),
   );
-  const [ticksDraft, setTicksDraft] = useState(() => String(tTicks));
+  const [startTicksDraft, setStartTicksDraft] = useState(() => String(tTicks));
+  const [lengthBeatsDraft, setLengthBeatsDraft] = useState(() =>
+    sessionTicksToBeats(durTicks, TPQ).toFixed(3),
+  );
+  const [lengthTicksDraft, setLengthTicksDraft] = useState(() => String(durTicks));
+  const [endBbtDraft, setEndBbtDraft] = useState(() =>
+    canonicalPhraseBarBeatFromTicks(tTicks + durTicks, TPQ),
+  );
+  const [endTicksDraft, setEndTicksDraft] = useState(() => String(tTicks + durTicks));
 
   useEffect(() => {
-    setBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
-    setTicksDraft(String(tTicks));
-  }, [trackId, pitch, eventIdx, tTicks]);
+    setStartBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
+    setStartTicksDraft(String(tTicks));
+    setLengthBeatsDraft(sessionTicksToBeats(durTicks, TPQ).toFixed(3));
+    setLengthTicksDraft(String(durTicks));
+    setEndBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks + durTicks, TPQ));
+    setEndTicksDraft(String(tTicks + durTicks));
+  }, [trackId, pitch, eventIdx, tTicks, durTicks]);
 
-  const commitPhraseBarBeat = useCallback(() => {
-    const trimmed = bbtDraft.trim();
+  const commitStartBBT = useCallback(() => {
+    const trimmed = startBbtDraft.trim();
     const parsed = trimmed === '' ? null : parsePhraseBarBeatToTicks(trimmed);
     if (parsed === null) {
-      setBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
+      setStartBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
       return;
     }
     const next = Math.max(0, parsed);
     if (next !== tTicks) setDJEventTTicks(trackId, pitch, eventIdx, next);
-    else setBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
-  }, [bbtDraft, eventIdx, pitch, setDJEventTTicks, tTicks, trackId]);
+    else setStartBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
+  }, [eventIdx, pitch, setDJEventTTicks, startBbtDraft, tTicks, trackId]);
 
-  const commitTicks = useCallback(() => {
-    const raw = ticksDraft.trim();
+  const commitStartTicks = useCallback(() => {
+    const raw = startTicksDraft.trim();
     if (!/^[0-9]+$/.test(raw)) {
-      setTicksDraft(String(tTicks));
+      setStartTicksDraft(String(tTicks));
       return;
     }
     const n = Number(raw);
     if (!Number.isSafeInteger(n) || n < 0) {
-      setTicksDraft(String(tTicks));
+      setStartTicksDraft(String(tTicks));
       return;
     }
     if (n !== tTicks) setDJEventTTicks(trackId, pitch, eventIdx, n);
-    else setTicksDraft(String(tTicks));
-  }, [eventIdx, pitch, setDJEventTTicks, tTicks, ticksDraft, trackId]);
+    else setStartTicksDraft(String(tTicks));
+  }, [eventIdx, pitch, setDJEventTTicks, startTicksDraft, tTicks, trackId]);
+
+  const commitLengthBeats = useCallback(() => {
+    const trimmed = lengthBeatsDraft.trim();
+    if (trimmed === '') {
+      setLengthBeatsDraft(sessionTicksToBeats(durTicks, TPQ).toFixed(3));
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      setLengthBeatsDraft(sessionTicksToBeats(durTicks, TPQ).toFixed(3));
+      return;
+    }
+    const next = Math.max(1, Math.round(beatsToSessionTicks(parsed, TPQ)));
+    if (next !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, next);
+    else setLengthBeatsDraft(sessionTicksToBeats(durTicks, TPQ).toFixed(3));
+  }, [durTicks, eventIdx, lengthBeatsDraft, pitch, setDJEventDurTicks, trackId]);
+
+  const commitLengthTicks = useCallback(() => {
+    const raw = lengthTicksDraft.trim();
+    if (!/^[0-9]+$/.test(raw)) {
+      setLengthTicksDraft(String(durTicks));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n < 1) {
+      setLengthTicksDraft(String(durTicks));
+      return;
+    }
+    if (n !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, n);
+    else setLengthTicksDraft(String(durTicks));
+  }, [durTicks, eventIdx, lengthTicksDraft, pitch, setDJEventDurTicks, trackId]);
+
+  const commitEndBBT = useCallback(() => {
+    const trimmed = endBbtDraft.trim();
+    const parsed = trimmed === '' ? null : parsePhraseBarBeatToTicks(trimmed);
+    const canonical = canonicalPhraseBarBeatFromTicks(tTicks + durTicks, TPQ);
+    if (parsed === null || parsed <= tTicks) {
+      setEndBbtDraft(canonical);
+      return;
+    }
+    const nextDur = parsed - tTicks;
+    if (nextDur !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, nextDur);
+    else setEndBbtDraft(canonical);
+  }, [durTicks, endBbtDraft, eventIdx, pitch, setDJEventDurTicks, tTicks, trackId]);
+
+  const commitEndTicks = useCallback(() => {
+    const raw = endTicksDraft.trim();
+    const currentEnd = tTicks + durTicks;
+    if (!/^[0-9]+$/.test(raw)) {
+      setEndTicksDraft(String(currentEnd));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n <= tTicks) {
+      setEndTicksDraft(String(currentEnd));
+      return;
+    }
+    const nextDur = n - tTicks;
+    if (nextDur !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, nextDur);
+    else setEndTicksDraft(String(currentEnd));
+  }, [durTicks, endTicksDraft, eventIdx, pitch, setDJEventDurTicks, tTicks, trackId]);
 
   return (
-    <div className="mr-kv">
-      <span className="mr-kv__k">Start</span>
-      <div className="mr-insp__start-fields">
-        <input
-          title="Phrase · bar · beat (three numbers, matching timeline display)"
-          className="mr-input mr-insp__field mr-insp__start-bbt"
-          aria-label="Start phrase bar beat"
-          value={bbtDraft}
-          onChange={(e) => setBbtDraft(e.target.value)}
-          onBlur={() => commitPhraseBarBeat()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              commitPhraseBarBeat();
-              e.currentTarget.blur();
-            }
-          }}
-        />
-        <span className="mr-insp__start-sep" aria-hidden>
-          /
-        </span>
-        <input
-          title="Session start ticks (integer MIDI ticks from session zero)"
-          className="mr-input mr-insp__field mr-insp__start-ticks"
-          aria-label="Start ticks"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={ticksDraft}
-          onChange={(e) => setTicksDraft(e.target.value)}
-          onBlur={() => commitTicks()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              commitTicks();
-              e.currentTarget.blur();
-            }
-          }}
-        />
-        <span className="mr-insp__ticks-suffix">t</span>
+    <>
+      <div className="mr-kv">
+        <span className="mr-kv__k">Start</span>
+        <div className="mr-insp__start-fields">
+          <input
+            title="Phrase · bar · beat (three numbers, matching timeline display)"
+            className="mr-input mr-insp__field mr-insp__start-bbt"
+            aria-label="Start phrase bar beat"
+            value={startBbtDraft}
+            onChange={(e) => setStartBbtDraft(e.target.value)}
+            onBlur={() => commitStartBBT()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitStartBBT();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+          <span className="mr-insp__start-sep" aria-hidden>
+            /
+          </span>
+          <input
+            title="Session start ticks (integer MIDI ticks from session zero)"
+            className="mr-input mr-insp__field mr-insp__start-ticks"
+            aria-label="Start ticks"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={startTicksDraft}
+            onChange={(e) => setStartTicksDraft(e.target.value)}
+            onBlur={() => commitStartTicks()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitStartTicks();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+          <span className="mr-insp__ticks-suffix">t</span>
+        </div>
       </div>
-    </div>
+      {showDuration && (
+        <>
+          <div className="mr-kv">
+            <span className="mr-kv__k">End</span>
+            <div className="mr-insp__start-fields">
+              <input
+                title="Phrase · bar · beat (end position; matches timeline display)"
+                className="mr-input mr-insp__field mr-insp__start-bbt"
+                aria-label="End phrase bar beat"
+                value={endBbtDraft}
+                onChange={(e) => setEndBbtDraft(e.target.value)}
+                onBlur={() => commitEndBBT()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitEndBBT();
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+              <span className="mr-insp__start-sep" aria-hidden>
+                /
+              </span>
+              <input
+                title="Session end ticks (integer MIDI ticks from session zero)"
+                className="mr-input mr-insp__field mr-insp__start-ticks"
+                aria-label="End ticks"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={endTicksDraft}
+                onChange={(e) => setEndTicksDraft(e.target.value)}
+                onBlur={() => commitEndTicks()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitEndTicks();
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+              <span className="mr-insp__ticks-suffix">t</span>
+            </div>
+          </div>
+          <div className="mr-kv">
+            <span className="mr-kv__k">Length</span>
+            <div className="mr-insp__start-fields">
+              <input
+                title="Decimal beats (event duration)"
+                className="mr-input mr-insp__field mr-insp__start-bbt"
+                aria-label="Length beats"
+                inputMode="decimal"
+                value={lengthBeatsDraft}
+                onChange={(e) => setLengthBeatsDraft(e.target.value)}
+                onBlur={() => commitLengthBeats()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitLengthBeats();
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+              <span className="mr-insp__start-sep" aria-hidden>
+                /
+              </span>
+              <input
+                title="Event duration in integer MIDI ticks"
+                className="mr-input mr-insp__field mr-insp__start-ticks"
+                aria-label="Length ticks"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={lengthTicksDraft}
+                onChange={(e) => setLengthTicksDraft(e.target.value)}
+                onBlur={() => commitLengthTicks()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitLengthTicks();
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+              <span className="mr-insp__ticks-suffix">t</span>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -708,7 +908,6 @@ function SingleNoteView({
 
   const velocity127 = Math.round(note.vel * 127);
   const fillPct = Math.max(0, Math.min(1, note.vel)) * 100;
-  const durBeats = sessionTicksToBeats(note.durTicks);
 
   return (
     <>
@@ -758,10 +957,8 @@ function SingleNoteView({
           <span className="mr-insp__ticks-suffix">t</span>
         </div>
       </div>
-      <div className="mr-kv">
-        <span className="mr-kv__k">Length</span>
-        <span className="mr-kv__v">{durBeats.toFixed(3)} beats</span>
-      </div>
+      <NoteEndEditor note={note} channelId={channelId} noteIndex={noteIndex} />
+      <NoteLengthEditor note={note} channelId={channelId} noteIndex={noteIndex} />
       <div className="mr-kv">
         <span className="mr-kv__k">Velocity</span>
         <div className="mr-insp-vel">
@@ -777,6 +974,198 @@ function SingleNoteView({
         <span className="mr-kv__v">CH {channelId}</span>
       </div>
     </>
+  );
+}
+
+function NoteLengthEditor({
+  note,
+  channelId,
+  noteIndex,
+}: {
+  note: Note;
+  channelId: ChannelId;
+  noteIndex: number;
+}) {
+  const { updateNoteAt } = useStage();
+  const [beatsDraft, setBeatsDraft] = useState(() =>
+    sessionTicksToBeats(note.durTicks, TPQ).toFixed(3),
+  );
+  const [ticksDraft, setTicksDraft] = useState(() => String(note.durTicks));
+
+  useEffect(() => {
+    setBeatsDraft(sessionTicksToBeats(note.durTicks, TPQ).toFixed(3));
+    setTicksDraft(String(note.durTicks));
+  }, [channelId, noteIndex, note.durTicks]);
+
+  const commitBeats = useCallback(() => {
+    const trimmed = beatsDraft.trim();
+    if (trimmed === '') {
+      setBeatsDraft(sessionTicksToBeats(note.durTicks, TPQ).toFixed(3));
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      setBeatsDraft(sessionTicksToBeats(note.durTicks, TPQ).toFixed(3));
+      return;
+    }
+    const next = Math.max(1, Math.round(beatsToSessionTicks(parsed, TPQ)));
+    if (next !== note.durTicks) updateNoteAt(channelId, noteIndex, { durTicks: next });
+    else setBeatsDraft(sessionTicksToBeats(note.durTicks, TPQ).toFixed(3));
+  }, [beatsDraft, channelId, note.durTicks, noteIndex, updateNoteAt]);
+
+  const commitTicks = useCallback(() => {
+    const raw = ticksDraft.trim();
+    if (!/^[0-9]+$/.test(raw)) {
+      setTicksDraft(String(note.durTicks));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n < 1) {
+      setTicksDraft(String(note.durTicks));
+      return;
+    }
+    if (n !== note.durTicks) updateNoteAt(channelId, noteIndex, { durTicks: n });
+    else setTicksDraft(String(note.durTicks));
+  }, [channelId, note.durTicks, noteIndex, ticksDraft, updateNoteAt]);
+
+  return (
+    <div className="mr-kv">
+      <span className="mr-kv__k">Length</span>
+      <div className="mr-insp__start-fields">
+        <input
+          title="Decimal beats (note duration)"
+          className="mr-input mr-insp__field mr-insp__start-bbt"
+          aria-label="Length beats"
+          inputMode="decimal"
+          value={beatsDraft}
+          onChange={(e) => setBeatsDraft(e.target.value)}
+          onBlur={() => commitBeats()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitBeats();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <span className="mr-insp__start-sep" aria-hidden>
+          /
+        </span>
+        <input
+          title="Note duration in integer MIDI ticks"
+          className="mr-input mr-insp__field mr-insp__start-ticks"
+          aria-label="Length ticks"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={ticksDraft}
+          onChange={(e) => setTicksDraft(e.target.value)}
+          onBlur={() => commitTicks()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitTicks();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <span className="mr-insp__ticks-suffix">t</span>
+      </div>
+    </div>
+  );
+}
+
+function NoteEndEditor({
+  note,
+  channelId,
+  noteIndex,
+}: {
+  note: Note;
+  channelId: ChannelId;
+  noteIndex: number;
+}) {
+  const { updateNoteAt } = useStage();
+  const endTicks = note.tTicks + note.durTicks;
+  const [bbtDraft, setBbtDraft] = useState(() => canonicalPhraseBarBeatFromTicks(endTicks, TPQ));
+  const [ticksDraft, setTicksDraft] = useState(() => String(endTicks));
+
+  useEffect(() => {
+    const e = note.tTicks + note.durTicks;
+    setBbtDraft(canonicalPhraseBarBeatFromTicks(e, TPQ));
+    setTicksDraft(String(e));
+  }, [channelId, noteIndex, note.tTicks, note.durTicks]);
+
+  const commitBBT = useCallback(() => {
+    const trimmed = bbtDraft.trim();
+    const parsed = trimmed === '' ? null : parsePhraseBarBeatToTicks(trimmed);
+    const canonical = canonicalPhraseBarBeatFromTicks(note.tTicks + note.durTicks, TPQ);
+    if (parsed === null) {
+      setBbtDraft(canonical);
+      return;
+    }
+    if (parsed <= note.tTicks) {
+      setBbtDraft(canonical);
+      return;
+    }
+    const nextDur = parsed - note.tTicks;
+    if (nextDur !== note.durTicks) updateNoteAt(channelId, noteIndex, { durTicks: nextDur });
+    else setBbtDraft(canonical);
+  }, [bbtDraft, channelId, note.durTicks, note.tTicks, noteIndex, updateNoteAt]);
+
+  const commitTicks = useCallback(() => {
+    const raw = ticksDraft.trim();
+    const currentEnd = note.tTicks + note.durTicks;
+    if (!/^[0-9]+$/.test(raw)) {
+      setTicksDraft(String(currentEnd));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n <= note.tTicks) {
+      setTicksDraft(String(currentEnd));
+      return;
+    }
+    const nextDur = n - note.tTicks;
+    if (nextDur !== note.durTicks) updateNoteAt(channelId, noteIndex, { durTicks: nextDur });
+    else setTicksDraft(String(currentEnd));
+  }, [channelId, note.durTicks, note.tTicks, noteIndex, ticksDraft, updateNoteAt]);
+
+  return (
+    <div className="mr-kv">
+      <span className="mr-kv__k">End</span>
+      <div className="mr-insp__start-fields">
+        <input
+          title="Phrase · bar · beat (end position; matches timeline display)"
+          className="mr-input mr-insp__field mr-insp__start-bbt"
+          aria-label="End phrase bar beat"
+          value={bbtDraft}
+          onChange={(e) => setBbtDraft(e.target.value)}
+          onBlur={() => commitBBT()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitBBT();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <span className="mr-insp__start-sep" aria-hidden>
+          /
+        </span>
+        <input
+          title="Session end ticks (integer MIDI ticks from session zero)"
+          className="mr-input mr-insp__field mr-insp__start-ticks"
+          aria-label="End ticks"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={ticksDraft}
+          onChange={(e) => setTicksDraft(e.target.value)}
+          onBlur={() => commitTicks()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitTicks();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <span className="mr-insp__ticks-suffix">t</span>
+      </div>
+    </div>
   );
 }
 

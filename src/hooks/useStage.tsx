@@ -113,6 +113,12 @@ export interface StageState {
   setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
   clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
   setDJEventTTicks: (id: DJTrackId, pitch: number, eventIdx: number, nextTTicks: number) => void;
+  setDJEventDurTicks: (
+    id: DJTrackId,
+    pitch: number,
+    eventIdx: number,
+    nextDurTicks: number,
+  ) => void;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;
   toggleChannelSoloed: (id: ChannelId) => void;
@@ -370,6 +376,7 @@ function useStageState(): StageState {
     setEventPressure: djTracks.setEventPressure,
     clearEventPressure: djTracks.clearEventPressure,
     setDJEventTTicks: djTracks.setDJEventTTicks,
+    setDJEventDurTicks: djTracks.setDJEventDurTicks,
     toggleDJTrackCollapsed: djTracks.toggleDJTrackCollapsed,
     toggleDJTrackMuted: djTracks.toggleDJTrackMuted,
     toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,

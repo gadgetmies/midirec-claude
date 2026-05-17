@@ -81,6 +81,12 @@ export interface UseDJActionTracksReturn {
   setEventPressure: (id: DJTrackId, pitch: number, eventIdx: number, points: PressurePoint[]) => void;
   clearEventPressure: (id: DJTrackId, pitch: number, eventIdx: number) => void;
   setDJEventTTicks: (id: DJTrackId, pitch: number, eventIdx: number, nextTTicks: number) => void;
+  setDJEventDurTicks: (
+    id: DJTrackId,
+    pitch: number,
+    eventIdx: number,
+    nextDurTicks: number,
+  ) => void;
   setDJTrackDefaultMidiInputDevice: (id: DJTrackId, inputDeviceId: string) => void;
   setDJTrackDefaultMidiOutputDevice: (id: DJTrackId, outputDeviceId: string) => void;
   appendDJActionEvent: (id: DJTrackId, event: ActionEvent) => void;
@@ -438,6 +444,13 @@ export function useDJActionTracks(
     [],
   );
 
+  const setDJEventDurTicks = useCallback(
+    (id: DJTrackId, pitch: number, eventIdx: number, nextDurTicks: number) => {
+      setDJActionTracks((prev) => applySetDJEventDurTicks(prev, id, pitch, eventIdx, nextDurTicks));
+    },
+    [],
+  );
+
   const setDJTrackDefaultMidiInputDevice = useCallback((id: DJTrackId, inputDeviceId: string) => {
     setDJActionTracks((prev) => {
       const idx = prev.findIndex((t) => t.id === id);
@@ -483,6 +496,7 @@ export function useDJActionTracks(
     setEventPressure,
     clearEventPressure,
     setDJEventTTicks,
+    setDJEventDurTicks,
     setDJTrackDefaultMidiInputDevice,
     setDJTrackDefaultMidiOutputDevice,
     appendDJActionEvent,
@@ -725,6 +739,83 @@ export function applySetDJEventTTicks(
     }
   } else {
     nextEvents[eventIdx] = { ...event, tTicks: clamped };
+  }
+
+  const next = tracks.slice();
+  next[trackIdx] = { ...track, events: nextEvents };
+  return next;
+}
+
+/* Pure: update the duration tick of the DJ event at `(id, pitch, eventIdx)`
+   to `nextDurTicks` (clamped to >= 1).
+
+   Single event (non-clustered, or a cluster member that is NOT the cluster
+   representative): set only the referenced event's `durTicks`. Pressure
+   samples are normalized [0,1] of duration (see `src/data/dj.ts`) and
+   therefore survive `durTicks` changes without re-mapping.
+
+   Cluster representative (CC merged group with ≥ 2 members): treat
+   `nextDurTicks` as the new total span. Pin `t0Ticks = representative.tTicks`,
+   scale each member's offset from t0Ticks by (newSpan/oldSpan) and recompute
+   the trailing member's `durTicks` so the cluster ends exactly at
+   `t0Ticks + newSpanTicks`. Non-trailing members keep their `durTicks`.
+
+   No-op (returns the input reference) for unknown track ids, out-of-range
+   eventIdx, pitch mismatches, or when the computed change is zero. */
+export function applySetDJEventDurTicks(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  eventIdx: number,
+  nextDurTicks: number,
+): DJActionTrack[] {
+  const trackIdx = tracks.findIndex((t) => t.id === id);
+  if (trackIdx < 0) return tracks;
+  const track = tracks[trackIdx];
+  if (eventIdx < 0 || eventIdx >= track.events.length) return tracks;
+  const event = track.events[eventIdx];
+  if (event.pitch !== pitch) return tracks;
+
+  const ccGroups = buildCcMergedGroupsByMemberIndex(track);
+  const group = ccGroups.get(eventIdx);
+  const isRepresentative = group && group.representativeIdx === eventIdx;
+
+  if (!isRepresentative) {
+    const clamped = Math.max(1, Math.round(nextDurTicks));
+    if (clamped === event.durTicks) return tracks;
+    const nextEvents = track.events.slice();
+    nextEvents[eventIdx] = { ...event, durTicks: clamped };
+    const next = tracks.slice();
+    next[trackIdx] = { ...track, events: nextEvents };
+    return next;
+  }
+
+  // Cluster representative branch.
+  const t0Ticks = event.tTicks;
+  const members = group.memberIndices.map((idx) => ({ idx, ev: track.events[idx] }));
+  let trailingIdx = members[0].idx;
+  let oldEndTicks = members[0].ev.tTicks + members[0].ev.durTicks;
+  for (const m of members) {
+    const end = m.ev.tTicks + m.ev.durTicks;
+    if (end > oldEndTicks) {
+      oldEndTicks = end;
+      trailingIdx = m.idx;
+    }
+  }
+  const oldSpanTicks = oldEndTicks - t0Ticks;
+  const newSpanTicks = Math.max(1, Math.round(nextDurTicks));
+  if (newSpanTicks === oldSpanTicks) return tracks;
+  // Guard divide-by-zero (cluster with all-zero span is degenerate but possible).
+  const scale = oldSpanTicks > 0 ? newSpanTicks / oldSpanTicks : 1;
+
+  const nextEvents = track.events.slice();
+  for (const m of members) {
+    const offset =
+      oldSpanTicks > 0 ? Math.round((m.ev.tTicks - t0Ticks) * scale) : m.ev.tTicks - t0Ticks;
+    const newTTicks = t0Ticks + offset;
+    const newDurTicks =
+      m.idx === trailingIdx ? Math.max(1, t0Ticks + newSpanTicks - newTTicks) : m.ev.durTicks;
+    nextEvents[m.idx] = { ...m.ev, tTicks: newTTicks, durTicks: newDurTicks };
   }
 
   const next = tracks.slice();
