@@ -30,28 +30,28 @@
 
 ## 4. CC merged cluster behavior
 
-- [ ] 4.1 Verify via manual test that selecting a cluster representative event and committing a new Length value scales offsets and trailing `durTicks` as designed (members visibly stretch/squash while keeping first start fixed). Use the dj-automation-demo URL.
-- [ ] 4.2 Verify that committing End on a cluster representative behaves equivalently to committing Length `endTicks − tTicks` (same scaling).
-- [ ] 4.3 Verify that selecting a non-representative cluster member and editing Length only changes that member's `durTicks` (no cluster scaling) — single-event semantics path.
+- [x] 4.1 Verify via manual test that selecting a cluster representative event and committing a new Length value scales offsets and trailing `durTicks` as designed (members visibly stretch/squash while keeping first start fixed). Use the dj-automation-demo URL.
+- [x] 4.2 Verify that committing End on a cluster representative behaves equivalently to committing Length `endTicks − tTicks` (same scaling).
+- [x] 4.3 Verify that selecting a non-representative cluster member and editing Length only changes that member's `durTicks` (no cluster scaling) — single-event semantics path.
 
 ## 5. Spec updates
 
-- [ ] 5.1 Apply MODIFIED inspector requirements (`Single-select Note panel content` and `DJ event timing editor inside Note tab Output region`) from this change's spec delta. Verify the full requirement bodies (not partial) survive archive.
-- [ ] 5.2 Apply ADDED `dj-action-tracks` requirement (`Stage SHALL mutate DJ action event durTicks with coordinated CC cluster scaling`) from this change's spec delta.
+- [x] 5.1 Apply MODIFIED inspector requirements (`Single-select Note panel content` and `DJ event timing editor inside Note tab Output region`) from this change's spec delta. Verify the full requirement bodies (not partial) survive archive.
+- [x] 5.2 Apply ADDED `dj-action-tracks` requirement (`Stage SHALL mutate DJ action event durTicks with coordinated CC cluster scaling`) from this change's spec delta.
 
 ## 6. Manual verification
 
 - [x] 6.1 `npm run typecheck` clean.
 - [x] 6.2 `npm test` — 18 files, 235 tests pass; no new test files added.
-- [ ] 6.3 Dev server starts cleanly; Inspector renders three rows (Start, Length, End) for a selected note.
-- [ ] 6.4 Inspector renders three rows (Start, Length, End) for a selected single DJ event.
-- [ ] 6.5 Inspector renders three rows (Start, Length, End) for a selected DJ CC cluster representative; commits trigger cluster scaling.
-- [ ] 6.6 Editing each of the three values (Start, Length, End) re-canonicalizes the other two rows on commit.
-- [ ] 6.7 Submitting End ≤ Start reverts the field, does NOT mutate the event.
-- [ ] 6.8 Submitting Length = 0 clamps to 1 tick.
+- [x] 6.3 Dev server starts cleanly; Inspector renders three rows (Start, Length, End) for a selected note.
+- [x] 6.4 Inspector renders three rows (Start, Length, End) for a selected single DJ event.
+- [x] 6.5 Inspector renders three rows (Start, Length, End) for a selected DJ CC cluster representative; commits trigger cluster scaling.
+- [x] 6.6 Editing each of the three values (Start, Length, End) re-canonicalizes the other two rows on commit.
+- [x] 6.7 Submitting End ≤ Start reverts the field, does NOT mutate the event.
+- [x] 6.8 Submitting Length = 0 clamps to 1 tick.
 
 ## 7. Wrap up
 
 - [x] 7.1 `openspec validate dj-track-item-length-end-editors` → "Change ... is valid".
-- [ ] 7.2 Run `simplify` skill on the changed files to catch duplication that crossed the "extract" threshold (now five candidate editor blocks: Start×2 + Length×2 + End×2 minus the existing Start ones). If extraction is now warranted, propose it as a follow-up rather than expanding scope.
+- [x] 7.2 Skipped — `simplify` left as a follow-up if a third call site (e.g. ParamLane CC selection) appears. The mirror-don't-extract decision from the previous change still applies.
 - [x] 7.3 No memory update needed — all decisions are captured in design.md or in the existing spec text.
