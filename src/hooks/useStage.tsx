@@ -45,6 +45,7 @@ import {
   playheadTicksFromTimecodeMs,
   sessionTicksToBeats,
 } from '../midi/sessionTicks';
+import { isSelectionPreservingChrome } from './selectionChrome';
 
 export interface DJActionSelection {
   trackId: DJTrackId;
@@ -192,6 +193,7 @@ function useStageState(): StageState {
     const onDown = (e: PointerEvent) => {
       const target = e.target as Element | null;
       if (!target) return;
+      if (isSelectionPreservingChrome(target)) return;
       if (!target.closest('.mr-timeline')) return;
       if (
         target.closest('.mr-channel__hdr') ||
@@ -221,6 +223,7 @@ function useStageState(): StageState {
     const onDown = (e: PointerEvent) => {
       const target = e.target as Element | null;
       if (!target) return;
+      if (isSelectionPreservingChrome(target)) return;
       if (target.closest('.mr-djtrack')) return;
       if (target.closest('[data-mr-dj-selection-region]')) return;
       setDJActionSelection(null);
