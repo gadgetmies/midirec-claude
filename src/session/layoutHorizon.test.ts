@@ -4,9 +4,13 @@ import {
   SCROLL_EXTENSION_MARGIN_BEATS,
   clampTimelineScroll,
   deriveSessionHorizonFloorBeats,
+  deriveSessionHorizonFloorTicks,
   horizonBeatsForViewportRightEdge,
+  horizonStripeExtentTicksForViewport,
+  MIN_VISIBLE_TICKS,
 } from './layoutHorizon';
 import type { ChannelId, PianoRollTrack, ParamLane } from '../hooks/useChannels';
+import { beatsToSessionTicks } from '../midi/sessionTicks';
 
 const ch1 = 1 as ChannelId;
 
@@ -22,7 +26,7 @@ describe('deriveSessionHorizonFloorBeats', () => {
     const rolls: PianoRollTrack[] = [
       {
         channelId: ch1,
-        notes: [{ t: 0, dur: 32, pitch: 60, vel: 0.5 }],
+        notes: [{ tTicks: 0, durTicks: beatsToSessionTicks(32), pitch: 60, vel: 0.5 }],
         muted: false,
         soloed: false,
         collapsed: false,
@@ -42,13 +46,38 @@ describe('deriveSessionHorizonFloorBeats', () => {
         cc: 1,
         name: 'X',
         color: 'red',
-        points: [{ t: 100, v: 0.5 }],
+        points: [{ tTicks: beatsToSessionTicks(100), v: 0.5 }],
         muted: false,
         soloed: false,
         collapsed: false,
       },
     ];
     expect(deriveSessionHorizonFloorBeats({ rolls, lanes, djTracks: [] })).toBe(100);
+  });
+});
+
+describe('deriveSessionHorizonFloorTicks', () => {
+  it('equals beat floor converted to ticks', () => {
+    const rolls: PianoRollTrack[] = [
+      {
+        channelId: ch1,
+        notes: [{ tTicks: 0, durTicks: beatsToSessionTicks(32), pitch: 60, vel: 0.5 }],
+        muted: false,
+        soloed: false,
+        collapsed: false,
+      },
+    ];
+    const inp = { rolls, lanes: [], djTracks: [] };
+    expect(deriveSessionHorizonFloorTicks(inp)).toBe(beatsToSessionTicks(32));
+    expect(deriveSessionHorizonFloorBeats(inp)).toBe(32);
+  });
+});
+
+describe('horizonStripeExtentTicksForViewport', () => {
+  it('matches min visible beats as ticks when lane is hidden', () => {
+    expect(horizonStripeExtentTicksForViewport(0, 40, 56, 88, SCROLL_EXTENSION_MARGIN_BEATS)).toBe(
+      MIN_VISIBLE_TICKS,
+    );
   });
 });
 

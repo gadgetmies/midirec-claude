@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { Note } from '../components/piano-roll/notes';
 import type { ActionMapEntry, OutputMapping, PressurePoint } from '../data/dj';
+import { beatsToSessionTicks } from './sessionTicks';
+import { DEFAULT_MIDI_TPQ } from './timelineTicks';
 import { synthesizePressure } from '../data/pressure';
 import type { DJTrackId, DJActionTrack } from '../hooks/useDJActionTracks';
 import { useStage } from '../hooks/useStage';
@@ -19,8 +21,8 @@ export interface ChannelSnapshot {
 
 export interface DJEventSnapshot {
   pitch: number;
-  t: number;
-  dur: number;
+  tTicks: number;
+  durTicks: number;
   vel: number;
   pressure?: PressurePoint[];
   perPitchIndex: number;
@@ -65,8 +67,8 @@ const AT_MIN_GAP_MS = 10;
 const PRESSURE_AT_STATUS = 0xd0;
 
 interface NoteLikeEvent {
-  t: number;
-  dur: number;
+  tTicks: number;
+  durTicks: number;
 }
 
 type ChannelPlayableSource = {
@@ -93,12 +95,12 @@ interface ResolvedEmit {
   ccOut?: number;
 }
 
-function binarySearchFirstAtOrAfterT(items: NoteLikeEvent[], targetT: number): number {
+function binarySearchFirstAtOrAfterTicks(items: NoteLikeEvent[], targetTicks: number): number {
   let lo = 0;
   let hi = items.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if (items[mid]!.t < targetT) lo = mid + 1;
+    if (items[mid]!.tTicks < targetTicks) lo = mid + 1;
     else hi = mid;
   }
   return lo;
@@ -189,7 +191,12 @@ function resolveDJEmit(
     const pressurePoints =
       event.pressure === undefined
         ? synthesizePressure(
-            { pitch: event.pitch, t: event.t, dur: event.dur, vel: event.vel },
+            {
+              pitch: event.pitch,
+              tTicks: event.tTicks,
+              durTicks: event.durTicks,
+              vel: event.vel,
+            },
             event.perPitchIndex,
           )
         : event.pressure;
@@ -280,9 +287,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   function rebindCursors(sources: PlayableSource[], playheadMs: number): void {
     if (tempoSnapshot <= 0) return;
     const msPerBeat = 60000 / tempoSnapshot;
-    const targetT = playheadMs / msPerBeat;
+    const targetTicks = beatsToSessionTicks(playheadMs / msPerBeat, DEFAULT_MIDI_TPQ);
     for (const source of sources) {
-      cursors.set(source.cursorKey, binarySearchFirstAtOrAfterT(source.events, targetT));
+      cursors.set(source.cursorKey, binarySearchFirstAtOrAfterTicks(source.events, targetTicks));
     }
   }
 
@@ -386,14 +393,20 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     for (const source of sources) {
       let cursor = cursors.get(source.cursorKey);
       if (cursor === undefined) {
-        cursor = binarySearchFirstAtOrAfterT(source.events, playheadMs / msPerBeat);
+        cursor = binarySearchFirstAtOrAfterTicks(
+          source.events,
+          beatsToSessionTicks(playheadMs / msPerBeat, DEFAULT_MIDI_TPQ),
+        );
       }
-      while (cursor < source.events.length && source.events[cursor]!.t * msPerBeat < playheadMs) {
+      while (
+        cursor < source.events.length &&
+        (source.events[cursor]!.tTicks / DEFAULT_MIDI_TPQ) * msPerBeat < playheadMs
+      ) {
         cursor++;
       }
       while (cursor < source.events.length) {
         const event = source.events[cursor]!;
-        const startMs = event.t * msPerBeat;
+        const startMs = (event.tTicks / DEFAULT_MIDI_TPQ) * msPerBeat;
         if (startMs >= lookaheadEndMs) break;
         const emit =
           source.kind === 'channel'
@@ -407,7 +420,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
               : deps.getMidiOutput(
                   resolveDJPortId(source.track, evPitch) || undefined,
                 );
-          const endMs = (event.t + event.dur) * msPerBeat;
+          const endMs = ((event.tTicks + event.durTicks) / DEFAULT_MIDI_TPQ) * msPerBeat;
           if (emit.ccOut !== undefined) {
             emitControlChange(
               midiOut,
@@ -510,14 +523,14 @@ function buildDJTrackSnapshots(djActionTracks: DJActionTrack[]): DJTrackSnapshot
       counts.set(event.pitch, idx + 1);
       return {
         pitch: event.pitch,
-        t: event.t,
-        dur: event.dur,
+        tTicks: event.tTicks,
+        durTicks: event.durTicks,
         vel: event.vel,
         pressure: event.pressure,
         perPitchIndex: idx,
       };
     });
-    events.sort((a, b) => a.t - b.t);
+    events.sort((a, b) => a.tTicks - b.tTicks);
     return {
       id: track.id,
       midiChannel: track.midiChannel,

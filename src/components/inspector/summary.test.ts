@@ -1,6 +1,17 @@
 import { describe, expect, test } from 'vitest';
 import type { Note } from '../piano-roll/notes';
 import { formatBBT, formatPitch, summarizeSelection } from './summary';
+import { beatsToSessionTicks } from '../../midi/sessionTicks';
+import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
+
+const TPQ = DEFAULT_MIDI_TPQ;
+
+const note = (tBeats: number, durBeats: number, pitch: number, vel: number): Note => ({
+  tTicks: beatsToSessionTicks(tBeats, TPQ),
+  durTicks: beatsToSessionTicks(durBeats, TPQ),
+  pitch,
+  vel,
+});
 
 describe('formatBBT', () => {
   test('integer beats produce 1-indexed bar.beat.sixteenth', () => {
@@ -31,8 +42,6 @@ describe('formatPitch', () => {
     expect(formatPitch(72)).toBe('C5');
   });
 });
-
-const note = (t: number, dur: number, pitch: number, vel: number): Note => ({ t, dur, pitch, vel });
 
 describe('summarizeSelection', () => {
   test('detects mixed velocity when values differ', () => {
@@ -69,7 +78,7 @@ describe('summarizeSelection', () => {
     expect(summary.pitches).toEqual([60, 62, 64]);
   });
 
-  test('range t1 is the inclusive end (note.t + note.dur)', () => {
+  test('range t1 is the inclusive end (note start + dur in beats)', () => {
     const notes: Note[] = [note(2, 1, 60, 0.5), note(3.5, 0.25, 62, 0.5)];
     const summary = summarizeSelection(notes, [0, 1], 'Lead');
     expect(summary.range.t0).toBe(2);

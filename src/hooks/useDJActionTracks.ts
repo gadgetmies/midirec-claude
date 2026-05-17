@@ -20,6 +20,8 @@ import {
   type OutputMapping,
   type PressurePoint,
 } from '../data/dj';
+import { beatsToSessionTicks } from '../midi/sessionTicks';
+import { DEFAULT_MIDI_TPQ } from '../midi/timelineTicks';
 import type { ChannelId } from './useChannels';
 
 export type DJTrackId = string;
@@ -136,93 +138,104 @@ function mixerDefaultOutputMap(
   return out;
 }
 
+const SESSION_TPQ = DEFAULT_MIDI_TPQ;
+
+function djEvFromBeats(pitch: number, tBeats: number, durBeats: number, vel: number): ActionEvent {
+  return {
+    pitch,
+    tTicks: beatsToSessionTicks(tBeats, SESSION_TPQ),
+    durTicks: Math.max(1, beatsToSessionTicks(durBeats, SESSION_TPQ)),
+    vel,
+  };
+}
+
 const SEEDED_EVENTS_DECK1: ActionEvent[] = [
-  { pitch: 48, t: 0.0, dur: 0.1, vel: 1.0 },
-  { pitch: 48, t: 8.0, dur: 0.1, vel: 1.0 },
-  { pitch: 56, t: 1.5, dur: 1.5, vel: 0.85 },
-  { pitch: 56, t: 5.0, dur: 2.0, vel: 0.7 },
-  { pitch: 57, t: 2.0, dur: 0.4, vel: 0.55 },
-  { pitch: 57, t: 4.5, dur: 0.4, vel: 0.85 },
-  { pitch: 58, t: 3.5, dur: 0.35, vel: 0.6 },
-  { pitch: 58, t: 7.25, dur: 0.35, vel: 0.9 },
-  { pitch: 59, t: 6.0, dur: 0.35, vel: 0.75 },
-  { pitch: 59, t: 9.5, dur: 0.35, vel: 0.5 },
-  { pitch: 89, t: 0.75, dur: 0.12, vel: 0.35 },
-  { pitch: 89, t: 3.75, dur: 0.12, vel: 0.55 },
-  { pitch: 89, t: 9.25, dur: 0.12, vel: 0.8 },
-  { pitch: 76, t: 1.0, dur: 0.15, vel: 0.2 },
-  { pitch: 76, t: 4.0, dur: 0.15, vel: 0.5 },
-  { pitch: 76, t: 10.0, dur: 0.15, vel: 0.85 },
+  djEvFromBeats(48, 0.0, 0.1, 1.0),
+  djEvFromBeats(48, 8.0, 0.1, 1.0),
+  djEvFromBeats(56, 1.5, 1.5, 0.85),
+  djEvFromBeats(56, 5.0, 2.0, 0.7),
+  djEvFromBeats(57, 2.0, 0.4, 0.55),
+  djEvFromBeats(57, 4.5, 0.4, 0.85),
+  djEvFromBeats(58, 3.5, 0.35, 0.6),
+  djEvFromBeats(58, 7.25, 0.35, 0.9),
+  djEvFromBeats(59, 6.0, 0.35, 0.75),
+  djEvFromBeats(59, 9.5, 0.35, 0.5),
+  djEvFromBeats(89, 0.75, 0.12, 0.35),
+  djEvFromBeats(89, 3.75, 0.12, 0.55),
+  djEvFromBeats(89, 9.25, 0.12, 0.8),
+  djEvFromBeats(76, 1.0, 0.15, 0.2),
+  djEvFromBeats(76, 4.0, 0.15, 0.5),
+  djEvFromBeats(76, 10.0, 0.15, 0.85),
 ];
 
 const SEEDED_EVENTS_DECK2: ActionEvent[] = [
-  { pitch: 65, t: 0.5, dur: 0.1, vel: 1.0 },
-  { pitch: 65, t: 9.0, dur: 0.1, vel: 1.0 },
-  { pitch: 69, t: 2.0, dur: 1.2, vel: 0.8 },
-  { pitch: 69, t: 6.5, dur: 1.5, vel: 0.72 },
-  { pitch: 70, t: 1.25, dur: 0.35, vel: 0.6 },
-  { pitch: 70, t: 5.5, dur: 0.35, vel: 0.88 },
-  { pitch: 78, t: 3.0, dur: 0.35, vel: 0.7 },
-  { pitch: 78, t: 8.0, dur: 0.35, vel: 0.92 },
-  { pitch: 79, t: 4.25, dur: 0.35, vel: 0.55 },
-  { pitch: 79, t: 11.0, dur: 0.35, vel: 0.78 },
-  { pitch: 90, t: 1.75, dur: 0.12, vel: 0.4 },
-  { pitch: 90, t: 6.25, dur: 0.12, vel: 0.6 },
-  { pitch: 90, t: 10.25, dur: 0.12, vel: 0.88 },
-  { pitch: 77, t: 2.5, dur: 0.15, vel: 0.35 },
-  { pitch: 77, t: 7.0, dur: 0.15, vel: 0.65 },
-  { pitch: 77, t: 10.5, dur: 0.15, vel: 0.95 },
+  djEvFromBeats(65, 0.5, 0.1, 1.0),
+  djEvFromBeats(65, 9.0, 0.1, 1.0),
+  djEvFromBeats(69, 2.0, 1.2, 0.8),
+  djEvFromBeats(69, 6.5, 1.5, 0.72),
+  djEvFromBeats(70, 1.25, 0.35, 0.6),
+  djEvFromBeats(70, 5.5, 0.35, 0.88),
+  djEvFromBeats(78, 3.0, 0.35, 0.7),
+  djEvFromBeats(78, 8.0, 0.35, 0.92),
+  djEvFromBeats(79, 4.25, 0.35, 0.55),
+  djEvFromBeats(79, 11.0, 0.35, 0.78),
+  djEvFromBeats(90, 1.75, 0.12, 0.4),
+  djEvFromBeats(90, 6.25, 0.12, 0.6),
+  djEvFromBeats(90, 10.25, 0.12, 0.88),
+  djEvFromBeats(77, 2.5, 0.15, 0.35),
+  djEvFromBeats(77, 7.0, 0.15, 0.65),
+  djEvFromBeats(77, 10.5, 0.15, 0.95),
 ];
 
 const SEEDED_EVENTS_MIXER: ActionEvent[] = [
-  { pitch: 80, t: 0.0, dur: 2.5, vel: 0.4 },
-  { pitch: 80, t: 5.0, dur: 2.0, vel: 0.55 },
-  { pitch: 80, t: 9.0, dur: 2.5, vel: 0.72 },
-  { pitch: 81, t: 1.0, dur: 0.5, vel: 0.6 },
-  { pitch: 81, t: 6.0, dur: 0.6, vel: 0.85 },
-  { pitch: 82, t: 1.5, dur: 0.5, vel: 0.55 },
-  { pitch: 82, t: 8.0, dur: 0.55, vel: 0.9 },
-  { pitch: 83, t: 3.0, dur: 0.4, vel: 0.5 },
-  { pitch: 84, t: 3.5, dur: 0.4, vel: 0.62 },
-  { pitch: 85, t: 4.0, dur: 0.4, vel: 0.45 },
-  { pitch: 86, t: 5.5, dur: 0.4, vel: 0.58 },
-  { pitch: 87, t: 6.0, dur: 0.4, vel: 0.7 },
-  { pitch: 88, t: 6.5, dur: 0.4, vel: 0.52 },
+  djEvFromBeats(80, 0.0, 2.5, 0.4),
+  djEvFromBeats(80, 5.0, 2.0, 0.55),
+  djEvFromBeats(80, 9.0, 2.5, 0.72),
+  djEvFromBeats(81, 1.0, 0.5, 0.6),
+  djEvFromBeats(81, 6.0, 0.6, 0.85),
+  djEvFromBeats(82, 1.5, 0.5, 0.55),
+  djEvFromBeats(82, 8.0, 0.55, 0.9),
+  djEvFromBeats(83, 3.0, 0.4, 0.5),
+  djEvFromBeats(84, 3.5, 0.4, 0.62),
+  djEvFromBeats(85, 4.0, 0.4, 0.45),
+  djEvFromBeats(86, 5.5, 0.4, 0.58),
+  djEvFromBeats(87, 6.0, 0.4, 0.7),
+  djEvFromBeats(88, 6.5, 0.4, 0.52),
 ];
 
 const AUTOMATION_CC_STEP_DUR = 1 / 128;
 
 const SEEDED_EVENTS_AUTOMATION_DECK1: ActionEvent[] = [
-  { pitch: 89, t: 0, dur: 0.1, vel: 11 / 127 },
-  { pitch: 76, t: 1, dur: 0.1, vel: 1 },
+  djEvFromBeats(89, 0, 0.1, 11 / 127),
+  djEvFromBeats(76, 1, 0.1, 1),
 ];
 
 const SEEDED_EVENTS_AUTOMATION_DECK2: ActionEvent[] = [
-  { pitch: 90, t: 0, dur: 0.1, vel: 11 / 127 },
-  { pitch: 77, t: 1, dur: 0.1, vel: 1 },
-  { pitch: 65, t: 3, dur: 0.1, vel: 1 },
+  djEvFromBeats(90, 0, 0.1, 11 / 127),
+  djEvFromBeats(77, 1, 0.1, 1),
+  djEvFromBeats(65, 3, 0.1, 1),
 ];
 
 function buildAutomationMixerEvents(): ActionEvent[] {
   const out: ActionEvent[] = [];
   for (let v = 0; v <= 127; v++) {
     const t = 4 + (v / 127) * (20 - 4);
-    out.push({ pitch: 81, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
+    out.push(djEvFromBeats(81, t, AUTOMATION_CC_STEP_DUR, v / 127));
   }
   for (let v = 127; v >= 0; v--) {
     const t = 68 - (v / 127) * (68 - 34);
-    out.push({ pitch: 82, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
+    out.push(djEvFromBeats(82, t, AUTOMATION_CC_STEP_DUR, v / 127));
   }
-  out.push({ pitch: 88, t: 4, dur: AUTOMATION_CC_STEP_DUR, vel: 0 });
+  out.push(djEvFromBeats(88, 4, AUTOMATION_CC_STEP_DUR, 0));
   for (let v = 0; v <= 63; v++) {
     const t = 26 + (v / 63) * (34 - 26);
-    out.push({ pitch: 88, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
+    out.push(djEvFromBeats(88, t, AUTOMATION_CC_STEP_DUR, v / 127));
   }
   for (let v = 63; v >= 0; v--) {
     const t = 34 - (v / 63) * (34 - 26);
-    out.push({ pitch: 85, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
+    out.push(djEvFromBeats(85, t, AUTOMATION_CC_STEP_DUR, v / 127));
   }
-  out.sort((a, b) => (a.t !== b.t ? a.t - b.t : a.pitch - b.pitch));
+  out.sort((a, b) => (a.tTicks !== b.tTicks ? a.tTicks - b.tTicks : a.pitch - b.pitch));
   return out;
 }
 

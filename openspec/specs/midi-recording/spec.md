@@ -256,3 +256,12 @@ The concrete pairing semantics (open vs close of a fader move) SHALL be implemen
 - **WHEN** a Control Change `0xB9, 7, 64` arrives on port `pad` (channel 10, CC 7, value 64)
 - **THEN** `appendDJActionEvent` (or equivalent) SHALL run for `t1` with an `ActionEvent` on **pitch `80`** whose `vel` reflects `64/127`
 
+### Requirement: Recorded events snap to session ticks
+
+Normative recording text SHALL describe captured notes and DJ `ActionEvent` rows using **`tTicks` / `durTicks`** (and lane **`tTicks`** for automation) rather than beat-float **`t` / `dur`** when specifying how events are appended to session state.
+
+#### Scenario: Recorder append examples use ticks
+
+- **WHEN** the `midi-recording` specification states how new notes are written into `PianoRollTrack.notes`
+- **THEN** the stored shape SHALL be described with **`tTicks` / `durTicks`** aligned to session TPQ
+

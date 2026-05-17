@@ -1,13 +1,16 @@
+import { beatsToSessionTicks } from '../../midi/sessionTicks';
+import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
+
 export interface Note {
-  t: number;
-  dur: number;
+  tTicks: number;
+  durTicks: number;
   pitch: number;
   vel: number;
 }
 
 export interface Marquee {
-  t0: number;
-  t1: number;
+  t0Ticks: number;
+  t1Ticks: number;
   p0: number;
   p1: number;
 }
@@ -46,26 +49,32 @@ export function makeNotes(count: number, seed: number): Note[] {
     return (s / 233280) * n;
   };
   const notes: Note[] = [];
-  let t = 0;
+  let tBeats = 0;
+  const tpq = DEFAULT_MIDI_TPQ;
   for (let i = 0; i < count; i++) {
-    const dur = 0.25 + rand(1.5);
+    const durBeats = 0.25 + rand(1.5);
     const pitch = 48 + Math.floor(rand(28));
     const vel = 0.45 + rand(0.55);
-    notes.push({ t, dur, pitch, vel });
-    t += rand(0.7) + 0.15;
+    notes.push({
+      tTicks: beatsToSessionTicks(tBeats, tpq),
+      durTicks: Math.max(1, beatsToSessionTicks(durBeats, tpq)),
+      pitch,
+      vel,
+    });
+    tBeats += rand(0.7) + 0.15;
   }
   return notes;
 }
 
 export function notesInMarquee(notes: Note[], m: Marquee): number[] {
-  const t0 = Math.min(m.t0, m.t1);
-  const t1 = Math.max(m.t0, m.t1);
+  const t0 = Math.min(m.t0Ticks, m.t1Ticks);
+  const t1 = Math.max(m.t0Ticks, m.t1Ticks);
   const p0 = Math.min(m.p0, m.p1);
   const p1 = Math.max(m.p0, m.p1);
   const out: number[] = [];
   notes.forEach((n, i) => {
-    const noteEnd = n.t + n.dur;
-    if (noteEnd > t0 && n.t < t1 && n.pitch >= p0 && n.pitch <= p1) {
+    const noteEnd = n.tTicks + n.durTicks;
+    if (noteEnd > t0 && n.tTicks < t1 && n.pitch >= p0 && n.pitch <= p1) {
       out.push(i);
     }
   });

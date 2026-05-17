@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { beatsToSessionTicks, sessionTicksToBeats } from '../midi/sessionTicks';
 import { buildDjDemoSeedTracks } from './useDJActionTracks';
 
 function q127(e: { vel?: number }) {
@@ -13,10 +14,10 @@ describe('DJ demo seed — automation preset', () => {
     const ch1 = mixer!.events
       .filter((e) => e.pitch === 81)
       .slice()
-      .sort((a, b) => a.t - b.t);
+      .sort((a, b) => a.tTicks - b.tTicks);
     expect(ch1).toHaveLength(128);
-    expect(ch1[0]?.t).toBeCloseTo(4, 12);
-    expect(ch1[127]?.t).toBeCloseTo(20, 12);
+    expect(sessionTicksToBeats(ch1[0]!.tTicks)).toBeCloseTo(4, 12);
+    expect(sessionTicksToBeats(ch1[127]!.tTicks)).toBeCloseTo(20, 12);
     const quantized = ch1.map(q127);
     expect(quantized[0]).toBe(0);
     expect(quantized[127]).toBe(127);
@@ -30,10 +31,10 @@ describe('DJ demo seed — automation preset', () => {
     const ch2 = mixer!.events
       .filter((e) => e.pitch === 82)
       .slice()
-      .sort((a, b) => a.t - b.t);
+      .sort((a, b) => a.tTicks - b.tTicks);
     expect(ch2).toHaveLength(128);
-    expect(ch2[0]?.t).toBeCloseTo(34, 12);
-    expect(ch2[127]?.t).toBeCloseTo(68, 12);
+    expect(sessionTicksToBeats(ch2[0]!.tTicks)).toBeCloseTo(34, 12);
+    expect(sessionTicksToBeats(ch2[127]!.tTicks)).toBeCloseTo(68, 12);
     const quantized = ch2.map(q127);
     expect(quantized[0]).toBe(127);
     expect(quantized[127]).toBe(0);
@@ -44,16 +45,16 @@ describe('DJ demo seed — automation preset', () => {
   it('mixer Ch 2 EQ low anchors at beat 4 and sweeps 0..63 on [26,34]', () => {
     const tracks = buildDjDemoSeedTracks(true, true);
     const mixer = tracks.find((t) => t.id === 'dj-mixer');
-    const anchors = mixer!.events.filter((e) => e.pitch === 88 && e.t === 4);
+    const anchors = mixer!.events.filter((e) => e.pitch === 88 && e.tTicks === beatsToSessionTicks(4));
     expect(anchors).toHaveLength(1);
     expect(q127(anchors[0]!)).toBe(0);
     const sweep = mixer!.events
-      .filter((e) => e.pitch === 88 && e.t !== 4)
+      .filter((e) => e.pitch === 88 && e.tTicks !== beatsToSessionTicks(4))
       .slice()
-      .sort((a, b) => a.t - b.t);
+      .sort((a, b) => a.tTicks - b.tTicks);
     expect(sweep).toHaveLength(64);
-    expect(sweep[0]?.t).toBeCloseTo(26, 12);
-    expect(sweep[63]?.t).toBeCloseTo(34, 12);
+    expect(sessionTicksToBeats(sweep[0]!.tTicks)).toBeCloseTo(26, 12);
+    expect(sessionTicksToBeats(sweep[63]!.tTicks)).toBeCloseTo(34, 12);
     const sq = sweep.map(q127);
     expect(sq).toEqual(Array.from({ length: 64 }, (_, i) => i));
     expect(new Set(sq).size).toBe(64);
@@ -65,10 +66,10 @@ describe('DJ demo seed — automation preset', () => {
     const sweep = mixer!.events
       .filter((e) => e.pitch === 85)
       .slice()
-      .sort((a, b) => a.t - b.t);
+      .sort((a, b) => a.tTicks - b.tTicks);
     expect(sweep).toHaveLength(64);
-    expect(sweep[0]?.t).toBeCloseTo(26, 12);
-    expect(sweep[63]?.t).toBeCloseTo(34, 12);
+    expect(sessionTicksToBeats(sweep[0]!.tTicks)).toBeCloseTo(26, 12);
+    expect(sessionTicksToBeats(sweep[63]!.tTicks)).toBeCloseTo(34, 12);
     const sq = sweep.map(q127);
     expect(sq).toEqual(Array.from({ length: 64 }, (_, i) => 63 - i));
   });
@@ -76,7 +77,7 @@ describe('DJ demo seed — automation preset', () => {
   it('Deck 1 beat jump at t=1 encodes MIDI value 127', () => {
     const tracks = buildDjDemoSeedTracks(true, true);
     const deck1 = tracks.find((t) => t.id === 'dj-deck1');
-    const bj = deck1!.events.find((e) => e.pitch === 76 && e.t === 1);
+    const bj = deck1!.events.find((e) => e.pitch === 76 && e.tTicks === beatsToSessionTicks(1));
     expect(bj).toBeDefined();
     expect(Math.round((bj!.vel as number) * 127)).toBe(127);
   });

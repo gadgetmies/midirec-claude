@@ -17,6 +17,7 @@ import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
 import { useMidiLearn } from '../../midi/useMidiLearn';
 import type { MidiLearnWireMessage } from '../../midi/midiLearn';
 import { PressureEditor } from './PressureEditor';
+import { sessionTicksToBeats } from '../../midi/sessionTicks';
 import './Inspector.css';
 
 const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
@@ -535,9 +536,11 @@ function ActionPanel({
 }
 
 function SingleNoteView({ note, channelId }: { note: Note; channelId: number }) {
-  const tickOffset = Math.round((note.t % 1) * TICKS_PER_BEAT);
+  const startBeats = sessionTicksToBeats(note.tTicks);
+  const tickOffset = note.tTicks % TICKS_PER_BEAT;
   const velocity127 = Math.round(note.vel * 127);
   const fillPct = Math.max(0, Math.min(1, note.vel)) * 100;
+  const durBeats = sessionTicksToBeats(note.durTicks);
 
   return (
     <>
@@ -550,11 +553,11 @@ function SingleNoteView({ note, channelId }: { note: Note; channelId: number }) 
       </div>
       <div className="mr-kv">
         <span className="mr-kv__k">Start</span>
-        <span className="mr-kv__v">{formatBBT(note.t)} · {tickOffset}t</span>
+        <span className="mr-kv__v">{formatBBT(startBeats)} · {tickOffset}t</span>
       </div>
       <div className="mr-kv">
         <span className="mr-kv__k">Length</span>
-        <span className="mr-kv__v">{note.dur.toFixed(3)}s</span>
+        <span className="mr-kv__v">{durBeats.toFixed(3)} beats</span>
       </div>
       <div className="mr-kv">
         <span className="mr-kv__k">Velocity</span>
@@ -593,8 +596,8 @@ function MultiNoteView({
   const pitchesText = summary.pitches.map(formatPitch).join(' · ');
   const lengthText =
     summary.length.uniform !== null
-      ? `${summary.length.uniform.toFixed(3)}s`
-      : `mixed (${summary.length.range[0].toFixed(2)} – ${summary.length.range[1].toFixed(2)}s)`;
+      ? `${summary.length.uniform.toFixed(3)} beats`
+      : `mixed (${summary.length.range[0].toFixed(2)} – ${summary.length.range[1].toFixed(2)} beats)`;
   const velocityReadout = summary.velocity.mixed ? `~${meanVel127}` : `${meanVel127}`;
 
   return (

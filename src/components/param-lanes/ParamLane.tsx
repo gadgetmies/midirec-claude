@@ -3,16 +3,17 @@ import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
 import type { CCPoint } from '../../hooks/useChannels';
 import { laneCCLabel, type ParamLane as ParamLaneType } from '../../hooks/useChannels';
-import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
+import { KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
 import { ParamMinimap } from './ParamMinimap';
+import { sessionTicksToBeats } from '../../midi/sessionTicks';
 import './ParamLane.css';
 
 interface ParamLaneProps {
   lane: ParamLaneType;
-  viewT0?: number;
-  totalT: number;
-  pxPerBeat?: number;
-  playheadT?: number;
+  layoutHorizonTicks: number;
+  pxPerTick: number;
+  viewT0Ticks?: number;
+  playheadTicks: number;
   audible: boolean;
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
@@ -26,14 +27,14 @@ const TOP = 8;
 const BAR_W = 1.5;
 
 function sortedPoints(points: CCPoint[]): CCPoint[] {
-  return [...points].sort((a, b) => a.t - b.t || a.v - b.v);
+  return [...points].sort((a, b) => a.tTicks - b.tTicks || a.v - b.v);
 }
 
-/** MIDI-style held value: last point at or before `t` (otherwise 0). */
-function heldValue(pointsSorted: CCPoint[], t: number): number {
+/** MIDI-style held value: last point at or before `t` in beats (otherwise 0). */
+function heldValue(pointsSorted: CCPoint[], tBeats: number): number {
   let v = 0;
   for (const p of pointsSorted) {
-    if (p.t > t) break;
+    if (sessionTicksToBeats(p.tTicks) > tBeats) break;
     v = p.v;
   }
   return v;
@@ -41,10 +42,10 @@ function heldValue(pointsSorted: CCPoint[], t: number): number {
 
 export function ParamLane({
   lane,
-  viewT0 = 0,
-  totalT,
-  pxPerBeat = DEFAULT_PX_PER_BEAT,
-  playheadT = 0,
+  layoutHorizonTicks,
+  pxPerTick,
+  viewT0Ticks = 0,
+  playheadTicks,
   audible,
   onToggleCollapsed,
   onToggleMuted,
@@ -52,16 +53,17 @@ export function ParamLane({
 }: ParamLaneProps) {
   const [hover, setHover] = useState<{ px: number; v: number } | null>(null);
 
-  const plotW = totalT * pxPerBeat;
-  const viewT1 = viewT0 + totalT;
+  const plotW = layoutHorizonTicks * pxPerTick;
+  const viewT0Beats = sessionTicksToBeats(viewT0Ticks);
+  const viewT1Beats = sessionTicksToBeats(viewT0Ticks + layoutHorizonTicks);
 
   const pointsSorted = useMemo(() => sortedPoints(lane.points), [lane.points]);
 
   const onMouseMove = (event: MouseEvent<HTMLDivElement>) => {
     if (plotW <= 0 || lane.collapsed || pointsSorted.length === 0) return;
     const offsetX = event.nativeEvent.offsetX;
-    const t = viewT0 + offsetX / pxPerBeat;
-    const v = heldValue(pointsSorted, t);
+    const tBeats = sessionTicksToBeats(viewT0Ticks + offsetX / pxPerTick);
+    const v = heldValue(pointsSorted, tBeats);
     setHover({ px: offsetX, v });
   };
   const onMouseLeave = () => setHover(null);
@@ -70,7 +72,7 @@ export function ParamLane({
     onToggleCollapsed();
   };
 
-  const playheadLeft = KEYS_COLUMN_WIDTH + playheadT * pxPerBeat;
+  const playheadLeft = KEYS_COLUMN_WIDTH + (playheadTicks - viewT0Ticks) * pxPerTick;
 
   return (
     <div
@@ -99,9 +101,9 @@ export function ParamLane({
           <ParamMinimap
             points={lane.points}
             color={lane.color}
-            viewT0={viewT0}
-            totalT={totalT}
-            pxPerBeat={pxPerBeat}
+            viewT0Ticks={viewT0Ticks}
+            layoutHorizonTicks={layoutHorizonTicks}
+            pxPerTick={pxPerTick}
           />
           <div className="mr-playhead" style={{ left: playheadLeft }} />
         </div>
@@ -117,13 +119,14 @@ export function ParamLane({
             {plotW > 0 && pointsSorted.length > 0 && (
               <svg width={plotW} height="100%" preserveAspectRatio="none" viewBox={`0 0 ${plotW} 72`}>
                 {pointsSorted.map((p, i) => {
-                  if (p.t < viewT0 || p.t > viewT1) return null;
-                  const xMid = (p.t - viewT0) * pxPerBeat;
+                  const pBeats = sessionTicksToBeats(p.tTicks);
+                  if (pBeats < viewT0Beats || pBeats > viewT1Beats) return null;
+                  const xMid = (p.tTicks - viewT0Ticks) * pxPerTick;
                   const x = xMid - BAR_W / 2;
                   const h = p.v * TRACK_H;
                   const y = TOP + (TRACK_H - h);
                   return (
-                    <g key={`${p.t}-${i}`}>
+                    <g key={`${p.tTicks}-${i}`}>
                       <rect
                         x={x}
                         y={y}
@@ -186,7 +189,7 @@ export function ParamLane({
                 )}
               </svg>
             )}
-            <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
+            <div className="mr-playhead" style={{ left: (playheadTicks - viewT0Ticks) * pxPerTick }} />
             {hover && (
               <span className="mr-param-lane__readout" style={{ left: hover.px, transform: 'translateX(-50%)' }}>
                 {Math.round(hover.v * 127)}

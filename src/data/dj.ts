@@ -190,8 +190,8 @@ export type PressureRenderMode = 'curve' | 'step';
      `rasterizePressure(...)`. */
 export interface ActionEvent {
   pitch: number;
-  t: number;
-  dur: number;
+  tTicks: number;
+  durTicks: number;
   vel: number;
   pressure?: PressurePoint[];
 }

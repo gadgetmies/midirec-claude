@@ -1,7 +1,7 @@
 import type { MouseEvent } from 'react';
 import { ChevDownIcon } from '../icons/transport';
 import { MSChip } from '../ms-chip/MSChip';
-import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH, PianoRoll } from '../piano-roll/PianoRoll';
+import { KEYS_COLUMN_WIDTH, PianoRoll } from '../piano-roll/PianoRoll';
 import type { Marquee } from '../piano-roll/notes';
 import { Minimap } from './Minimap';
 import type { Channel, PianoRollTrack } from '../../hooks/useChannels';
@@ -9,12 +9,16 @@ import './Track.css';
 
 export interface TrackViewProps {
   pxPerBeat?: number;
+  pxPerTick: number;
   rowHeight?: number;
   lo?: number;
   hi?: number;
   totalT?: number;
   playheadT?: number;
+  playheadTicks: number;
   viewT0?: number;
+  viewT0Ticks?: number;
+  layoutHorizonTicks: number;
 }
 
 interface TrackProps {
@@ -25,7 +29,6 @@ interface TrackProps {
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
   audible: boolean;
-  layoutHorizonBeats: number;
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
@@ -41,7 +44,6 @@ export function Track({
   marquee,
   selectedIdx,
   audible,
-  layoutHorizonBeats,
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
@@ -57,6 +59,8 @@ export function Track({
     event.stopPropagation();
     onToggleCollapsed();
   };
+
+  const v0 = viewProps.viewT0Ticks ?? 0;
 
   return (
     <div
@@ -102,16 +106,16 @@ export function Track({
           <Minimap
             notes={roll.notes}
             color={channel.color}
-            viewT0={viewProps.viewT0 ?? 0}
-            totalT={layoutHorizonBeats}
-            pxPerBeat={viewProps.pxPerBeat ?? DEFAULT_PX_PER_BEAT}
+            viewT0Ticks={v0}
+            layoutHorizonTicks={viewProps.layoutHorizonTicks}
+            pxPerTick={viewProps.pxPerTick}
           />
           <div
             className="mr-playhead"
             style={{
               left:
                 KEYS_COLUMN_WIDTH +
-                (viewProps.playheadT ?? 0) * (viewProps.pxPerBeat ?? DEFAULT_PX_PER_BEAT),
+                (viewProps.playheadTicks - v0) * viewProps.pxPerTick,
             }}
           />
         </div>
@@ -127,8 +131,9 @@ export function Track({
             lo={viewProps.lo}
             hi={viewProps.hi}
             totalT={viewProps.totalT}
-            layoutHorizonBeats={layoutHorizonBeats}
-            playheadT={viewProps.playheadT}
+            layoutHorizonTicks={viewProps.layoutHorizonTicks}
+            viewT0Ticks={v0}
+            playheadTicks={viewProps.playheadTicks}
           />
         </div>
       )}

@@ -10,11 +10,12 @@ import {
   summarizePressure,
   synthesizePressure,
 } from './pressure';
+import { beatsToSessionTicks } from '../midi/sessionTicks';
 
 const seedEvent = (over: Partial<ActionEvent> = {}): ActionEvent => ({
   pitch: 56,
-  t: 0,
-  dur: 1,
+  tTicks: 0,
+  durTicks: beatsToSessionTicks(1),
   vel: 0.8,
   ...over,
 });

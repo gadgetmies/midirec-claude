@@ -9,6 +9,7 @@ import {
   type SchedulerDeps,
   type SchedulerOutput,
 } from './scheduler';
+import { beatsToSessionTicks } from './sessionTicks';
 
 interface SendCall {
   data: number[];
@@ -59,7 +60,12 @@ function schedDeps(
 }
 
 function note(t: number, dur: number, pitch: number, vel: number): Note {
-  return { t, dur, pitch, vel };
+  return {
+    tTicks: beatsToSessionTicks(t),
+    durTicks: Math.max(1, beatsToSessionTicks(dur)),
+    pitch,
+    vel,
+  };
 }
 
 function channel(
@@ -420,8 +426,8 @@ function djEvent(
 ): DJEventSnapshot {
   return {
     pitch,
-    t,
-    dur,
+    tTicks: beatsToSessionTicks(t),
+    durTicks: Math.max(1, beatsToSessionTicks(dur)),
     vel,
     pressure: opts.pressure,
     perPitchIndex: opts.perPitchIndex ?? 0,

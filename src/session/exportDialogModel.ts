@@ -4,7 +4,8 @@ import type { PressurePoint } from '../data/dj';
 import { resolvedDjRowOutputCc } from '../data/dj';
 import type { DJActionTrack, DJTrackId } from '../hooks/useDJActionTracks';
 import { isDJRowAudible } from '../hooks/useDJActionTracks';
-import { DEFAULT_MIDI_TPQ, beatsToMidiTicks, toMidi7FromNormVel } from '../midi/timelineTicks';
+import { DEFAULT_MIDI_TPQ, toMidi7FromNormVel } from '../midi/timelineTicks';
+import { sessionTicksToBeats } from '../midi/sessionTicks';
 
 export type ExportRow =
   | { kind: 'channel'; channelId: ChannelId; key: string }
@@ -75,8 +76,10 @@ export function computeResolvedExportRange(
       for (const idx of resolvedSelection.indexes) {
         const n = roll.notes[idx];
         if (!n) continue;
-        if (n.t < lo) lo = n.t;
-        if (n.t + n.dur > hi) hi = n.t + n.dur;
+        const start = sessionTicksToBeats(n.tTicks);
+        const end = sessionTicksToBeats(n.tTicks + n.durTicks);
+        if (start < lo) lo = start;
+        if (end > hi) hi = end;
       }
       if (Number.isFinite(lo)) return [lo, hi];
     }
@@ -84,18 +87,19 @@ export function computeResolvedExportRange(
   let hi = 0;
   for (const r of rolls) {
     for (const n of r.notes) {
-      const end = n.t + n.dur;
+      const end = sessionTicksToBeats(n.tTicks + n.durTicks);
       if (end > hi) hi = end;
     }
   }
   for (const l of lanes) {
     for (const p of l.points) {
-      if (p.t > hi) hi = p.t;
+      const t = sessionTicksToBeats(p.tTicks);
+      if (t > hi) hi = t;
     }
   }
   for (const tr of djActionTracks) {
     for (const e of tr.events) {
-      const end = e.t + e.dur;
+      const end = sessionTicksToBeats(e.tTicks + e.durTicks);
       if (end > hi) hi = end;
     }
   }
@@ -123,14 +127,16 @@ export function countExportTallyEvents(
   for (const r of rolls) {
     if (!tracksOn.has(channelExportKey(r.channelId))) continue;
     for (const n of r.notes) {
-      if (n.t >= t0 && n.t < t1) count++;
+      const start = sessionTicksToBeats(n.tTicks);
+      if (start >= t0 && start < t1) count++;
     }
   }
   if (includeChannelCc) {
     for (const l of lanes) {
       if (!tracksOn.has(channelExportKey(l.channelId))) continue;
       for (const p of l.points) {
-        if (p.t >= t0 && p.t < t1) count++;
+        const start = sessionTicksToBeats(p.tTicks);
+        if (start >= t0 && start < t1) count++;
       }
     }
   }
@@ -139,7 +145,8 @@ export function countExportTallyEvents(
     if (track.muted) continue;
     for (const ev of track.events) {
       if (!Object.prototype.hasOwnProperty.call(track.actionMap, ev.pitch)) continue;
-      if (!(ev.t >= t0 && ev.t < t1)) continue;
+      const start = sessionTicksToBeats(ev.tTicks);
+      if (!(start >= t0 && start < t1)) continue;
       if (!isDJRowAudible(track, ev.pitch, soloing)) continue;
       count++;
     }
@@ -215,12 +222,13 @@ export function collectDjExportJsonLines(
     };
     for (const ev of track.events) {
       if (!Object.prototype.hasOwnProperty.call(track.actionMap, ev.pitch)) continue;
-      if (!(ev.t >= t0 && ev.t < t1)) continue;
+      const start = sessionTicksToBeats(ev.tTicks);
+      if (!(start >= t0 && start < t1)) continue;
       if (!isDJRowAudible(track, ev.pitch, soloing)) continue;
       const action = track.actionMap[ev.pitch];
       const chOut = resolvedEmitMidiChannel(track, ev.pitch);
       const ccNum = resolvedDjRowOutputCc(track.actionMap, track.outputMap, ev.pitch);
-      const tick = beatsToMidiTicks(ev.t, tpq);
+      const tick = ev.tTicks;
 
       if (ccNum !== undefined) {
         rows.push({
@@ -244,7 +252,7 @@ export function collectDjExportJsonLines(
         actionId: action.id,
         pitch: pitchOut,
         velocity: toMidi7FromNormVel(ev.vel),
-        durationTicks: Math.max(0, beatsToMidiTicks(ev.dur, tpq)),
+        durationTicks: Math.max(0, ev.durTicks),
       };
       if (ev.pressure !== undefined) line.pressure = ev.pressure;
       rows.push(line);

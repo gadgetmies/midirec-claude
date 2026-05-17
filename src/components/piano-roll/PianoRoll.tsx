@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { GRID_TICK_THINNING_THRESHOLD_BEATS } from '../../session/layoutHorizon';
+import { GRID_TICK_THINNING_THRESHOLD_TICKS } from '../../session/layoutHorizon';
+import { beatsToSessionTicks } from '../../midi/sessionTicks';
+import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 import { PianoKeys } from './PianoKeys';
 import { isBlackKey, notesInMarquee, type Marquee, type Note } from './notes';
 import './PianoRoll.css';
@@ -8,13 +10,21 @@ export const KEYS_COLUMN_WIDTH = 56;
 export const DEFAULT_PX_PER_BEAT = 88;
 export const DEFAULT_ROW_HEIGHT = 14;
 
+export function pxPerTickFromPxPerBeat(pxPerBeat: number, tpq: number = DEFAULT_MIDI_TPQ): number {
+  return pxPerBeat / tpq;
+}
+
 interface PianoRollProps {
   notes: Note[];
   lo?: number;
   hi?: number;
   totalT?: number;
-  /** Stripe / grid extent in beats (defaults to totalT). */
+  /** Timeline stripe extent in MIDI ticks (preferred). */
+  layoutHorizonTicks?: number;
+  /** Legacy beat extent — used when `layoutHorizonTicks` is omitted. */
   layoutHorizonBeats?: number;
+  viewT0Ticks?: number;
+  playheadTicks?: number;
   playheadT?: number;
   pxPerBeat?: number;
   rowHeight?: number;
@@ -29,7 +39,10 @@ export function PianoRoll({
   lo = 48,
   hi = 76,
   totalT = 16,
+  layoutHorizonTicks: layoutHorizonTicksProp,
   layoutHorizonBeats: layoutHorizonBeatsProp,
+  viewT0Ticks = 0,
+  playheadTicks: playheadTicksProp,
   playheadT = 0,
   pxPerBeat = DEFAULT_PX_PER_BEAT,
   rowHeight = DEFAULT_ROW_HEIGHT,
@@ -37,12 +50,19 @@ export function PianoRoll({
   selectedIdx,
   trackColor,
 }: PianoRollProps) {
-  const stripeEnd = layoutHorizonBeatsProp ?? totalT;
-  const thin = stripeEnd > GRID_TICK_THINNING_THRESHOLD_BEATS;
+  const tpq = DEFAULT_MIDI_TPQ;
+  const pxPerTick = pxPerTickFromPxPerBeat(pxPerBeat, tpq);
+  const stripeTicks =
+    layoutHorizonTicksProp ??
+    beatsToSessionTicks(layoutHorizonBeatsProp ?? totalT, tpq);
+  const thin = stripeTicks > GRID_TICK_THINNING_THRESHOLD_TICKS;
   const range = hi - lo;
   const height = range * rowHeight;
-  const lanesWidth = stripeEnd * pxPerBeat;
+  const lanesWidth = stripeTicks * pxPerTick;
   const width = KEYS_COLUMN_WIDTH + lanesWidth;
+
+  const playheadTicksResolved =
+    playheadTicksProp ?? beatsToSessionTicks(playheadT, tpq);
 
   const effectiveSel = useMemo<number[]>(() => {
     if (selectedIdx) return selectedIdx;
@@ -65,19 +85,20 @@ export function PianoRoll({
   }
 
   const ticks: JSX.Element[] = [];
-  for (let i = 0; i <= stripeEnd; i++) {
-    if (thin && i !== 0 && i !== stripeEnd && i % 4 !== 0) {
+  for (let tTicks = 0; tTicks <= stripeTicks; tTicks += tpq) {
+    const beatIdx = tTicks / tpq;
+    if (thin && beatIdx !== 0 && tTicks !== stripeTicks && beatIdx % 4 !== 0) {
       continue;
     }
-    const major = i % 4 === 0;
+    const major = beatIdx % 4 === 0;
     ticks.push(
       <div
-        key={`t${i}`}
+        key={`t${tTicks}`}
         style={{
           position: 'absolute',
           top: 0,
           bottom: 0,
-          left: i * pxPerBeat,
+          left: (tTicks - viewT0Ticks) * pxPerTick,
           width: 1,
           background: major ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.025)',
         }}
@@ -90,8 +111,8 @@ export function PianoRoll({
     if (n.pitch < lo || n.pitch >= hi) return;
     const idx = n.pitch - lo;
     const top = height - (idx + 1) * rowHeight + 1;
-    const left = n.t * pxPerBeat;
-    const w = Math.max(2, n.dur * pxPerBeat);
+    const left = (n.tTicks - viewT0Ticks) * pxPerTick;
+    const w = Math.max(2, n.durTicks * pxPerTick);
     const h = Math.max(5, rowHeight - 2);
     const sel = effectiveSel.includes(i);
     let background: string;
@@ -114,8 +135,10 @@ export function PianoRoll({
 
   let marqueeEl: JSX.Element | null = null;
   if (marquee) {
-    const x0 = Math.min(marquee.t0, marquee.t1) * pxPerBeat;
-    const x1 = Math.max(marquee.t0, marquee.t1) * pxPerBeat;
+    const x0 =
+      Math.min(marquee.t0Ticks - viewT0Ticks, marquee.t1Ticks - viewT0Ticks) * pxPerTick;
+    const x1 =
+      Math.max(marquee.t0Ticks - viewT0Ticks, marquee.t1Ticks - viewT0Ticks) * pxPerTick;
     const pTop = Math.max(marquee.p0, marquee.p1);
     const pBot = Math.min(marquee.p0, marquee.p1);
     const yTop = height - (pTop - lo + 1) * rowHeight;
@@ -148,7 +171,10 @@ export function PianoRoll({
         {ticks}
         {noteEls}
         {marqueeEl}
-        <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
+        <div
+          className="mr-playhead"
+          style={{ left: (playheadTicksResolved - viewT0Ticks) * pxPerTick }}
+        />
       </div>
     </div>
   );

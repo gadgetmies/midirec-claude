@@ -6,6 +6,7 @@ import { resolvedMidiInputKind, type ActionEvent, type ActionMapEntry } from '..
 import type { DJActionTrack, DJTrackId } from '../hooks/useDJActionTracks';
 import type { TimelineTrackSelection } from '../hooks/useStage';
 import { useStage } from '../hooks/useStage';
+import { beatsToSessionTicks } from './sessionTicks';
 import { useTransport } from './../hooks/useTransport';
 import { useMidiInputs, useMidiRuntime } from './MidiRuntimeProvider';
 
@@ -317,15 +318,20 @@ export function useMidiRecorder(): void {
       if (entry.kind === 'channel') {
         pendingNotesRef.current.push({
           channelId: entry.channelId,
-          note: { t, dur, pitch, vel: entry.vel },
+          note: {
+            tTicks: beatsToSessionTicks(t),
+            durTicks: Math.max(1, beatsToSessionTicks(dur)),
+            pitch,
+            vel: entry.vel,
+          },
         });
       } else {
         pendingDJRef.current.push({
           trackId: entry.trackId,
           event: {
             pitch: entry.actionPitch,
-            t,
-            dur,
+            tTicks: beatsToSessionTicks(t),
+            durTicks: Math.max(1, beatsToSessionTicks(dur)),
             vel: Math.min(1, entry.vel / 127),
           },
         });
@@ -447,8 +453,8 @@ export function useMidiRecorder(): void {
             trackId: match.trackId,
             event: {
               pitch: match.actionPitch,
-              t,
-              dur: 1 / 128,
+              tTicks: beatsToSessionTicks(t),
+              durTicks: Math.max(1, beatsToSessionTicks(1 / 128)),
               vel: Math.min(1, value / 127),
             },
           });
@@ -466,8 +472,8 @@ export function useMidiRecorder(): void {
             trackId: match.trackId,
             event: {
               pitch: match.actionPitch,
-              t,
-              dur: 1 / 128,
+              tTicks: beatsToSessionTicks(t),
+              durTicks: Math.max(1, beatsToSessionTicks(1 / 128)),
               vel: Math.min(1, pressure / 127),
             },
           });
@@ -487,8 +493,8 @@ export function useMidiRecorder(): void {
             trackId: match.trackId,
             event: {
               pitch: match.actionPitch,
-              t,
-              dur: 1 / 128,
+              tTicks: beatsToSessionTicks(t),
+              durTicks: Math.max(1, beatsToSessionTicks(1 / 128)),
               vel: v14 / 16383,
             },
           });

@@ -11,11 +11,15 @@ import { ToastViewport } from '../toast/Toast';
 import { Toolstrip } from '../toolstrip/Toolstrip';
 import { ExportDialog } from '../dialog/ExportDialog';
 import { isDJTrackAudible } from '../../hooks/useDJActionTracks';
-import { DEFAULT_PX_PER_BEAT, KEYS_COLUMN_WIDTH } from '../piano-roll/PianoRoll';
+import {
+  DEFAULT_PX_PER_BEAT,
+  KEYS_COLUMN_WIDTH,
+  pxPerTickFromPxPerBeat,
+} from '../piano-roll/PianoRoll';
 import {
   SCROLL_EXTENSION_MARGIN_BEATS,
   clampTimelineScroll,
-  horizonBeatsForViewportRightEdge,
+  horizonStripeExtentTicksForViewport,
 } from '../../session/layoutHorizon';
 
 /* Dj-action-track row height in pixels — must match the `--mr-h-row` token
@@ -28,21 +32,23 @@ export function AppShell() {
   const tl = stage.selectedTimelineTrack;
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  const floor = stage.sessionHorizonFloorBeats;
-  const floorRef = useRef(floor);
-  floorRef.current = floor;
+  const pxPerTick = pxPerTickFromPxPerBeat(DEFAULT_PX_PER_BEAT);
 
-  const [layoutHorizonBeats, setLayoutHorizonBeats] = useState(floor);
+  const floorTicks = stage.sessionHorizonFloorTicks;
+  const floorRef = useRef(floorTicks);
+  floorRef.current = floorTicks;
+
+  const [layoutHorizonTicks, setLayoutHorizonTicks] = useState(floorTicks);
 
   useLayoutEffect(() => {
-    setLayoutHorizonBeats((h) => Math.max(h, floor));
-  }, [floor]);
+    setLayoutHorizonTicks((h) => Math.max(h, floorTicks));
+  }, [floorTicks]);
 
   const clampAndExpandHorizon = useCallback(() => {
     const el = timelineRef.current;
     if (!el) return;
     clampTimelineScroll(el);
-    const fromViewport = horizonBeatsForViewportRightEdge(
+    const fromViewport = horizonStripeExtentTicksForViewport(
       el.scrollLeft,
       el.clientWidth,
       KEYS_COLUMN_WIDTH,
@@ -50,7 +56,7 @@ export function AppShell() {
       SCROLL_EXTENSION_MARGIN_BEATS,
     );
     const need = Math.max(floorRef.current, fromViewport);
-    setLayoutHorizonBeats((h) => (h >= need ? h : need));
+    setLayoutHorizonTicks((h) => (h >= need ? h : need));
   }, []);
 
   useLayoutEffect(() => {
@@ -64,13 +70,17 @@ export function AppShell() {
 
   useLayoutEffect(() => {
     clampAndExpandHorizon();
-  }, [floor, clampAndExpandHorizon]);
+  }, [floorTicks, clampAndExpandHorizon]);
 
   const viewProps = {
     lo: stage.lo,
     hi: stage.hi,
     totalT: stage.totalT,
     playheadT: stage.playheadT,
+    playheadTicks: stage.playheadTicks,
+    layoutHorizonTicks,
+    pxPerTick,
+    viewT0Ticks: 0,
   };
 
   return (
@@ -95,10 +105,10 @@ export function AppShell() {
             <div
               className="mr-timeline__inner"
               style={{
-                width: KEYS_COLUMN_WIDTH + layoutHorizonBeats * DEFAULT_PX_PER_BEAT,
+                width: KEYS_COLUMN_WIDTH + layoutHorizonTicks * pxPerTick,
               }}
             >
-              <Ruler layoutHorizonBeats={layoutHorizonBeats} />
+              <Ruler layoutHorizonTicks={layoutHorizonTicks} />
               {stage.visibleChannels.map((channel) => {
                 const roll = stage.rolls.find((r) => r.channelId === channel.id);
                 const channelLanes = stage.lanes.filter((l) => l.channelId === channel.id);
@@ -117,7 +127,6 @@ export function AppShell() {
                     isSelected={isSelected}
                     marquee={isSelected ? stage.marquee : null}
                     selectedIdx={isSelected ? stage.selectedIdx : []}
-                    layoutHorizonBeats={layoutHorizonBeats}
                     onToggleChannelCollapsed={() => stage.toggleChannelCollapsed(channel.id)}
                     onToggleChannelMuted={() => stage.toggleChannelMuted(channel.id)}
                     onToggleChannelSoloed={() => stage.toggleChannelSoloed(channel.id)}
@@ -143,10 +152,10 @@ export function AppShell() {
                     track={track}
                     audible={isDJTrackAudible(track, stage.soloing)}
                     soloing={stage.soloing}
-                    layoutHorizonBeats={layoutHorizonBeats}
+                    layoutHorizonTicks={layoutHorizonTicks}
                     pxPerBeat={DEFAULT_PX_PER_BEAT}
                     rowHeight={DJ_ROW_HEIGHT}
-                    playheadT={stage.playheadT}
+                    playheadTicks={stage.playheadTicks}
                     onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
                     onToggleMuted={() => stage.toggleDJTrackMuted(track.id)}
                     onToggleSoloed={() => stage.toggleDJTrackSoloed(track.id)}

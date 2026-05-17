@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { beatsToSessionTicks } from '../../midi/sessionTicks';
 import {
   DEFAULT_ACTION_MAP,
   normalizeOutputMapping,
@@ -7,6 +8,7 @@ import {
 import type { DJActionTrack } from '../../hooks/useDJActionTracks';
 import { ActionRoll } from './ActionRoll';
 
+const hz16 = beatsToSessionTicks(16);
 const stageMock = vi.hoisted(() => ({
   djEventSelection: null as {
     trackId: string;
@@ -33,7 +35,7 @@ function miniTrack(over: Partial<DJActionTrack> = {}): DJActionTrack {
     outputMap: {
       80: normalizeOutputMapping({ device: 'mixer', channel: 16, pitch: 80, cc: 16 }),
     },
-    events: [{ pitch: 80, t: 0, dur: 2, vel: 0.75 }],
+    events: [{ pitch: 80, tTicks: 0, durTicks: beatsToSessionTicks(2), vel: 0.75 }],
     inputRouting: { channels: [] },
     outputRouting: { channels: [] },
     collapsed: false,
@@ -53,10 +55,10 @@ describe('ActionRoll', () => {
       ActionRoll({
         track: miniTrack(),
         soloing: false,
-        layoutHorizonBeats: 16,
+        layoutHorizonTicks: hz16,
         pxPerBeat: 88,
         rowHeight: 24,
-        playheadT: 0,
+        playheadTicks: 0,
       }),
     );
     expect(html).toContain('mr-djtrack__cc');
@@ -69,13 +71,13 @@ describe('ActionRoll', () => {
         track: miniTrack({
           actionMap: { 48: DEFAULT_ACTION_MAP[48]! },
           outputMap: {},
-          events: [{ pitch: 48, t: 0, dur: 0.1, vel: 1 }],
+          events: [{ pitch: 48, tTicks: 0, durTicks: beatsToSessionTicks(0.1), vel: 1 }],
         }),
         soloing: false,
-        layoutHorizonBeats: 16,
+        layoutHorizonTicks: hz16,
         pxPerBeat: 88,
         rowHeight: 24,
-        playheadT: 0,
+        playheadTicks: 0,
       }),
     );
     expect(html).toContain('mr-djtrack__note--trigger');
@@ -88,13 +90,13 @@ describe('ActionRoll', () => {
         track: miniTrack({
           actionMap: { 57: DEFAULT_ACTION_MAP[57]! },
           outputMap: {},
-          events: [{ pitch: 57, t: 0, dur: 1, vel: 0.5 }],
+          events: [{ pitch: 57, tTicks: 0, durTicks: beatsToSessionTicks(1), vel: 0.5 }],
         }),
         soloing: false,
-        layoutHorizonBeats: 16,
+        layoutHorizonTicks: hz16,
         pxPerBeat: 88,
         rowHeight: 24,
-        playheadT: 0,
+        playheadTicks: 0,
       }),
     );
     expect(html).toContain('mr-djtrack__note--velocity');
@@ -107,16 +109,16 @@ describe('ActionRoll', () => {
         track: miniTrack({
           /* Out-of-order indices: chronologically first is events[1] at t=0.2 */
           events: [
-            { pitch: 80, t: 1.2, dur: 0.1, vel: 0.5 },
-            { pitch: 80, t: 0.2, dur: 0.1, vel: 0.9 },
-            { pitch: 80, t: 0.6, dur: 0.1, vel: 0.7 },
+            { pitch: 80, tTicks: beatsToSessionTicks(1.2), durTicks: beatsToSessionTicks(0.1), vel: 0.5 },
+            { pitch: 80, tTicks: beatsToSessionTicks(0.2), durTicks: beatsToSessionTicks(0.1), vel: 0.9 },
+            { pitch: 80, tTicks: beatsToSessionTicks(0.6), durTicks: beatsToSessionTicks(0.1), vel: 0.7 },
           ],
         }),
         soloing: false,
-        layoutHorizonBeats: 16,
+        layoutHorizonTicks: hz16,
         pxPerBeat: 88,
         rowHeight: 24,
-        playheadT: 0,
+        playheadTicks: 0,
       }),
     );
     expect(html.match(/class="mr-djtrack__cc"/g)?.length).toBe(1);
@@ -127,15 +129,15 @@ describe('ActionRoll', () => {
       ActionRoll({
         track: miniTrack({
           events: [
-            { pitch: 80, t: 0, dur: 0.1, vel: 0.5 },
-            { pitch: 80, t: 1, dur: 0.1, vel: 0.6 },
+            { pitch: 80, tTicks: 0, durTicks: beatsToSessionTicks(0.1), vel: 0.5 },
+            { pitch: 80, tTicks: beatsToSessionTicks(1), durTicks: beatsToSessionTicks(0.1), vel: 0.6 },
           ],
         }),
         soloing: false,
-        layoutHorizonBeats: 16,
+        layoutHorizonTicks: hz16,
         pxPerBeat: 88,
         rowHeight: 24,
-        playheadT: 0,
+        playheadTicks: 0,
       }),
     );
     expect(html.match(/class="mr-djtrack__cc"/g)?.length).toBe(2);
@@ -146,16 +148,16 @@ describe('ActionRoll', () => {
       ActionRoll({
         track: miniTrack({
           events: [
-            { pitch: 80, t: 0, dur: 0.05, vel: 0.3 },
-            { pitch: 80, t: 0.001, dur: 0.05, vel: 0.9 },
-            { pitch: 80, t: 0.5, dur: 0.05, vel: 0.5 },
+            { pitch: 80, tTicks: 0, durTicks: beatsToSessionTicks(0.05), vel: 0.3 },
+            { pitch: 80, tTicks: beatsToSessionTicks(0.001), durTicks: beatsToSessionTicks(0.05), vel: 0.9 },
+            { pitch: 80, tTicks: beatsToSessionTicks(0.5), durTicks: beatsToSessionTicks(0.05), vel: 0.5 },
           ],
         }),
         soloing: false,
-        layoutHorizonBeats: 16,
+        layoutHorizonTicks: hz16,
         pxPerBeat: 88,
         rowHeight: 24,
-        playheadT: 0,
+        playheadTicks: 0,
       }),
     );
     expect(html.match(/<rect/g)?.length).toBe(2);

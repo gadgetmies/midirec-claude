@@ -1,4 +1,5 @@
 import { pitchLabel, type Note } from '../piano-roll/notes';
+import { sessionTicksToBeats } from '../../midi/sessionTicks';
 
 export interface TimeSignature {
   num: number;
@@ -58,20 +59,22 @@ export function summarizeSelection(
   const pitchSet = new Set<number>();
 
   for (const n of selected) {
-    if (n.t < t0) t0 = n.t;
-    const end = n.t + n.dur;
-    if (end > t1) t1 = end;
+    const tBeats = sessionTicksToBeats(n.tTicks);
+    const endBeats = sessionTicksToBeats(n.tTicks + n.durTicks);
+    if (tBeats < t0) t0 = tBeats;
+    if (endBeats > t1) t1 = endBeats;
     velSum += n.vel;
     if (n.vel < velMin) velMin = n.vel;
     if (n.vel > velMax) velMax = n.vel;
-    if (n.dur < durMin) durMin = n.dur;
-    if (n.dur > durMax) durMax = n.dur;
+    const durBeats = sessionTicksToBeats(n.durTicks);
+    if (durBeats < durMin) durMin = durBeats;
+    if (durBeats > durMax) durMax = durBeats;
     pitchSet.add(n.pitch);
   }
 
   const mean = velSum / selected.length;
   const mixed = velMax - velMin > VEL_EPSILON;
-  const uniformLen = durMax - durMin <= DUR_EPSILON ? selected[0].dur : null;
+  const uniformLen = durMax - durMin <= DUR_EPSILON ? sessionTicksToBeats(selected[0].durTicks) : null;
   const pitches = Array.from(pitchSet).sort((a, b) => a - b);
 
   return {

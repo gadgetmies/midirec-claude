@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+import { beatsToSessionTicks } from '../../midi/sessionTicks';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   DEFAULT_ACTION_MAP,
@@ -31,7 +32,7 @@ vi.mock('../../hooks/useStage', () => ({
     rolls: [
       {
         channelId: 1,
-        notes: [{ t: 0, dur: 1, pitch: 60, vel: 0.8 }],
+        notes: [{ tTicks: 0, durTicks: beatsToSessionTicks(1), pitch: 60, vel: 0.8 }],
         muted: false,
         soloed: false,
         collapsed: false,

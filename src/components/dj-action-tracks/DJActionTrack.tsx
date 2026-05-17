@@ -12,10 +12,10 @@ interface DJActionTrackProps {
   track: DJActionTrackData;
   audible: boolean;
   soloing: boolean;
-  layoutHorizonBeats: number;
+  layoutHorizonTicks: number;
   pxPerBeat: number;
   rowHeight: number;
-  playheadT?: number;
+  playheadTicks?: number;
   onToggleCollapsed: () => void;
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
@@ -29,10 +29,10 @@ export function DJActionTrack({
   track,
   audible,
   soloing,
-  layoutHorizonBeats,
+  layoutHorizonTicks,
   pxPerBeat,
   rowHeight,
-  playheadT,
+  playheadTicks,
   onToggleCollapsed,
   onToggleMuted,
   onToggleSoloed,
@@ -107,10 +107,10 @@ export function DJActionTrack({
           <ActionRoll
             track={track}
             soloing={soloing}
-            layoutHorizonBeats={layoutHorizonBeats}
+            layoutHorizonTicks={layoutHorizonTicks}
             pxPerBeat={pxPerBeat}
             rowHeight={rowHeight}
-            playheadT={playheadT}
+            playheadTicks={playheadTicks}
           />
         </div>
       )}

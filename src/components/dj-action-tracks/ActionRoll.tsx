@@ -28,13 +28,16 @@ import {
   isDJRowAudible,
   type DJActionTrack,
 } from '../../hooks/useDJActionTracks';
-import { GRID_TICK_THINNING_THRESHOLD_BEATS } from '../../session/layoutHorizon';
+import { GRID_TICK_THINNING_THRESHOLD_TICKS } from '../../session/layoutHorizon';
 import { useStage } from '../../hooks/useStage';
 import { rasterizePressure, synthesizePressure } from '../../data/pressure';
+import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTicks';
+import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 
 const PRESSURE_CELLS = 14;
-/** Merge consecutive CC lane events on the same pitch when their start times are closer than this (beats). */
+/** Merge consecutive CC lane events on the same pitch when their starts are within this many beats (converted to ticks). */
 const CC_GROUP_MAX_START_GAP_BEATS = 1;
+const CC_GROUP_MAX_START_GAP_TICKS = beatsToSessionTicks(CC_GROUP_MAX_START_GAP_BEATS, DEFAULT_MIDI_TPQ);
 
 interface CcMergedGroup {
   pitch: number;
@@ -48,27 +51,29 @@ interface CcMergedGroup {
 interface ActionRollProps {
   track: DJActionTrack;
   soloing: boolean;
-  layoutHorizonBeats: number;
+  layoutHorizonTicks: number;
   pxPerBeat: number;
   rowHeight: number;
-  playheadT?: number;
+  playheadTicks?: number;
 }
 
 export function ActionRoll({
   track,
   soloing,
-  layoutHorizonBeats,
+  layoutHorizonTicks,
   pxPerBeat,
   rowHeight,
-  playheadT = 0,
+  playheadTicks = 0,
 }: ActionRollProps) {
   const { djEventSelection, setDJEventSelection, djActionSelection, setDJActionSelection, pressureRenderMode } =
     useStage();
+  const tpq = DEFAULT_MIDI_TPQ;
+  const pxPerTick = pxPerBeat / tpq;
   const rowOrder = djActionRowOrderTopToBottom(track.actionMap);
   const pitchCount = rowOrder.length;
   const totalH = pitchCount * rowHeight;
-  const thin = layoutHorizonBeats > GRID_TICK_THINNING_THRESHOLD_BEATS;
-  const lanesWidth = layoutHorizonBeats * pxPerBeat;
+  const thin = layoutHorizonTicks > GRID_TICK_THINNING_THRESHOLD_TICKS;
+  const lanesWidth = layoutHorizonTicks * pxPerTick;
 
   const topForPitch = (pitch: number) => {
     const idx = rowOrder.indexOf(pitch);
@@ -76,10 +81,7 @@ export function ActionRoll({
     return idx * rowHeight;
   };
 
-  const ccGroupByMemberIdx = buildCcMergedGroupsByMemberIndex(
-    track,
-    CC_GROUP_MAX_START_GAP_BEATS,
-  );
+  const ccGroupByMemberIdx = buildCcMergedGroupsByMemberIndex(track, CC_GROUP_MAX_START_GAP_TICKS);
 
   const lanes: JSX.Element[] = rowOrder.map((pitch) => {
     const muted = track.mutedRows.includes(pitch);
@@ -98,16 +100,17 @@ export function ActionRoll({
   });
 
   const ticks: JSX.Element[] = [];
-  for (let i = 0; i <= layoutHorizonBeats; i++) {
-    if (thin && i !== 0 && i !== layoutHorizonBeats && i % 4 !== 0) {
+  for (let tTicks = 0; tTicks <= layoutHorizonTicks; tTicks += tpq) {
+    const beatIdx = tTicks / tpq;
+    if (thin && beatIdx !== 0 && tTicks !== layoutHorizonTicks && beatIdx % 4 !== 0) {
       continue;
     }
-    const major = i % 4 === 0;
+    const major = beatIdx % 4 === 0;
     ticks.push(
       <div
-        key={`tick-${i}`}
+        key={`tick-${tTicks}`}
         className={major ? 'mr-djtrack__tick mr-djtrack__tick--bar' : 'mr-djtrack__tick'}
-        style={{ left: i * pxPerBeat }}
+        style={{ left: tTicks * pxPerTick }}
       />,
     );
   }
@@ -130,7 +133,7 @@ export function ActionRoll({
     const e = perPitchIndex.get(event.pitch) ?? 0;
     perPitchIndex.set(event.pitch, e + 1);
     const top = topForPitch(event.pitch) + 1;
-    const left = event.t * pxPerBeat;
+    const left = event.tTicks * pxPerTick;
     const noteH = Math.max(5, rowHeight - 2);
     const color = devColor(action.device);
     const audible = isDJRowAudible(track, event.pitch, soloing);
@@ -205,7 +208,7 @@ export function ActionRoll({
         top,
         left,
         noteH,
-        event.dur,
+        sessionTicksToBeats(event.durTicks),
         event.vel,
         pxPerBeat,
         audible,
@@ -222,14 +225,14 @@ export function ActionRoll({
       {lanes}
       {ticks}
       {noteEls}
-      <div className="mr-playhead" style={{ left: playheadT * pxPerBeat }} />
+      <div className="mr-playhead" style={{ left: playheadTicks * pxPerTick }} />
     </div>
   );
 }
 
 function buildCcMergedGroupsByMemberIndex(
   track: DJActionTrack,
-  maxStartGapBeats: number,
+  maxStartGapTicks: number,
 ): Map<number, CcMergedGroup> {
   const out = new Map<number, CcMergedGroup>();
   const byPitch = new Map<number, { idx: number; ev: ActionEvent }[]>();
@@ -244,13 +247,15 @@ function buildCcMergedGroupsByMemberIndex(
   }
 
   for (const [pitch, items] of byPitch) {
-    items.sort((a, b) => a.ev.t - b.ev.t);
+    items.sort((a, b) => a.ev.tTicks - b.ev.tTicks);
     let cluster: { idx: number; ev: ActionEvent }[] = [];
 
     const flush = () => {
       if (cluster.length === 0) return;
-      const t0 = cluster[0].ev.t;
-      const tEnd = Math.max(...cluster.map((x) => x.ev.t + x.ev.dur));
+      const t0 = sessionTicksToBeats(cluster[0].ev.tTicks);
+      const tEnd = Math.max(
+        ...cluster.map((x) => sessionTicksToBeats(x.ev.tTicks + x.ev.durTicks)),
+      );
       const dur = Math.max(0, tEnd - t0);
       const memberIndices = cluster.map((c) => c.idx);
       const representativeIdx = cluster[0].idx;
@@ -271,8 +276,8 @@ function buildCcMergedGroupsByMemberIndex(
       if (cluster.length === 0) {
         cluster.push(item);
       } else {
-        const prevStart = cluster[cluster.length - 1].ev.t;
-        if (item.ev.t - prevStart < maxStartGapBeats) {
+        const prevStart = cluster[cluster.length - 1].ev.tTicks;
+        if (item.ev.tTicks - prevStart < maxStartGapTicks) {
           cluster.push(item);
         } else {
           flush();
@@ -293,16 +298,20 @@ function collapseCcMessagesByPixelX(
 ): { t: number; dur: number; vel: number }[] {
   const sorted = group.memberIndices
     .map((i) => ({ i, ev: track.events[i]! }))
-    .sort((a, b) => a.ev.t - b.ev.t || a.i - b.i);
+    .sort((a, b) => a.ev.tTicks - b.ev.tTicks || a.i - b.i);
   const out: { t: number; dur: number; vel: number }[] = [];
   for (const { ev } of sorted) {
-    const xPx = Math.round(ev.t * pxPerBeat);
+    const xPx = Math.round(sessionTicksToBeats(ev.tTicks) * pxPerBeat);
     const prev = out[out.length - 1];
     if (prev !== undefined && Math.round(prev.t * pxPerBeat) === xPx) {
       prev.vel = ev.vel;
-      prev.dur = Math.max(prev.dur, ev.dur);
+      prev.dur = Math.max(prev.dur, sessionTicksToBeats(ev.durTicks));
     } else {
-      out.push({ t: ev.t, dur: ev.dur, vel: ev.vel });
+      out.push({
+        t: sessionTicksToBeats(ev.tTicks),
+        dur: sessionTicksToBeats(ev.durTicks),
+        vel: ev.vel,
+      });
     }
   }
   return out;
@@ -448,7 +457,10 @@ function renderNote(
     const cellW = w / PRESSURE_CELLS;
     let pressureValues: number[];
     if (storedPressure === undefined) {
-      const synth = synthesizePressure({ pitch, t: 0, dur, vel }, perPitchIndex);
+      const synth = synthesizePressure(
+        { pitch, tTicks: 0, durTicks: beatsToSessionTicks(dur), vel },
+        perPitchIndex,
+      );
       pressureValues = synth.map((p) => p.v);
     } else if (storedPressure.length === 0) {
       pressureValues = new Array(PRESSURE_CELLS).fill(0);

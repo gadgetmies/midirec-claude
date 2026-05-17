@@ -37,9 +37,14 @@ import type {
 } from '../data/dj';
 import {
   MIN_VISIBLE_BEATS,
-  deriveSessionHorizonFloorBeats,
+  deriveSessionHorizonFloorTicks,
 } from '../session/layoutHorizon';
 import { parseDemoQueryFlags } from '../session/demoQuery';
+import {
+  beatsToSessionTicks,
+  playheadTicksFromTimecodeMs,
+  sessionTicksToBeats,
+} from '../midi/sessionTicks';
 
 export interface DJActionSelection {
   trackId: DJTrackId;
@@ -79,8 +84,12 @@ export interface StageState {
   totalT: number;
   /** Minimum beat extent so notes/lanes/DJ events remain on the timeline strip; actual width adds scroll-driven exploration. */
   sessionHorizonFloorBeats: number;
+  /** Same floor as {@link sessionHorizonFloorBeats}, in MIDI ticks (whole-beat aligned). */
+  sessionHorizonFloorTicks: number;
   minVisibleBeats: number;
   playheadT: number;
+  /** Quantized session playhead (integer MIDI ticks at TPQ). */
+  playheadTicks: number;
   marquee: Marquee | null;
   selectedIdx: number[] | undefined;
   resolvedSelection: ResolvedSelection | null;
@@ -226,11 +235,12 @@ function useStageState(): StageState {
   // rather than wrap back to 0. Visual overflow (cursor off the right edge of
   // the rendered timeline) is the lesser evil vs. an unrequested loop. Loop
   // wrap belongs to the transport tick reducer once loopRegion is real.
-  const playheadT = (timecodeMs / 1000) * (bpm / 60);
+  const playheadTicks = playheadTicksFromTimecodeMs(timecodeMs, bpm);
+  const playheadT = sessionTicksToBeats(playheadTicks);
 
-  const sessionHorizonFloorBeats = useMemo(
+  const sessionHorizonFloorTicks = useMemo(
     () =>
-      deriveSessionHorizonFloorBeats({
+      deriveSessionHorizonFloorTicks({
         rolls: channels.rolls,
         lanes: channels.lanes,
         djTracks: djTracks.djActionTracks,
@@ -238,8 +248,13 @@ function useStageState(): StageState {
     [channels.rolls, channels.lanes, djTracks.djActionTracks],
   );
 
+  const sessionHorizonFloorBeats = useMemo(
+    () => Math.round(sessionTicksToBeats(sessionHorizonFloorTicks)),
+    [sessionHorizonFloorTicks],
+  );
+
   const marquee: Marquee | null = demoMarquee
-    ? { t0: 3.5, t1: 8.5, p0: 56, p1: 69 }
+    ? { t0Ticks: beatsToSessionTicks(3.5), t1Ticks: beatsToSessionTicks(8.5), p0: 56, p1: 69 }
     : null;
   const selectedIdx: number[] | undefined = demoMarquee
     ? undefined
@@ -282,8 +297,10 @@ function useStageState(): StageState {
     hi: HI,
     totalT: TOTAL_T,
     sessionHorizonFloorBeats,
+    sessionHorizonFloorTicks,
     minVisibleBeats: MIN_VISIBLE_BEATS,
     playheadT,
+    playheadTicks,
     marquee,
     selectedIdx,
     resolvedSelection,

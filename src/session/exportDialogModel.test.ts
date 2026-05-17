@@ -11,6 +11,7 @@ import {
   countExportTallyEvents,
   djExportKey,
 } from './exportDialogModel';
+import { beatsToSessionTicks } from '../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ, beatsToMidiTicks } from '../midi/timelineTicks';
 
 function djFixture(override: Partial<DJActionTrack> & Pick<DJActionTrack, 'id' | 'events'>): DJActionTrack {
@@ -65,7 +66,7 @@ describe('buildExportRows', () => {
       actionMap: {
         48: { id: 'play', cat: 'deck', label: '', short: '', device: 'deck1' },
       },
-      events: [{ pitch: 48, t: 0, dur: 1, vel: 0.5 }],
+      events: [{ pitch: 48, tTicks: 0, durTicks: beatsToSessionTicks(1), vel: 0.5 }],
     });
     const rows = buildExportRows([channelStub(1, 'Lead'), channelStub(2, 'Bass')], rolls, [], [
       dj,
@@ -76,7 +77,7 @@ describe('buildExportRows', () => {
   it('places instruments ascending by channel id before DJ tracks when both exist', () => {
     const roll: PianoRollTrack = {
       channelId: 1,
-      notes: [{ t: 0, dur: 1, pitch: 60, vel: 1 }],
+      notes: [{ tTicks: 0, durTicks: beatsToSessionTicks(1), pitch: 60, vel: 1 }],
       muted: false,
       soloed: false,
       collapsed: false,
@@ -89,7 +90,7 @@ describe('buildExportRows', () => {
 
 describe('computeResolvedExportRange', () => {
   it('extends whole-session hi with DJ events', () => {
-    const ev: ActionEvent = { pitch: 48, t: 0, dur: 20, vel: 0.5 };
+    const ev: ActionEvent = { pitch: 48, tTicks: 0, durTicks: beatsToSessionTicks(20), vel: 0.5 };
     const dj = [
       {
         events: [ev],
@@ -108,7 +109,7 @@ describe('DJ JSONL shaping (v2 ticks + note vs cc)', () => {
     name: 'Deck',
     midiChannel: 16,
     actionMap: { 48: { id: 'play', cat: 'deck', label: 'Play', short: 'P', device: 'deck1' } },
-    events: [{ pitch: 48, t: 2, dur: 0.5, vel: 1 }],
+    events: [{ pitch: 48, tTicks: beatsToSessionTicks(2), durTicks: beatsToSessionTicks(0.5), vel: 1 }],
   });
 
   const ccTrack = djFixture({
@@ -121,7 +122,7 @@ describe('DJ JSONL shaping (v2 ticks + note vs cc)', () => {
     outputMap: {
       80: normalizeOutputMapping({ device: 'mixer', channel: 1, pitch: 80, cc: 16 }),
     },
-    events: [{ pitch: 80, t: 1, dur: 2, vel: 0.5 }],
+    events: [{ pitch: 80, tTicks: beatsToSessionTicks(1), durTicks: beatsToSessionTicks(2), vel: 0.5 }],
   });
 
   it('emits note lines with tick, velocity, durationTicks', () => {
@@ -195,7 +196,7 @@ describe('DJ JSONL shaping (v2 ticks + note vs cc)', () => {
   it('excludes pitches outside actionMap', () => {
     const track = djFixture({
       ...noteTrack,
-      events: [{ pitch: 99, t: 0, dur: 1, vel: 0.5 }],
+      events: [{ pitch: 99, tTicks: 0, durTicks: beatsToSessionTicks(1), vel: 0.5 }],
     });
 
     expect(
