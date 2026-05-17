@@ -122,6 +122,11 @@ export interface StageState {
   toggleLaneSoloed: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   addParamLane: (id: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   appendNote: (id: ChannelId, note: Note) => void;
+  updateNoteAt: (
+    channelId: ChannelId,
+    index: number,
+    patch: Partial<Pick<Note, 'tTicks' | 'durTicks' | 'pitch' | 'vel'>>,
+  ) => void;
   addChannel: (id: ChannelId, name?: string, color?: string) => void;
   selectedTimelineTrack: TimelineTrackSelection | null;
   setSelectedTimelineTrack: (s: TimelineTrackSelection | null) => void;
@@ -320,6 +325,7 @@ function useStageState(): StageState {
     toggleLaneSoloed: channels.toggleLaneSoloed,
     addParamLane: channels.addParamLane,
     appendNote: channels.appendNote,
+    updateNoteAt: channels.updateNoteAt,
     addChannel: channels.addChannel,
     selectedTimelineTrack,
     setSelectedTimelineTrack,

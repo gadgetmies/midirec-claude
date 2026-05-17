@@ -114,6 +114,12 @@ type Action =
   | { type: 'roll/toggleMuted'; channelId: ChannelId }
   | { type: 'roll/toggleSoloed'; channelId: ChannelId }
   | { type: 'roll/appendNote'; channelId: ChannelId; note: Note }
+  | {
+      type: 'roll/updateNote';
+      channelId: ChannelId;
+      index: number;
+      patch: Partial<Pick<Note, 'tTicks' | 'durTicks' | 'pitch' | 'vel'>>;
+    }
   | { type: 'lane/toggleCollapsed'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
   | { type: 'lane/toggleMuted'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
   | { type: 'lane/toggleSoloed'; channelId: ChannelId; kind: ParamLaneKind; cc?: number }
@@ -206,6 +212,18 @@ function reducer(state: State, action: Action): State {
       if (idx < 0) return state;
       const rolls = state.rolls.slice();
       rolls[idx] = { ...rolls[idx], notes: [...rolls[idx]!.notes, action.note] };
+      return { ...state, rolls };
+    }
+    case 'roll/updateNote': {
+      const ridx = state.rolls.findIndex((r) => r.channelId === action.channelId);
+      if (ridx < 0) return state;
+      const prev = state.rolls[ridx]!;
+      const i = action.index;
+      if (i < 0 || i >= prev.notes.length || !prev.notes[i]) return state;
+      const notes = prev.notes.slice();
+      notes[i] = { ...notes[i]!, ...action.patch };
+      const rolls = state.rolls.slice();
+      rolls[ridx] = { ...prev, notes };
       return { ...state, rolls };
     }
     case 'lane/toggleCollapsed':    return flipLaneField(state, action.channelId, action.kind, action.cc, 'collapsed');
@@ -357,6 +375,11 @@ export interface UseChannelsReturn {
   toggleLaneSoloed: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   addParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   appendNote: (channelId: ChannelId, note: Note) => void;
+  updateNoteAt: (
+    channelId: ChannelId,
+    index: number,
+    patch: Partial<Pick<Note, 'tTicks' | 'durTicks' | 'pitch' | 'vel'>>,
+  ) => void;
   setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
 }
 
@@ -380,6 +403,9 @@ export function useChannels(totalT: number, instrumentSeed: boolean = false): Us
     toggleLaneSoloed:       useCallback((id, kind, cc) => dispatch({ type: 'lane/toggleSoloed',    channelId: id, kind, cc }), []),
     addParamLane:           useCallback((id, kind, cc) => dispatch({ type: 'lane/add', channelId: id, kind, cc, totalT }), [totalT]),
     appendNote:             useCallback((id, note) => dispatch({ type: 'roll/appendNote', channelId: id, note }), []),
+    updateNoteAt: useCallback((channelId, index, patch) => {
+      dispatch({ type: 'roll/updateNote', channelId, index, patch });
+    }, []),
     setChannelInputSourceChannels: useCallback(
       (channelId, inputDeviceId, channelsArr) =>
         dispatch({ type: 'channel/setInputSourceChannels', channelId, inputDeviceId, channels: channelsArr }),

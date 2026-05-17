@@ -1,7 +1,15 @@
 import { describe, expect, test } from 'vitest';
 import type { Note } from '../piano-roll/notes';
-import { formatBBT, formatPitch, summarizeSelection } from './summary';
-import { beatsToSessionTicks } from '../../midi/sessionTicks';
+import {
+  FORMAT_BBT_SUBDIVS_PER_BEAT,
+  canonicalPhraseBarBeatFromTicks,
+  formatBBT,
+  formatPitch,
+  parsePhraseBarBeatToFractionalBeats,
+  parsePhraseBarBeatToTicks,
+  summarizeSelection,
+} from './summary';
+import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 
 const TPQ = DEFAULT_MIDI_TPQ;
@@ -11,6 +19,46 @@ const note = (tBeats: number, durBeats: number, pitch: number, vel: number): Not
   durTicks: beatsToSessionTicks(durBeats, TPQ),
   pitch,
   vel,
+});
+
+describe('parsePhraseBarBeat', () => {
+  test('inverts canonical bar.beat.subdiv lattice at tick grid', () => {
+    expect(parsePhraseBarBeatToTicks('01.1.1')).toBe(beatsToSessionTicks(0, TPQ));
+    expect(parsePhraseBarBeatToTicks('01.2.1')).toBe(beatsToSessionTicks(1, TPQ));
+    expect(parsePhraseBarBeatToTicks('02.1.1')).toBe(beatsToSessionTicks(4, TPQ));
+  });
+
+  test('accepts trimming', () => {
+    expect(parsePhraseBarBeatToTicks(' 02.02.03 ')).toBe(beatsToSessionTicks(5.5, TPQ));
+  });
+
+  test('nearest-tick mapping uses beats→ticks rounding (sixteenth granularity)', () => {
+    expect(parsePhraseBarBeatToTicks('02.4.4')).toBe(beatsToSessionTicks(7.750, TPQ));
+  });
+
+  test('rejects malformed or out-of-range segments', () => {
+    expect(parsePhraseBarBeatToTicks('')).toBeNull();
+    expect(parsePhraseBarBeatToTicks('foo')).toBeNull();
+    expect(parsePhraseBarBeatToTicks('01.05.01')).toBeNull();
+    expect(parsePhraseBarBeatToTicks('01.1.09')).toBeNull();
+  });
+
+  test('fractional-beats intermediate matches subdivisions', () => {
+    expect(parsePhraseBarBeatToFractionalBeats('01.1.1')).toEqual({
+      ok: true,
+      beats: 0,
+    });
+    expect(parsePhraseBarBeatToFractionalBeats('02.3.4', { num: 4, den: 4 })).toEqual({
+      ok: true,
+      beats: (2 - 1) * 4 + (3 - 1) + (4 - 1) / FORMAT_BBT_SUBDIVS_PER_BEAT,
+    });
+    expect(parsePhraseBarBeatToFractionalBeats('01.09.1', { num: 4, den: 4 }).ok).toBe(false);
+  });
+
+  test('canonicalPhraseBarBeatFromTicks matches formatBBT(sessionTicksToBeats(t))', () => {
+    const t = beatsToSessionTicks(6.5, TPQ);
+    expect(canonicalPhraseBarBeatFromTicks(t, TPQ)).toBe(formatBBT(sessionTicksToBeats(t, TPQ)));
+  });
 });
 
 describe('formatBBT', () => {

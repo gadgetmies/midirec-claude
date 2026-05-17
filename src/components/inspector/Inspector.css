@@ -116,6 +116,37 @@
   white-space: nowrap;
 }
 
+.mr-insp__start-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mr-insp__start-bbt {
+  flex: 2 1 96px;
+  min-width: 0;
+}
+
+.mr-insp__start-ticks {
+  flex: 1 1 56px;
+  min-width: 48px;
+  max-width: 120px;
+}
+
+.mr-insp__start-sep {
+  color: var(--mr-text-3);
+  flex-shrink: 0;
+}
+
+.mr-insp__ticks-suffix {
+  font-family: var(--mr-font-mono);
+  font-size: var(--mr-fs-12);
+  color: var(--mr-text-3);
+  flex-shrink: 0;
+}
+
 .mr-insp-vel {
   display: flex;
   align-items: center;

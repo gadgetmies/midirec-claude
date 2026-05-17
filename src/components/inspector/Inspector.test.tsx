@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { beatsToSessionTicks } from '../../midi/sessionTicks';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
@@ -26,6 +26,11 @@ const djTrack: DJActionTrack = {
   defaultMidiOutputDeviceId: '',
 };
 
+const stageCtl = vi.hoisted(() => ({
+  djTimelineFocused: true,
+  updateNoteAt: vi.fn(),
+}));
+
 vi.mock('../../hooks/useStage', () => ({
   useStage: () => ({
     resolvedSelection: { channelId: 1, indexes: [0] },
@@ -41,9 +46,12 @@ vi.mock('../../hooks/useStage', () => ({
     channels: [{ id: 1, name: 'CH1', color: '#000', muted: false, soloed: false, collapsed: false }],
     djActionSelection: null,
     djActionTracks: [djTrack],
-    selectedTimelineTrack: { kind: 'dj', trackId: 'dj1' } as const,
+    selectedTimelineTrack: stageCtl.djTimelineFocused
+      ? ({ kind: 'dj', trackId: 'dj1' } as const)
+      : null,
     setOutputMapping: vi.fn(),
     setDJTrackDefaultMidiOutputDevice: vi.fn(),
+    updateNoteAt: stageCtl.updateNoteAt,
   }),
 }));
 
@@ -67,6 +75,10 @@ vi.mock('../../midi/MidiRuntimeProvider', () => {
 });
 
 describe('Inspector — DJ track output mapping', () => {
+  beforeEach(() => {
+    stageCtl.djTimelineFocused = true;
+  });
+
   test('Note tab shows track mapping panel when a DJ timeline track is focused', () => {
     const html = renderToStaticMarkup(<Inspector />);
     expect(html).toContain('mr-insp__dj-track-map');
@@ -74,5 +86,19 @@ describe('Inspector — DJ track output mapping', () => {
     expect(html).toContain('DJ track · output mapping');
     expect(html).toContain('Track MIDI output');
     expect(html).toContain('Play / Pause');
+  });
+});
+
+describe('Inspector — single-note start editors', () => {
+  beforeEach(() => {
+    stageCtl.djTimelineFocused = false;
+  });
+
+  test('shows phrase-bar-beat and ticks inputs in the Start row', () => {
+    const html = renderToStaticMarkup(<Inspector />);
+    expect(html).toContain('Start phrase bar beat');
+    expect(html).toContain('Start ticks');
+    expect(html).toContain('mr-insp__start-bbt');
+    expect(html).toContain('mr-insp__start-ticks');
   });
 });

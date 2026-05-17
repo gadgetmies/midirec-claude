@@ -1,7 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStage } from '../../hooks/useStage';
 import type { Note } from '../piano-roll/notes';
-import { formatBBT, formatPitch, summarizeSelection } from './summary';
+import {
+  canonicalPhraseBarBeatFromTicks,
+  formatBBT,
+  formatPitch,
+  parsePhraseBarBeatToTicks,
+  summarizeSelection,
+} from './summary';
 import {
   DJ_DEVICES,
   defaultMixerOutputCc,
@@ -16,8 +22,10 @@ import type { DJActionTrack } from '../../hooks/useDJActionTracks';
 import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
 import { useMidiLearn } from '../../midi/useMidiLearn';
 import type { MidiLearnWireMessage } from '../../midi/midiLearn';
+import type { ChannelId } from '../../hooks/useChannels';
 import { PressureEditor } from './PressureEditor';
 import { sessionTicksToBeats } from '../../midi/sessionTicks';
+import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 import './Inspector.css';
 
 const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
@@ -84,7 +92,7 @@ function OutputMappingMidiLearn({
 type Tab = 'Note' | 'Pressure' | 'Channel';
 
 const TABS: Tab[] = ['Note', 'Pressure', 'Channel'];
-const TICKS_PER_BEAT = 480;
+const TPQ = DEFAULT_MIDI_TPQ;
 const BEATS_PER_BAR = 4;
 
 // Bulk-action handlers land with the selection-interaction slice; for now
@@ -162,7 +170,13 @@ function NotePanel() {
   if (resolvedSelection.indexes.length === 1) {
     const note = roll.notes[resolvedSelection.indexes[0]];
     if (!note) return null;
-    return <SingleNoteView note={note} channelId={resolvedSelection.channelId} />;
+    return (
+      <SingleNoteView
+        note={note}
+        noteIndex={resolvedSelection.indexes[0]}
+        channelId={resolvedSelection.channelId}
+      />
+    );
   }
 
   const channel = channels.find((c) => c.id === resolvedSelection.channelId);
@@ -535,9 +549,53 @@ function ActionPanel({
   );
 }
 
-function SingleNoteView({ note, channelId }: { note: Note; channelId: number }) {
-  const startBeats = sessionTicksToBeats(note.tTicks);
-  const tickOffset = note.tTicks % TICKS_PER_BEAT;
+function SingleNoteView({
+  note,
+  noteIndex,
+  channelId,
+}: {
+  note: Note;
+  noteIndex: number;
+  channelId: ChannelId;
+}) {
+  const { updateNoteAt } = useStage();
+  const [bbtDraft, setBbtDraft] = useState(() =>
+    canonicalPhraseBarBeatFromTicks(note.tTicks, TPQ),
+  );
+  const [ticksDraft, setTicksDraft] = useState(() => String(note.tTicks));
+
+  useEffect(() => {
+    setBbtDraft(canonicalPhraseBarBeatFromTicks(note.tTicks, TPQ));
+    setTicksDraft(String(note.tTicks));
+  }, [channelId, noteIndex, note.tTicks, note.pitch, note.durTicks]);
+
+  const commitPhraseBarBeat = useCallback(() => {
+    const trimmed = bbtDraft.trim();
+    const parsed = trimmed === '' ? null : parsePhraseBarBeatToTicks(trimmed);
+    if (parsed === null) {
+      setBbtDraft(canonicalPhraseBarBeatFromTicks(note.tTicks, TPQ));
+      return;
+    }
+    const next = Math.max(0, parsed);
+    if (next !== note.tTicks) updateNoteAt(channelId, noteIndex, { tTicks: next });
+    else setBbtDraft(canonicalPhraseBarBeatFromTicks(note.tTicks, TPQ));
+  }, [bbtDraft, channelId, note.tTicks, noteIndex, updateNoteAt]);
+
+  const commitTicks = useCallback(() => {
+    const raw = ticksDraft.trim();
+    if (!/^[0-9]+$/.test(raw)) {
+      setTicksDraft(String(note.tTicks));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n < 0) {
+      setTicksDraft(String(note.tTicks));
+      return;
+    }
+    if (n !== note.tTicks) updateNoteAt(channelId, noteIndex, { tTicks: n });
+    else setTicksDraft(String(note.tTicks));
+  }, [channelId, note.tTicks, noteIndex, ticksDraft, updateNoteAt]);
+
   const velocity127 = Math.round(note.vel * 127);
   const fillPct = Math.max(0, Math.min(1, note.vel)) * 100;
   const durBeats = sessionTicksToBeats(note.durTicks);
@@ -553,7 +611,42 @@ function SingleNoteView({ note, channelId }: { note: Note; channelId: number }) 
       </div>
       <div className="mr-kv">
         <span className="mr-kv__k">Start</span>
-        <span className="mr-kv__v">{formatBBT(startBeats)} · {tickOffset}t</span>
+        <div className="mr-insp__start-fields">
+          <input
+            title="Phrase · bar · beat (three numbers, matching timeline display)"
+            className="mr-input mr-insp__field mr-insp__start-bbt"
+            aria-label="Start phrase bar beat"
+            value={bbtDraft}
+            onChange={(e) => setBbtDraft(e.target.value)}
+            onBlur={() => commitPhraseBarBeat()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitPhraseBarBeat();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+          <span className="mr-insp__start-sep" aria-hidden>
+            /
+          </span>
+          <input
+            title="Session start ticks (integer MIDI ticks from session zero)"
+            className="mr-input mr-insp__field mr-insp__start-ticks"
+            aria-label="Start ticks"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={ticksDraft}
+            onChange={(e) => setTicksDraft(e.target.value)}
+            onBlur={() => commitTicks()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitTicks();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+          <span className="mr-insp__ticks-suffix">t</span>
+        </div>
       </div>
       <div className="mr-kv">
         <span className="mr-kv__k">Length</span>
