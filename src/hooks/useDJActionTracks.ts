@@ -205,22 +205,22 @@ const SEEDED_EVENTS_AUTOMATION_DECK2: ActionEvent[] = [
 
 function buildAutomationMixerEvents(): ActionEvent[] {
   const out: ActionEvent[] = [];
-  for (let t = 4; t <= 20; t++) {
-    const midi = Math.round(((t - 4) / 16) * 127);
-    out.push({ pitch: 81, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  for (let v = 0; v <= 127; v++) {
+    const t = 4 + (v / 127) * (20 - 4);
+    out.push({ pitch: 81, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
   }
-  for (let t = 34; t <= 68; t++) {
-    const midi = Math.round(((68 - t) / 34) * 127);
-    out.push({ pitch: 82, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  for (let v = 127; v >= 0; v--) {
+    const t = 68 - (v / 127) * (68 - 34);
+    out.push({ pitch: 82, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
   }
   out.push({ pitch: 88, t: 4, dur: AUTOMATION_CC_STEP_DUR, vel: 0 });
-  for (let t = 26; t <= 34; t++) {
-    const midi = Math.round(((t - 26) / 8) * 63);
-    out.push({ pitch: 88, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  for (let v = 0; v <= 63; v++) {
+    const t = 26 + (v / 63) * (34 - 26);
+    out.push({ pitch: 88, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
   }
-  for (let t = 26; t <= 34; t++) {
-    const midi = Math.round(((34 - t) / 8) * 63);
-    out.push({ pitch: 85, t, dur: AUTOMATION_CC_STEP_DUR, vel: midi / 127 });
+  for (let v = 63; v >= 0; v--) {
+    const t = 34 - (v / 63) * (34 - 26);
+    out.push({ pitch: 85, t, dur: AUTOMATION_CC_STEP_DUR, vel: v / 127 });
   }
   out.sort((a, b) => (a.t !== b.t ? a.t - b.t : a.pitch - b.pitch));
   return out;
