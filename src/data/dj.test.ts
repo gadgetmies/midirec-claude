@@ -40,14 +40,14 @@ describe('actionMode', () => {
     expect(actionMode(play)).toBe('trigger');
   });
 
-  test('trigger for cue id', () => {
+  test('fallback for cue id', () => {
     const cue = DEFAULT_ACTION_MAP[49];
-    expect(actionMode(cue)).toBe('trigger');
+    expect(actionMode(cue)).toBe('fallback');
   });
 
-  test('fallback for fx without pad/pressure', () => {
+  test('trigger for fx1_on id', () => {
     const fx1On = DEFAULT_ACTION_MAP[60];
-    expect(actionMode(fx1On)).toBe('fallback');
+    expect(actionMode(fx1On)).toBe('trigger');
   });
 
   test('fallback for load-deck rows without pad/pressure', () => {
@@ -56,9 +56,9 @@ describe('actionMode', () => {
     expect(actionMode(loadA)).toBe('fallback');
   });
 
-  test('fallback for loop without pad/pressure', () => {
+  test('trigger for loop_in id', () => {
     const loopIn = DEFAULT_ACTION_MAP[52];
-    expect(actionMode(loopIn)).toBe('fallback');
+    expect(actionMode(loopIn)).toBe('trigger');
   });
 
   test('pressure beats every other predicate even when cat is fallback-territory', () => {

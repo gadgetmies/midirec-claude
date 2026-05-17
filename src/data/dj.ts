@@ -198,7 +198,7 @@ export interface ActionEvent {
 
 /* Render mode dispatched from an action's flags. Precedence (highest first):
    pressure-bearing > velocity-sensitive > trigger > fallback.
-   - trigger: momentary deck buttons (Play/Cue/Sync/Rev templates) via id set; not pressure-bearing.
+   - trigger: momentary buttons (Play/Sync/Beat Jump/Loop/FX On/Tap templates) via id set; not pressure-bearing.
    - velocity-sensitive: `pad === true` and not pressure-bearing.
    - pressure-bearing: `pressure === true`.
    - fallback: anything else (e.g. FX, pads, loop controls without trigger id). */
@@ -207,11 +207,20 @@ export type ActionMode = 'trigger' | 'velocity-sensitive' | 'pressure-bearing' |
 const TRIGGER_STYLE_ACTION_IDS = new Set([
   'play',
   'play_b',
-  'cue',
-  'cue_b',
   'sync',
   'sync_b',
-  'rev',
+  'beat_jump',
+  'beat_jump_b',
+  'beat_jump_size',
+  'beat_jump_size_b',
+  'loop_in',
+  'loop_in_b',
+  'loop_out',
+  'loop_x2',
+  'loop_half',
+  'fx1_on',
+  'fx2_on',
+  'tap',
 ]);
 
 export function actionMode(action: ActionMapEntry): ActionMode {
@@ -292,8 +301,8 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   74: { id: 'load_b',    cat: 'browser', label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
   // Global
   75: { id: 'tap',       cat: 'global', label: 'Tap Tempo',    short: 'TAP',   device: 'global' },
-  76: { id: 'beat_jump', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck1', pad: true },
-  77: { id: 'beat_jump_b', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck2', pad: true },
+  76: { id: 'beat_jump', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck1' },
+  77: { id: 'beat_jump_b', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck2' },
   78: { id: 'hc3_b',     cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck2', pad: true },
   79: { id: 'hc4_b',     cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck2', pad: true },
   80: { id: 'xfade_pos', cat: 'mixer',     label: 'Crossfader',   short: 'XF',    device: 'mixer', pad: true },
@@ -305,8 +314,8 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   86: { id: 'ch2_eq_hi', cat: 'mixer',     label: 'Ch 2 EQ High', short: '2H',    device: 'mixer', pad: true },
   87: { id: 'ch2_eq_mid', cat: 'mixer',    label: 'Ch 2 EQ Mid',  short: '2M',    device: 'mixer', pad: true },
   88: { id: 'ch2_eq_lo', cat: 'mixer',     label: 'Ch 2 EQ Low',  short: '2L',    device: 'mixer', pad: true },
-  89: { id: 'beat_jump_size', cat: 'deck', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck1', pad: true },
-  90: { id: 'beat_jump_size_b', cat: 'deck', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck2', pad: true },
+  89: { id: 'beat_jump_size', cat: 'deck', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck1' },
+  90: { id: 'beat_jump_size_b', cat: 'deck', label: 'Beat Jump Size', short: 'BJ·S', device: 'deck2' },
 };
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
