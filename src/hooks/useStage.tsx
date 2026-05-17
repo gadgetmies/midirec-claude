@@ -140,12 +140,12 @@ export interface StageState {
   toggleDJTrackSoloed: (id: DJTrackId) => void;
   toggleDJTrackRowMuted: (id: DJTrackId, pitch: number) => void;
   toggleDJTrackRowSoloed: (id: DJTrackId, pitch: number) => void;
+  selectRollNote: (channelId: ChannelId, noteIndex: number) => void;
 }
 
 const TOTAL_T = 16;
 const LO = 48;
 const HI = 76;
-const DEMO_NOTE_IDX = 3;
 
 function useStageState(): StageState {
   const { timecodeMs, bpm } = useTransport();
@@ -156,6 +156,7 @@ function useStageState(): StageState {
         : parseDemoQueryFlags(window.location.search),
     [],
   );
+  const { demoMarquee } = demo;
   const channels = useChannels(TOTAL_T, demo.instrumentSeed);
   const djAutomationDemoActive =
     demo.djDemo && demo.djDemoMessages && demo.djAutomationDemo;
@@ -170,10 +171,20 @@ function useStageState(): StageState {
   const [pressureRenderMode, setPressureRenderMode] = useState<PressureRenderMode>('curve');
   const [selectedTimelineTrack, setSelectedTimelineTrack] = useState<TimelineTrackSelection | null>(null);
 
+  /** User-driven roll selection (`demo=marquee` URL still owns marquee + pinned channel id). */
+  const [interactiveRollSel, setInteractiveRollSel] = useState<{
+    channelId: ChannelId | null;
+    indexes: number[];
+  }>(() => ({
+    channelId: null,
+    indexes: [],
+  }));
+
   const selectDJTimelineTrack = useCallback((trackId: DJTrackId) => {
     setSelectedTimelineTrack({ kind: 'dj', trackId });
     setDJActionSelection(null);
     setDJEventSelection(null);
+    setInteractiveRollSel({ channelId: null, indexes: [] });
   }, []);
 
   useEffect(() => {
@@ -185,15 +196,17 @@ function useStageState(): StageState {
       if (
         target.closest('.mr-channel__hdr') ||
         target.closest('.mr-track__hdr') ||
-        target.closest('.mr-djtrack__hdr')
+        target.closest('.mr-djtrack__hdr') ||
+        target.closest('.mr-roll')
       ) {
         return;
       }
       setSelectedTimelineTrack(null);
+      if (!demoMarquee) setInteractiveRollSel({ channelId: null, indexes: [] });
     };
     window.addEventListener('pointerdown', onDown);
     return () => window.removeEventListener('pointerdown', onDown);
-  }, [selectedTimelineTrack]);
+  }, [selectedTimelineTrack, demoMarquee]);
 
   /* Clear both DJ selections (row + event) when the user clicks outside the
      track or the side panels. Surfaces opt in by carrying
@@ -234,7 +247,12 @@ function useStageState(): StageState {
     [djTracks],
   );
 
-  const { demoMarquee, demoNote } = demo;
+  const selectRollNote = useCallback((channelId: ChannelId, noteIndex: number) => {
+    if (demoMarquee) return;
+    setInteractiveRollSel({ channelId, indexes: [noteIndex] });
+    setDJActionSelection(null);
+    setDJEventSelection(null);
+  }, [demoMarquee]);
 
   // Non-looping playback advances forever — let the playhead exceed TOTAL_T
   // rather than wrap back to 0. Visual overflow (cursor off the right edge of
@@ -261,12 +279,12 @@ function useStageState(): StageState {
   const marquee: Marquee | null = demoMarquee
     ? { t0Ticks: beatsToSessionTicks(3.5), t1Ticks: beatsToSessionTicks(8.5), p0: 56, p1: 69 }
     : null;
+  const selectedChannelId: ChannelId | null = demoMarquee ? 1 : interactiveRollSel.channelId;
   const selectedIdx: number[] | undefined = demoMarquee
     ? undefined
-    : demoNote
-      ? [DEMO_NOTE_IDX]
-      : [];
-  const selectedChannelId: ChannelId | null = demoMarquee || demoNote ? 1 : null;
+    : interactiveRollSel.indexes.length > 0
+      ? interactiveRollSel.indexes
+      : undefined;
 
   const resolvedSelection = useMemo<ResolvedSelection | null>(() => {
     if (selectedChannelId === null) return null;
@@ -352,6 +370,7 @@ function useStageState(): StageState {
     toggleDJTrackSoloed: djTracks.toggleDJTrackSoloed,
     toggleDJTrackRowMuted: djTracks.toggleDJTrackRowMuted,
     toggleDJTrackRowSoloed: djTracks.toggleDJTrackRowSoloed,
+    selectRollNote,
   };
 }
 

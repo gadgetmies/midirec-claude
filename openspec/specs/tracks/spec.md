@@ -77,6 +77,7 @@ When a roll has `collapsed === false`, the row's body SHALL render a `<div class
 - `trackColor={channel.color}`
 - `marquee` and `selectedIdx`: only the roll whose `channelId === selectedChannelId` receives non-empty values; all other rolls receive `marquee={null}` and `selectedIdx={[]}`.
 - `pxPerBeat`, `rowHeight`, `lo`, `hi`, `totalT`, `playheadT`: shared across the stack from the orchestrator's view-window props.
+- **`onNoteSelect`**, when supplied by orchestration **for interactive sessions**, MUST be threaded into **`PianoRoll`** so activating a `.mr-note` can update **`selectedChannelId`** / **`selectedIdx`** upstream (see **`piano-roll`** capability).
 
 `.mr-track__roll` SHALL NOT carry `overflow: hidden`. Horizontal clipping of the PianoRoll's content beyond the visible timeline area SHALL be performed by the outer `.mr-timeline` scroll container's `overflow-x: auto`.
 

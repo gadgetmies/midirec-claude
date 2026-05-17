@@ -39,6 +39,7 @@ interface ChannelGroupProps {
   onToggleLaneSoloed: (kind: ParamLaneKind, cc?: number) => void;
   onAddParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   onSelectTimelineChannel?: () => void;
+  onRollNoteSelect?: (noteIndex: number) => void;
   timelineHeaderSelected?: boolean;
 }
 
@@ -63,6 +64,7 @@ export function ChannelGroup({
   onToggleLaneSoloed,
   onAddParamLane,
   onSelectTimelineChannel,
+  onRollNoteSelect,
   timelineHeaderSelected,
 }: ChannelGroupProps) {
   const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
@@ -135,6 +137,7 @@ export function ChannelGroup({
               onToggleMuted={onToggleRollMuted}
               onToggleSoloed={onToggleRollSoloed}
               onSelectTimelineChannel={onSelectTimelineChannel}
+              onRollNoteSelect={onRollNoteSelect}
               trackHeaderSelected={timelineHeaderSelected}
             />
           )}

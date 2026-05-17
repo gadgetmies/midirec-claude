@@ -33,6 +33,7 @@ interface TrackProps {
   onToggleMuted: () => void;
   onToggleSoloed: () => void;
   onSelectTimelineChannel?: () => void;
+  onRollNoteSelect?: (noteIndex: number) => void;
   trackHeaderSelected?: boolean;
 }
 
@@ -48,6 +49,7 @@ export function Track({
   onToggleMuted,
   onToggleSoloed,
   onSelectTimelineChannel,
+  onRollNoteSelect,
   trackHeaderSelected,
 }: TrackProps) {
   const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
@@ -134,6 +136,7 @@ export function Track({
             layoutHorizonTicks={viewProps.layoutHorizonTicks}
             viewT0Ticks={v0}
             playheadTicks={viewProps.playheadTicks}
+            onNoteSelect={onRollNoteSelect}
           />
         </div>
       )}

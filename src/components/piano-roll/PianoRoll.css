@@ -66,15 +66,17 @@
   box-shadow:
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.18),
     inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+
+.mr-note--hit {
   cursor: pointer;
 }
 
-.mr-note[data-sel="true"] {
-  background: var(--mr-note-sel);
+.mr-note[data-selected="true"] {
   box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.4),
-    0 0 0 1px var(--mr-line-strong);
-  z-index: 2;
+    inset 0 0 0 1px var(--mr-accent),
+    0 0 0 1px color-mix(in oklab, var(--mr-accent) 45%, transparent);
+  z-index: 1;
 }
 
 /* Marquee — rectangular selection over the piano roll. SVG-based so

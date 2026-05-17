@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { PointerEventHandler } from 'react';
 import { GRID_TICK_THINNING_THRESHOLD_TICKS } from '../../session/layoutHorizon';
 import { beatsToSessionTicks } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
@@ -30,6 +31,8 @@ interface PianoRollProps {
   rowHeight?: number;
   marquee?: Marquee | null;
   selectedIdx?: number[];
+  /** When set, user activation on a `.mr-note` selects that index upstream. */
+  onNoteSelect?: (noteIndex: number) => void;
   trackColor?: string;
   accent?: 'note';
 }
@@ -49,6 +52,7 @@ export function PianoRoll({
   marquee = null,
   selectedIdx,
   trackColor,
+  onNoteSelect,
 }: PianoRollProps) {
   const tpq = DEFAULT_MIDI_TPQ;
   const pxPerTick = pxPerTickFromPxPerBeat(pxPerBeat, tpq);
@@ -116,19 +120,34 @@ export function PianoRoll({
     const h = Math.max(5, rowHeight - 2);
     const sel = effectiveSel.includes(i);
     let background: string;
-    if (sel) {
-      background = 'var(--mr-note-sel)';
-    } else if (trackColor) {
+    if (trackColor) {
       background = `color-mix(in oklab, ${trackColor} ${50 + n.vel * 50}%, transparent)`;
     } else {
       background = `oklch(68% ${0.06 + n.vel * 0.1} 240 / ${0.5 + n.vel * 0.5})`;
     }
+
+    const onPointerDownNote: PointerEventHandler<HTMLDivElement> | undefined =
+      onNoteSelect === undefined
+        ? undefined
+        : (e) => {
+            e.stopPropagation();
+            onNoteSelect(i);
+          };
+
     noteEls.push(
       <div
         key={`n${i}`}
-        className="mr-note"
+        className={`mr-note${onNoteSelect ? ' mr-note--hit' : ''}`}
         data-sel={sel ? 'true' : undefined}
-        style={{ top, left, width: w, height: h, background }}
+        data-selected={sel ? 'true' : undefined}
+        onPointerDown={onPointerDownNote}
+        style={{
+          top,
+          left,
+          width: w,
+          height: h,
+          background,
+        }}
       />,
     );
   });

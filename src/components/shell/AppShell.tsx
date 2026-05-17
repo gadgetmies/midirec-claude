@@ -141,6 +141,7 @@ export function AppShell() {
                       stage.setSelectedTimelineTrack({ kind: 'channel', channelId: channel.id })
                     }
                     timelineHeaderSelected={channelTlSelected}
+                    onRollNoteSelect={(noteIndex) => stage.selectRollNote(channel.id, noteIndex)}
                   />
                 );
               })}
