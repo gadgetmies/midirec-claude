@@ -31,7 +31,7 @@
 - [x] 5.3 Verified by user.
 - [x] 5.4 Verified by user.
 - [x] 5.5 Verified by user.
-- [ ] 5.6 **Behavior change vs. existing spec**: pressure samples are normalized [0,1] of duration, so they survive `tTicks` shifts without translation. No deltaTicks-on-pressure verification is meaningful — the existing spec clause at line ~886 is stale.
+- [x] 5.6 N/A — pressure samples are normalized [0,1] of duration, so they survive `tTicks` shifts without translation. The existing `dj-action-tracks` spec clause at line ~886 demanding deltaTicks-on-pressure is stale and cannot be verified; left for a follow-up change to correct.
 
 ## 6. Wrap up
 
