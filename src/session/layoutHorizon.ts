@@ -111,3 +111,24 @@ export function clampTimelineScroll(el: HTMLElement | null | undefined): void {
     el.scrollLeft = 0;
   }
 }
+
+/**
+ * Auto-scroll rule for the playhead: while the transport is playing or recording,
+ * keep the playhead in the left half of `.mr-timeline`'s visible viewport.
+ *
+ * Returns the new `scrollLeft` to assign, or `null` when no update is needed
+ * (playhead is already in the left half, or to the left of the viewport — the
+ * rule pulls the viewport rightward only).
+ */
+export function followPlayheadScrollLeft(
+  playheadTicks: number,
+  pxPerTick: number,
+  keysColumnWidth: number,
+  scrollLeft: number,
+  clientWidth: number,
+): number | null {
+  const playheadPx = keysColumnWidth + playheadTicks * pxPerTick;
+  const halfMark = scrollLeft + clientWidth / 2;
+  if (playheadPx <= halfMark) return null;
+  return Math.max(0, playheadPx - clientWidth / 2);
+}

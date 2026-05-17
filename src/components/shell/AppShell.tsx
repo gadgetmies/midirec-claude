@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useStage } from '../../hooks/useStage';
+import { useTransport } from '../../hooks/useTransport';
 import { ChannelGroup } from '../channels/ChannelGroup';
 import { DJActionTrack } from '../dj-action-tracks/DJActionTrack';
 import { Inspector } from '../inspector/Inspector';
@@ -19,6 +20,7 @@ import {
 import {
   SCROLL_EXTENSION_MARGIN_BEATS,
   clampTimelineScroll,
+  followPlayheadScrollLeft,
   horizonStripeExtentTicksForViewport,
 } from '../../session/layoutHorizon';
 
@@ -29,6 +31,7 @@ import './AppShell.css';
 
 export function AppShell() {
   const stage = useStage();
+  const transport = useTransport();
   const tl = stage.selectedTimelineTrack;
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +74,22 @@ export function AppShell() {
   useLayoutEffect(() => {
     clampAndExpandHorizon();
   }, [floorTicks, clampAndExpandHorizon]);
+
+  useLayoutEffect(() => {
+    if (transport.mode !== 'play' && transport.mode !== 'record') return;
+    const el = timelineRef.current;
+    if (!el) return;
+    const next = followPlayheadScrollLeft(
+      stage.playheadTicks,
+      pxPerTick,
+      KEYS_COLUMN_WIDTH,
+      el.scrollLeft,
+      el.clientWidth,
+    );
+    if (next !== null) {
+      el.scrollLeft = next;
+    }
+  }, [transport.mode, stage.playheadTicks, pxPerTick]);
 
   const viewProps = {
     lo: stage.lo,
