@@ -79,7 +79,7 @@ describe('Inspector — DJ track output mapping', () => {
     stageCtl.djTimelineFocused = true;
   });
 
-  test('Note tab shows track mapping panel when a DJ timeline track is focused', () => {
+  test('Events tab shows track mapping panel when a DJ timeline track is focused', () => {
     const html = renderToStaticMarkup(<Inspector />);
     expect(html).toContain('mr-insp__dj-track-map');
     expect(html).toContain('Deck');

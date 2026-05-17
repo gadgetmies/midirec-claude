@@ -89,9 +89,9 @@ function OutputMappingMidiLearn({
   );
 }
 
-type Tab = 'Note' | 'Pressure' | 'Channel';
+type Tab = 'Events' | 'Pressure' | 'Channel';
 
-const TABS: Tab[] = ['Note', 'Pressure', 'Channel'];
+const TABS: Tab[] = ['Events', 'Pressure', 'Channel'];
 const TPQ = DEFAULT_MIDI_TPQ;
 const BEATS_PER_BAR = 4;
 
@@ -100,7 +100,7 @@ const BEATS_PER_BAR = 4;
 const noop = () => {};
 
 export function Inspector() {
-  const [activeTab, setActiveTab] = useState<Tab>('Note');
+  const [activeTab, setActiveTab] = useState<Tab>('Events');
 
   return (
     <div className="mr-insp">
@@ -120,7 +120,7 @@ export function Inspector() {
         ))}
       </div>
       <div className="mr-insp__body">
-        {activeTab === 'Note' ? <NotePanel /> : null}
+        {activeTab === 'Events' ? <NotePanel /> : null}
       </div>
     </div>
   );
