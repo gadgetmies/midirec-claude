@@ -222,20 +222,48 @@
 }
 
 .mr-quant__lbl {
-  font-size: 9px;
+  appearance: none;
+  border: var(--mr-bw-1) solid transparent;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: var(--mr-r-1);
+  font: inherit;
+  font-size: 10px;
+  font-weight: var(--mr-fw-semibold);
   color: var(--mr-text-3);
   text-transform: uppercase;
   letter-spacing: var(--mr-tracking-cap);
+  line-height: 1;
+  transition:
+    background var(--mr-dur-fast) var(--mr-ease),
+    color var(--mr-dur-fast) var(--mr-ease);
 }
 
-.mr-quant__power {
-  width: 18px;
-  height: 18px;
+.mr-quant__lbl:hover {
+  background: var(--mr-bg-panel-2);
+  color: var(--mr-text-1);
 }
 
-.mr-quant__power svg {
-  width: 12px;
-  height: 12px;
+.mr-quant__lbl:active {
+  background: var(--mr-bg-input);
+}
+
+.mr-quant__lbl[data-on='true'] {
+  background: var(--mr-accent-soft);
+  color: var(--mr-accent);
+}
+
+.mr-quant__lbl[data-disabled='true'] {
+  opacity: 0.35;
+  cursor: not-allowed;
+  color: var(--mr-text-3);
+}
+
+.mr-quant__lbl[data-disabled='true']:hover,
+.mr-quant__lbl[data-disabled='true']:active {
+  background: transparent;
+  color: var(--mr-text-3);
 }
 
 .mr-quant__value {

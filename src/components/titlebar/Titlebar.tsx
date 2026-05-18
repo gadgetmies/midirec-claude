@@ -10,7 +10,6 @@ import {
   MetroIcon,
   PauseIcon,
   PlayIcon,
-  QuantizeIcon,
   RecIcon,
   RewIcon,
   StopIcon,
@@ -41,6 +40,7 @@ export function Titlebar() {
     metronomeOn,
     quantizeOn,
     quantizeGrid,
+    snapAbsoluteOn,
     timecodeMs,
     bar,
     bpm,
@@ -191,16 +191,38 @@ export function Titlebar() {
       </div>
 
       <div className="mr-tgroup mr-quant" title="Quantize on record & edit">
-        <span className="mr-quant__lbl mr-mono">Q</span>
         <button
-          className="mr-tbtn mr-quant__power"
+          className="mr-quant__lbl mr-mono"
           type="button"
           data-on={quantizeOn || undefined}
           onClick={transport.toggleQuantize}
           aria-pressed={quantizeOn}
           title={quantizeOn ? 'Quantize on' : 'Quantize off — bypass'}
         >
-          <QuantizeIcon />
+          Q
+        </button>
+        <button
+          className="mr-quant__lbl mr-mono"
+          type="button"
+          data-on={snapAbsoluteOn || undefined}
+          data-disabled={!quantizeOn ? 'true' : undefined}
+          onClick={
+            quantizeOn
+              ? transport.toggleSnapAbsolute
+              : (e) => {
+                  e.preventDefault();
+                }
+          }
+          aria-pressed={snapAbsoluteOn}
+          title={
+            !quantizeOn
+              ? 'Enable Quantize to use Snap Absolute'
+              : snapAbsoluteOn
+                ? 'Snap Absolute on - drag aligns items to grid'
+                : 'Snap Absolute off - drag preserves off-grid offset'
+          }
+        >
+          A
         </button>
         <button
           className="mr-tbtn mr-quant__value mr-mono"
