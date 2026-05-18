@@ -25,6 +25,7 @@ import {
 import {
   useDJActionTracks,
   anyDJTrackSoloed,
+  type ClusterResizeBaseline,
   type DJActionTrack,
   type DJTrackId,
 } from './useDJActionTracks';
@@ -118,6 +119,7 @@ export interface StageState {
     pitch: number,
     eventIdx: number,
     nextDurTicks: number,
+    baseline?: ClusterResizeBaseline,
   ) => void;
   toggleChannelCollapsed: (id: ChannelId) => void;
   toggleChannelMuted: (id: ChannelId) => void;

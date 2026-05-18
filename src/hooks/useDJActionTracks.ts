@@ -27,6 +27,24 @@ import type { ChannelId } from './useChannels';
 
 export type DJTrackId = string;
 
+/* Snapshot of a CC merged cluster at the start of an edit session, used by
+   `applySetDJEventDurTicks` to scale member offsets from a stable origin
+   instead of from the (already-mutated) current state. Round-tripping a
+   cluster span back to `spanTicks` restores members exactly only when the
+   same baseline is threaded through every commit in the session. */
+export interface ClusterResizeBaseline {
+  /** Per-member-index baseline `tTicks` at session start. Keys are event
+      indices in `track.events`. */
+  memberTTicks: ReadonlyMap<number, number>;
+  /** Cluster span at session start: `max(member.tTicks + member.durTicks) - t0Ticks`. */
+  spanTicks: number;
+  /** Trailing member's event index at session start. The same member remains
+      trailing across the session even if scaling would otherwise change it. */
+  trailingIdx: number;
+  /** Trailing member's `durTicks` at session start. */
+  trailingDurTicks: number;
+}
+
 // TODO(routing-ui-slice): expand the routing shape with pitch ranges and CC
 // selectors when the routing-configuration UI is built. For Slice 7a the
 // channel list is the only field we commit to.
@@ -86,6 +104,7 @@ export interface UseDJActionTracksReturn {
     pitch: number,
     eventIdx: number,
     nextDurTicks: number,
+    baseline?: ClusterResizeBaseline,
   ) => void;
   setDJTrackDefaultMidiInputDevice: (id: DJTrackId, inputDeviceId: string) => void;
   setDJTrackDefaultMidiOutputDevice: (id: DJTrackId, outputDeviceId: string) => void;
@@ -445,8 +464,16 @@ export function useDJActionTracks(
   );
 
   const setDJEventDurTicks = useCallback(
-    (id: DJTrackId, pitch: number, eventIdx: number, nextDurTicks: number) => {
-      setDJActionTracks((prev) => applySetDJEventDurTicks(prev, id, pitch, eventIdx, nextDurTicks));
+    (
+      id: DJTrackId,
+      pitch: number,
+      eventIdx: number,
+      nextDurTicks: number,
+      baseline?: ClusterResizeBaseline,
+    ) => {
+      setDJActionTracks((prev) =>
+        applySetDJEventDurTicks(prev, id, pitch, eventIdx, nextDurTicks, baseline),
+      );
     },
     [],
   );
@@ -768,6 +795,7 @@ export function applySetDJEventDurTicks(
   pitch: number,
   eventIdx: number,
   nextDurTicks: number,
+  baseline?: ClusterResizeBaseline,
 ): DJActionTrack[] {
   const trackIdx = tracks.findIndex((t) => t.id === id);
   if (trackIdx < 0) return tracks;
@@ -792,6 +820,61 @@ export function applySetDJEventDurTicks(
 
   // Cluster representative branch.
   const t0Ticks = event.tTicks;
+  const newSpanTicks = Math.max(1, Math.round(nextDurTicks));
+
+  /* Baseline-relative scaling: scale offsets from the captured originals so
+     successive commits never accumulate rounding error. The session owner
+     (the Inspector) holds the baseline across all commits until selection
+     changes; that's what makes shrink-then-restore exact. When the baseline's
+     member set matches the current cluster we use this path. */
+  const baselineMembersValid =
+    baseline !== undefined &&
+    baseline.memberTTicks.size === group.memberIndices.length &&
+    group.memberIndices.every((idx) => baseline.memberTTicks.has(idx));
+
+  if (baselineMembersValid && baseline) {
+    const baselineSpan = Math.max(1, baseline.spanTicks);
+    const scale = newSpanTicks / baselineSpan;
+    const trailingIdx = group.memberIndices.includes(baseline.trailingIdx)
+      ? baseline.trailingIdx
+      : group.memberIndices[group.memberIndices.length - 1];
+
+    const projected = new Map<number, { tTicks: number; durTicks: number }>();
+    for (const idx of group.memberIndices) {
+      const ev = track.events[idx];
+      const baseT = baseline.memberTTicks.get(idx)!;
+      const offset = Math.round((baseT - t0Ticks) * scale);
+      const newTTicks = t0Ticks + offset;
+      const newDurTicks =
+        idx === trailingIdx ? Math.max(1, t0Ticks + newSpanTicks - newTTicks) : ev.durTicks;
+      projected.set(idx, { tTicks: newTTicks, durTicks: newDurTicks });
+    }
+
+    // No-op when every member's current state already matches the projection.
+    let alreadyMatches = true;
+    for (const idx of group.memberIndices) {
+      const ev = track.events[idx];
+      const p = projected.get(idx)!;
+      if (ev.tTicks !== p.tTicks || ev.durTicks !== p.durTicks) {
+        alreadyMatches = false;
+        break;
+      }
+    }
+    if (alreadyMatches) return tracks;
+
+    const nextEvents = track.events.slice();
+    for (const idx of group.memberIndices) {
+      const ev = track.events[idx];
+      const p = projected.get(idx)!;
+      nextEvents[idx] = { ...ev, tTicks: p.tTicks, durTicks: p.durTicks };
+    }
+    const next = tracks.slice();
+    next[trackIdx] = { ...track, events: nextEvents };
+    return next;
+  }
+
+  // Fallback: scale from current state (legacy behavior — may drift across
+  // round-trips; callers should pass a baseline to avoid it).
   const members = group.memberIndices.map((idx) => ({ idx, ev: track.events[idx] }));
   let trailingIdx = members[0].idx;
   let oldEndTicks = members[0].ev.tTicks + members[0].ev.durTicks;
@@ -803,9 +886,7 @@ export function applySetDJEventDurTicks(
     }
   }
   const oldSpanTicks = oldEndTicks - t0Ticks;
-  const newSpanTicks = Math.max(1, Math.round(nextDurTicks));
   if (newSpanTicks === oldSpanTicks) return tracks;
-  // Guard divide-by-zero (cluster with all-zero span is degenerate but possible).
   const scale = oldSpanTicks > 0 ? newSpanTicks / oldSpanTicks : 1;
 
   const nextEvents = track.events.slice();

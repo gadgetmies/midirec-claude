@@ -21,6 +21,7 @@ import {
 } from '../../data/dj';
 import {
   buildCcMergedGroupsByMemberIndex,
+  type ClusterResizeBaseline,
   type DJActionTrack,
 } from '../../hooks/useDJActionTracks';
 import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
@@ -574,6 +575,7 @@ function ActionPanel({
 
       {showStart && selectedEvent && djEventSelection && (
         <DjEventTimingEditor
+          track={track}
           trackId={track.id}
           pitch={pitch}
           eventIdx={djEventSelection.eventIdx}
@@ -598,6 +600,7 @@ function ActionPanel({
 }
 
 function DjEventTimingEditor({
+  track,
   trackId,
   pitch,
   eventIdx,
@@ -607,6 +610,7 @@ function DjEventTimingEditor({
   setDJEventTTicks,
   setDJEventDurTicks,
 }: {
+  track: DJActionTrack;
   trackId: string;
   pitch: number;
   eventIdx: number;
@@ -619,6 +623,7 @@ function DjEventTimingEditor({
     pitch: number,
     eventIdx: number,
     nextDurTicks: number,
+    baseline?: ClusterResizeBaseline,
   ) => void;
 }) {
   const [startBbtDraft, setStartBbtDraft] = useState(() =>
@@ -633,6 +638,58 @@ function DjEventTimingEditor({
     canonicalPhraseBarBeatFromTicks(tTicks + durTicks, TPQ),
   );
   const [endTicksDraft, setEndTicksDraft] = useState(() => String(tTicks + durTicks));
+
+  /* Cluster-resize baseline: held for the duration of one edit session on a
+     CC cluster representative so that round-tripping the span restores
+     members exactly. Captured lazily when the selection first points at a
+     representative; cleared on selection change or cluster restructure. */
+  const baselineRef = useRef<ClusterResizeBaseline | null>(null);
+  const baselineKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const key = `${trackId}|${pitch}|${eventIdx}`;
+    const groups = buildCcMergedGroupsByMemberIndex(track);
+    const group = groups.get(eventIdx);
+    const isRepresentative = !!group && group.representativeIdx === eventIdx;
+
+    if (!isRepresentative) {
+      baselineRef.current = null;
+      baselineKeyRef.current = null;
+      return;
+    }
+
+    const existing = baselineRef.current;
+    const matchesKey = baselineKeyRef.current === key;
+    const matchesMembers =
+      matchesKey &&
+      existing !== null &&
+      existing.memberTTicks.size === group.memberIndices.length &&
+      group.memberIndices.every((idx) => existing.memberTTicks.has(idx));
+
+    if (matchesMembers) return;
+
+    const repEvent = track.events[eventIdx];
+    const t0Ticks = repEvent.tTicks;
+    const memberTTicks = new Map<number, number>();
+    let trailingIdx = group.memberIndices[0];
+    let trailingEnd = track.events[trailingIdx].tTicks + track.events[trailingIdx].durTicks;
+    for (const idx of group.memberIndices) {
+      const ev = track.events[idx];
+      memberTTicks.set(idx, ev.tTicks);
+      const end = ev.tTicks + ev.durTicks;
+      if (end > trailingEnd) {
+        trailingEnd = end;
+        trailingIdx = idx;
+      }
+    }
+    baselineRef.current = {
+      memberTTicks,
+      spanTicks: Math.max(1, trailingEnd - t0Ticks),
+      trailingIdx,
+      trailingDurTicks: track.events[trailingIdx].durTicks,
+    };
+    baselineKeyRef.current = key;
+  }, [track, trackId, pitch, eventIdx]);
 
   useEffect(() => {
     setStartBbtDraft(canonicalPhraseBarBeatFromTicks(tTicks, TPQ));
@@ -682,7 +739,8 @@ function DjEventTimingEditor({
       return;
     }
     const next = Math.max(1, Math.round(beatsToSessionTicks(parsed, TPQ)));
-    if (next !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, next);
+    if (next !== durTicks)
+      setDJEventDurTicks(trackId, pitch, eventIdx, next, baselineRef.current ?? undefined);
     else setLengthBeatsDraft(sessionTicksToBeats(durTicks, TPQ).toFixed(3));
   }, [durTicks, eventIdx, lengthBeatsDraft, pitch, setDJEventDurTicks, trackId]);
 
@@ -697,7 +755,8 @@ function DjEventTimingEditor({
       setLengthTicksDraft(String(durTicks));
       return;
     }
-    if (n !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, n);
+    if (n !== durTicks)
+      setDJEventDurTicks(trackId, pitch, eventIdx, n, baselineRef.current ?? undefined);
     else setLengthTicksDraft(String(durTicks));
   }, [durTicks, eventIdx, lengthTicksDraft, pitch, setDJEventDurTicks, trackId]);
 
@@ -710,7 +769,8 @@ function DjEventTimingEditor({
       return;
     }
     const nextDur = parsed - tTicks;
-    if (nextDur !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, nextDur);
+    if (nextDur !== durTicks)
+      setDJEventDurTicks(trackId, pitch, eventIdx, nextDur, baselineRef.current ?? undefined);
     else setEndBbtDraft(canonical);
   }, [durTicks, endBbtDraft, eventIdx, pitch, setDJEventDurTicks, tTicks, trackId]);
 
@@ -727,7 +787,8 @@ function DjEventTimingEditor({
       return;
     }
     const nextDur = n - tTicks;
-    if (nextDur !== durTicks) setDJEventDurTicks(trackId, pitch, eventIdx, nextDur);
+    if (nextDur !== durTicks)
+      setDJEventDurTicks(trackId, pitch, eventIdx, nextDur, baselineRef.current ?? undefined);
     else setEndTicksDraft(String(currentEnd));
   }, [durTicks, endTicksDraft, eventIdx, pitch, setDJEventDurTicks, tTicks, trackId]);
 
