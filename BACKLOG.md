@@ -698,6 +698,41 @@ Surfaced during `record-incoming-midi` (2026-05-12) manual testing — user pres
 
 **Status**: pending.
 
+### Rename `pitch` → row key in DJ-action data model
+
+**Why**: `ActionEvent.pitch`, `actionMap[pitch]`, `outputMap[pitch]`, and friends use "pitch" as the row identifier even for rows whose emitted MIDI is CC, pitch-bend, or AT (where there is no musical pitch). The overload is mildly confusing in code review and very confusing when describing the model to anyone new (or in spec text that mixes "pitch" with "Pitch-bend"). Surfaced during the DJ action-track value editor design (2026-05-18) — the spec for that change uses "row key" instead of "pitch" to avoid the overload, but the underlying field names still call it `pitch`.
+
+**Scope**:
+- Decide on the new name. Candidates: `rowKey`, `rowId`, `key`, `slot`. `rowKey` reads well and avoids collision with React `key`.
+- Rename across `src/data/dj.ts` (`ActionEvent.pitch`, `actionMap`/`outputMap` parameter names, helpers like `resolvedDjRowOutputCc`), `src/hooks/useDJActionTracks.ts`, `src/components/dj-action-tracks/*`, `src/midi/scheduler.ts` (DJ emit paths), and any tests that pattern-match on `.pitch`.
+- Keep wire-level naming intact: incoming MIDI is still `midiInputNote`, output `OutputMapping.pitch` for note-emit stays a musical pitch — only the row identifier role changes name.
+- Update specs under `openspec/specs/dj-action-tracks/`, `openspec/specs/dj-pressure-editor/`, and any pending changes that haven't archived.
+- Migrate persisted seed fixtures only if the field is renamed in serialised form (likely keep wire-compat by aliasing during deserialisation, or do a one-shot migration).
+
+**Verification**: `yarn typecheck` clean; `yarn test` green; archived specs untouched; grep for `event.pitch` / `actionMap[pitch]` in source returns zero hits outside compatibility shims.
+
+**Estimated effort**: 0.5–1 day depending on rename strategy (mechanical rename + spec text sweep). Lower if done as a pure rename with no persisted-format change.
+
+**Status**: pending. Surfaced during the `dj-action-cc-value-editor` design (2026-05-18).
+
+### Per-row "starting value" emit config for CC / Pitch-bend rows
+
+**Why**: When playback starts, CC rows currently emit nothing until the first painted point. That means the receiver (Traktor, etc.) keeps whatever value it last knew, which can sound surprising on the first playback after switching songs or wiggling a knob. There's no universal "neutral" for CC (volume = 0, pan = 64, filter cutoff = 64, etc.) so we can't pick a default automatically — but the user often knows what they want for a given row. Surfaced during the `dj-action-cc-value-editor` design (2026-05-18): we deliberately kept "no emit until first point" for CC (PB seeds center automatically), and deferred this config.
+
+**Scope**:
+- Add a per-row "start emit" setting to the row's output mapping (or its action map entry): `startEmit: 'none' | 'hold-first' | { kind: 'fixed', value: 0..1 }`. Default `'none'` to preserve current behaviour.
+- For `'hold-first'`: scheduler emits the first painted point's value at tick 0 (or at any seek-resume).
+- For `'fixed'`: emits the configured value at tick 0 / seek-resume.
+- Apply identically to CC and PB rows. AT is per-event, so doesn't need this.
+- Expose the setting in the Inspector's Output mapping panel (small select + value input when `fixed`).
+- Ensure panic / song-stop still flushes correctly (existing behaviour).
+
+**Verification**: With `startEmit: 'hold-first'` on a CC row whose first point is `0.3`, the scheduler emits `CC = 38` at tick 0; without the setting, no CC is sent until the painted point. Add a scheduler test for both branches.
+
+**Estimated effort**: 0.5 day — schema + scheduler branch + Inspector control + tests.
+
+**Status**: pending. Surfaced during the `dj-action-cc-value-editor` design (2026-05-18).
+
 ## Done
 
 <!-- Move completed entries here with a date and the commit hash that resolved them. -->
