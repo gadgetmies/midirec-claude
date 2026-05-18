@@ -9,9 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 
-export type TransportMode = 'idle' | 'play' | 'record';
+import type { QuantizeGrid } from '../midi/quantizeGrid';
 
-export type QuantizeGrid = '1/4' | '1/8' | '1/16' | '1/32';
+export type { QuantizeGrid };
+
+export type TransportMode = 'idle' | 'play' | 'record';
 
 export type ClockSource = 'internal' | 'external-clock' | 'external-mtc';
 
@@ -23,6 +25,7 @@ export interface TransportState {
   metronomeOn: boolean;
   quantizeOn: boolean;
   quantizeGrid: QuantizeGrid;
+  snapAbsoluteOn: boolean;
   timecodeMs: number;
   bar: string;
   bpm: number;
@@ -39,6 +42,8 @@ export interface TransportActions {
   toggleLoop(): void;
   toggleMetronome(): void;
   toggleQuantize(): void;
+  toggleSnapAbsolute(): void;
+  setQuantizeGrid(grid: QuantizeGrid): void;
   seek(ms: number): void;
 }
 
@@ -52,6 +57,8 @@ type Action =
   | { type: 'toggleLoop' }
   | { type: 'toggleMetronome' }
   | { type: 'toggleQuantize' }
+  | { type: 'toggleSnapAbsolute' }
+  | { type: 'setQuantizeGrid'; grid: QuantizeGrid }
   | { type: 'seek'; ms: number }
   | { type: 'tick'; deltaMs: number };
 
@@ -61,6 +68,7 @@ interface InternalState {
   metronomeOn: boolean;
   quantizeOn: boolean;
   quantizeGrid: QuantizeGrid;
+  snapAbsoluteOn: boolean;
   timecodeMs: number;
   bpm: number;
   sig: string;
@@ -74,6 +82,7 @@ const initialState: InternalState = {
   metronomeOn: true,
   quantizeOn: true,
   quantizeGrid: '1/16',
+  snapAbsoluteOn: false,
   timecodeMs: 0,
   bpm: 124,
   sig: '4/4',
@@ -102,6 +111,10 @@ function reducer(state: InternalState, action: Action): InternalState {
       return { ...state, metronomeOn: !state.metronomeOn };
     case 'toggleQuantize':
       return { ...state, quantizeOn: !state.quantizeOn };
+    case 'toggleSnapAbsolute':
+      return { ...state, snapAbsoluteOn: !state.snapAbsoluteOn };
+    case 'setQuantizeGrid':
+      return state.quantizeGrid === action.grid ? state : { ...state, quantizeGrid: action.grid };
     case 'seek':
       return { ...state, timecodeMs: Math.max(0, action.ms) };
     case 'tick':
@@ -175,6 +188,11 @@ export function TransportProvider({ children }: { children: ReactNode }) {
   const toggleLoop = useCallback(() => dispatch({ type: 'toggleLoop' }), []);
   const toggleMetronome = useCallback(() => dispatch({ type: 'toggleMetronome' }), []);
   const toggleQuantize = useCallback(() => dispatch({ type: 'toggleQuantize' }), []);
+  const toggleSnapAbsolute = useCallback(() => dispatch({ type: 'toggleSnapAbsolute' }), []);
+  const setQuantizeGrid = useCallback(
+    (grid: QuantizeGrid) => dispatch({ type: 'setQuantizeGrid', grid }),
+    [],
+  );
   const seek = useCallback((ms: number) => dispatch({ type: 'seek', ms }), []);
 
   const value = useMemo<TransportValue>(
@@ -186,6 +204,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       metronomeOn: state.metronomeOn,
       quantizeOn: state.quantizeOn,
       quantizeGrid: state.quantizeGrid,
+      snapAbsoluteOn: state.snapAbsoluteOn,
       timecodeMs: state.timecodeMs,
       bar: bbsFromMs(state.timecodeMs, state.bpm, state.sig),
       bpm: state.bpm,
@@ -199,9 +218,23 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleLoop,
       toggleMetronome,
       toggleQuantize,
+      toggleSnapAbsolute,
+      setQuantizeGrid,
       seek,
     }),
-    [state, play, pause, stop, record, toggleLoop, toggleMetronome, toggleQuantize, seek],
+    [
+      state,
+      play,
+      pause,
+      stop,
+      record,
+      toggleLoop,
+      toggleMetronome,
+      toggleQuantize,
+      toggleSnapAbsolute,
+      setQuantizeGrid,
+      seek,
+    ],
   );
 
   return <TransportContext.Provider value={value}>{children}</TransportContext.Provider>;

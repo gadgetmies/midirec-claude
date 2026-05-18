@@ -94,3 +94,48 @@ describe('Titlebar A chip', () => {
     expect(aBtn.getAttribute('title')).toMatch(/Enable Quantize/i);
   });
 });
+
+describe('Titlebar quantize grid select', () => {
+  test('clicking the grid chip opens a menu listing all grid options', () => {
+    const { container } = renderTitlebar();
+    const gridChip = container.querySelector('.mr-quant__value') as HTMLButtonElement;
+    expect(container.querySelector('.mr-quant__menu')).toBeNull();
+    fireEvent.click(gridChip);
+    const menu = container.querySelector('.mr-quant__menu');
+    expect(menu).toBeTruthy();
+    const rows = Array.from(menu!.querySelectorAll('.mr-quant__menu-row'));
+    expect(rows.map((r) => r.textContent)).toEqual(['1/4', '1/8', '1/16', '1/32']);
+  });
+
+  test('current grid is marked selected in the menu', () => {
+    const { container, transport } = renderTitlebar();
+    expect(transport.current!.quantizeGrid).toBe('1/16');
+    fireEvent.click(container.querySelector('.mr-quant__value') as HTMLButtonElement);
+    const selected = container.querySelector(
+      '.mr-quant__menu-row[aria-selected="true"]',
+    ) as HTMLButtonElement;
+    expect(selected.textContent).toBe('1/16');
+  });
+
+  test('selecting an option updates quantizeGrid and closes the menu', () => {
+    const { container, transport } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-quant__value') as HTMLButtonElement);
+    const rows = container.querySelectorAll('.mr-quant__menu-row');
+    fireEvent.click(rows[1] as HTMLButtonElement); /* 1/8 */
+    expect(transport.current!.quantizeGrid).toBe('1/8');
+    expect(container.querySelector('.mr-quant__menu')).toBeNull();
+    expect((container.querySelector('.mr-quant__value') as HTMLElement).textContent).toContain(
+      '1/8',
+    );
+  });
+
+  test('grid chip is disabled and does not open menu when quantize is off', () => {
+    const { container, transport } = renderTitlebar();
+    fireEvent.click(container.querySelectorAll('.mr-quant__lbl')[0] as HTMLButtonElement);
+    expect(transport.current!.quantizeOn).toBe(false);
+    const gridChip = container.querySelector('.mr-quant__value') as HTMLButtonElement;
+    expect(gridChip.disabled).toBe(true);
+    fireEvent.click(gridChip);
+    expect(container.querySelector('.mr-quant__menu')).toBeNull();
+  });
+});

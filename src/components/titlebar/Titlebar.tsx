@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import { useStatusbar } from '../../hooks/useStatusbar';
 import { useTransport, type ClockSource } from '../../hooks/useTransport';
 import { useMidiInputs } from '../../midi/MidiRuntimeProvider';
+import { QUANTIZE_GRIDS, type QuantizeGrid } from '../../midi/quantizeGrid';
 import { useToast } from '../toast/Toast';
 import {
   ChevDownIcon,
@@ -28,6 +30,9 @@ export function Titlebar() {
   const { active: midiActive } = useStatusbar();
   const { inputs } = useMidiInputs();
   const toast = useToast();
+  const [gridMenuOpen, setGridMenuOpen] = useState(false);
+  const gridChipRef = useRef<HTMLButtonElement>(null);
+  const gridMenuRef = useRef<HTMLDivElement>(null);
 
   const hasInput = inputs.length > 0;
   const recDisabled = !hasInput;
@@ -74,6 +79,34 @@ export function Titlebar() {
       return;
     }
     transport.record();
+  };
+
+  useEffect(() => {
+    if (!gridMenuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node | null;
+      if (gridMenuRef.current?.contains(target)) return;
+      if (gridChipRef.current?.contains(target)) return;
+      setGridMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setGridMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [gridMenuOpen]);
+
+  useEffect(() => {
+    if (!quantizeOn && gridMenuOpen) setGridMenuOpen(false);
+  }, [quantizeOn, gridMenuOpen]);
+
+  const handleSelectGrid = (grid: QuantizeGrid) => {
+    transport.setQuantizeGrid(grid);
+    setGridMenuOpen(false);
   };
 
   const statusLed = recording ? 'rec' : playing ? 'play' : undefined;
@@ -224,17 +257,40 @@ export function Titlebar() {
         >
           A
         </button>
-        <button
-          className="mr-tbtn mr-quant__value mr-mono"
-          type="button"
-          data-on={quantizeOn || undefined}
-          data-dim={!quantizeOn || undefined}
-          disabled
-          title={`Grid: ${quantizeGrid}${quantizeOn ? '' : ' (bypassed)'}`}
-        >
-          <span>{quantizeGrid}</span>
-          <ChevDownIcon />
-        </button>
+        <div className="mr-quant__value-wrap">
+          <button
+            ref={gridChipRef}
+            className="mr-tbtn mr-quant__value mr-mono"
+            type="button"
+            data-on={quantizeOn || undefined}
+            data-dim={!quantizeOn || undefined}
+            disabled={!quantizeOn}
+            aria-haspopup="listbox"
+            aria-expanded={gridMenuOpen}
+            onClick={() => setGridMenuOpen((open) => !open)}
+            title={`Grid: ${quantizeGrid}${quantizeOn ? '' : ' (bypassed)'}`}
+          >
+            <span>{quantizeGrid}</span>
+            <ChevDownIcon />
+          </button>
+          {gridMenuOpen && (
+            <div ref={gridMenuRef} className="mr-quant__menu" role="listbox">
+              {QUANTIZE_GRIDS.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  role="option"
+                  aria-selected={g === quantizeGrid}
+                  data-on={g === quantizeGrid || undefined}
+                  className="mr-quant__menu-row mr-mono"
+                  onClick={() => handleSelectGrid(g)}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mr-spacer" />
