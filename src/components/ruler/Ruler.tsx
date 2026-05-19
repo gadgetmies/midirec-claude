@@ -7,6 +7,9 @@ import { GRID_TICK_THINNING_THRESHOLD_TICKS } from '../../session/layoutHorizon'
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 import './Ruler.css';
 
+const BEATS_PER_BAR = 4;
+const BEATS_PER_PHRASE = 16;
+
 interface RulerProps {
   layoutHorizonTicks: number;
   pxPerBeat?: number;
@@ -24,24 +27,32 @@ export function Ruler({
   const els: JSX.Element[] = [];
   for (let tTicks = 0; tTicks <= layoutHorizonTicks; tTicks += tpq) {
     const beatIdx = tTicks / tpq;
-    if (thin && beatIdx !== 0 && tTicks !== layoutHorizonTicks && beatIdx % 4 !== 0) {
+    if (thin && beatIdx !== 0 && tTicks !== layoutHorizonTicks && beatIdx % BEATS_PER_BAR !== 0) {
       continue;
     }
-    const major = beatIdx % 4 === 0;
+    const major = beatIdx % BEATS_PER_BAR === 0;
+    const phrase = beatIdx % BEATS_PER_PHRASE === 0;
     const left = KEYS_COLUMN_WIDTH + tTicks * pxPerTick;
+    const tickClass = major
+      ? phrase
+        ? 'mr-ruler__tick mr-ruler__tick--major mr-ruler__tick--phrase'
+        : 'mr-ruler__tick mr-ruler__tick--major'
+      : 'mr-ruler__tick';
     els.push(
       <div
         key={`t${tTicks}`}
-        className={major ? 'mr-ruler__tick mr-ruler__tick--major' : 'mr-ruler__tick'}
+        className={tickClass}
         style={{ left }}
       />,
     );
     if (major && tTicks < layoutHorizonTicks) {
-      const bar = 1 + Math.floor(beatIdx / 4);
-      const beat = (beatIdx % 4) + 1;
+      const barsPerPhrase = BEATS_PER_PHRASE / BEATS_PER_BAR;
+      const phraseNum = 1 + Math.floor(beatIdx / BEATS_PER_PHRASE);
+      const bar = (Math.floor(beatIdx / BEATS_PER_BAR) % barsPerPhrase) + 1;
+      const beat = (beatIdx % BEATS_PER_BAR) + 1;
       els.push(
         <div key={`l${tTicks}`} className="mr-ruler__lbl" style={{ left }}>
-          {bar}.{beat}
+          {phraseNum}.{bar}.{beat}
         </div>,
       );
     }

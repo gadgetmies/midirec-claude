@@ -39,6 +39,12 @@
   background: var(--mr-line-2);
 }
 
+/* Phrase boundary (every 16 beats / 4 bars) — stronger weight than --major so
+   16-beat structure is visible without reading the labels. */
+.mr-ruler__tick--phrase {
+  background: var(--mr-line-strong);
+}
+
 .mr-ruler__lbl {
   position: absolute;
   top: 6px;
