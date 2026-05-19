@@ -3,6 +3,7 @@ import { useStage } from '../../hooks/useStage';
 import { useTransport } from '../../hooks/useTransport';
 import { ChannelGroup } from '../channels/ChannelGroup';
 import { DJActionTrack } from '../dj-action-tracks/DJActionTrack';
+import { DJValueEditor } from '../dj-value-editor/DJValueEditor';
 import { Inspector } from '../inspector/Inspector';
 import { Ruler } from '../ruler/Ruler';
 import { Sidebar } from '../sidebar/Sidebar';
@@ -161,6 +162,12 @@ export function AppShell() {
                     }
                     timelineHeaderSelected={channelTlSelected}
                     onRollNoteSelect={(noteIndex) => stage.selectRollNote(channel.id, noteIndex)}
+                    onRollNoteMove={(noteIndex, nextTTicks) =>
+                      stage.updateNoteAt(channel.id, noteIndex, { tTicks: nextTTicks })
+                    }
+                    quantizeOn={transport.quantizeOn}
+                    quantizeGrid={transport.quantizeGrid}
+                    snapAbsoluteOn={transport.snapAbsoluteOn}
                   />
                 );
               })}
@@ -183,6 +190,9 @@ export function AppShell() {
                     onToggleRowSoloed={(pitch) => stage.toggleDJTrackRowSoloed(track.id, pitch)}
                     onSelectTimelineTrack={() => stage.selectDJTimelineTrack(track.id)}
                     timelineHeaderSelected={djTlSelected}
+                    quantizeOn={transport.quantizeOn}
+                    quantizeGrid={transport.quantizeGrid}
+                    snapAbsoluteOn={transport.snapAbsoluteOn}
                   />
                 );
               })}
@@ -193,6 +203,7 @@ export function AppShell() {
           <Inspector />
         </aside>
       </div>
+      <DJValueEditor timelineRef={timelineRef} />
       <footer className="mr-statusbar">
         <Statusbar />
       </footer>

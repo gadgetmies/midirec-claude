@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
-import type { PointerEventHandler } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent, PointerEventHandler } from 'react';
 import { GRID_TICK_THINNING_THRESHOLD_TICKS } from '../../session/layoutHorizon';
 import { beatsToSessionTicks } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
+import { quantizeGridToTicks, type QuantizeGrid } from '../../midi/quantizeGrid';
 import { PianoKeys } from './PianoKeys';
 import { isBlackKey, notesInMarquee, type Marquee, type Note } from './notes';
 import './PianoRoll.css';
@@ -10,6 +11,7 @@ import './PianoRoll.css';
 export const KEYS_COLUMN_WIDTH = 56;
 export const DEFAULT_PX_PER_BEAT = 88;
 export const DEFAULT_ROW_HEIGHT = 14;
+export const DRAG_THRESHOLD_PX = 3;
 
 export function pxPerTickFromPxPerBeat(pxPerBeat: number, tpq: number = DEFAULT_MIDI_TPQ): number {
   return pxPerBeat / tpq;
@@ -33,8 +35,24 @@ interface PianoRollProps {
   selectedIdx?: number[];
   /** When set, user activation on a `.mr-note` selects that index upstream. */
   onNoteSelect?: (noteIndex: number) => void;
+  /** When set, horizontal drag-to-move on `.mr-note` commits via this callback on pointerup. */
+  onNoteMove?: (noteIndex: number, nextTTicks: number) => void;
+  quantizeOn?: boolean;
+  quantizeGrid?: QuantizeGrid;
+  snapAbsoluteOn?: boolean;
   trackColor?: string;
   accent?: 'note';
+}
+
+type DragMode = 'pre-click' | 'dragging';
+
+interface DragState {
+  pointerId: number;
+  px0: number;
+  tick0: number;
+  noteIndex: number;
+  mode: DragMode;
+  element: HTMLDivElement;
 }
 
 export function PianoRoll({
@@ -53,6 +71,10 @@ export function PianoRoll({
   selectedIdx,
   trackColor,
   onNoteSelect,
+  onNoteMove,
+  quantizeOn = false,
+  quantizeGrid = '1/16',
+  snapAbsoluteOn = false,
 }: PianoRollProps) {
   const tpq = DEFAULT_MIDI_TPQ;
   const pxPerTick = pxPerTickFromPxPerBeat(pxPerBeat, tpq);
@@ -73,6 +95,98 @@ export function PianoRoll({
     if (marquee) return notesInMarquee(notes, marquee);
     return [];
   }, [notes, marquee, selectedIdx]);
+
+  const dragRef = useRef<DragState | null>(null);
+  const [preview, setPreview] = useState<{ idx: number; tick: number } | null>(null);
+
+  const computeFinalTick = useCallback(
+    (tick0: number, deltaPx: number): number => {
+      const deltaTicksRaw = Math.round(deltaPx / pxPerTick);
+      if (quantizeOn) {
+        const snap = quantizeGridToTicks(quantizeGrid, tpq);
+        if (snapAbsoluteOn) {
+          return Math.max(0, Math.round((tick0 + deltaTicksRaw) / snap) * snap);
+        }
+        const deltaTicks = Math.round(deltaTicksRaw / snap) * snap;
+        return Math.max(0, tick0 + deltaTicks);
+      }
+      return Math.max(0, tick0 + deltaTicksRaw);
+    },
+    [pxPerTick, quantizeOn, quantizeGrid, snapAbsoluteOn, tpq],
+  );
+
+  const dragEnabled = onNoteMove !== undefined;
+
+  const handlePointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>, noteIndex: number, tick0: number) => {
+      e.stopPropagation();
+      if (!dragEnabled) {
+        onNoteSelect?.(noteIndex);
+        return;
+      }
+      const element = e.currentTarget;
+      element.setPointerCapture(e.pointerId);
+      dragRef.current = {
+        pointerId: e.pointerId,
+        px0: e.clientX,
+        tick0,
+        noteIndex,
+        mode: 'pre-click',
+        element,
+      };
+    },
+    [dragEnabled, onNoteSelect],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      const deltaPx = e.clientX - drag.px0;
+      if (drag.mode === 'pre-click') {
+        if (Math.abs(deltaPx) < DRAG_THRESHOLD_PX) return;
+        drag.mode = 'dragging';
+      }
+      const finalTick = computeFinalTick(drag.tick0, deltaPx);
+      setPreview({ idx: drag.noteIndex, tick: finalTick });
+    },
+    [computeFinalTick],
+  );
+
+  const releasePointer = useCallback((drag: DragState) => {
+    if (drag.element.hasPointerCapture(drag.pointerId)) {
+      drag.element.releasePointerCapture(drag.pointerId);
+    }
+  }, []);
+
+  const handlePointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      if (drag.mode === 'pre-click') {
+        onNoteSelect?.(drag.noteIndex);
+      } else {
+        const deltaPx = e.clientX - drag.px0;
+        const finalTick = computeFinalTick(drag.tick0, deltaPx);
+        onNoteMove?.(drag.noteIndex, finalTick);
+      }
+      releasePointer(drag);
+      dragRef.current = null;
+      setPreview(null);
+    },
+    [computeFinalTick, onNoteMove, onNoteSelect, releasePointer],
+  );
+
+  const handlePointerCancel = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      releasePointer(drag);
+      dragRef.current = null;
+      setPreview(null);
+    },
+    [releasePointer],
+  );
 
   const lanes: JSX.Element[] = [];
   for (let p = lo; p < hi; p++) {
@@ -110,12 +224,15 @@ export function PianoRoll({
     );
   }
 
+  const interactive = onNoteSelect !== undefined || dragEnabled;
+
   const noteEls: JSX.Element[] = [];
   notes.forEach((n, i) => {
     if (n.pitch < lo || n.pitch >= hi) return;
     const idx = n.pitch - lo;
     const top = height - (idx + 1) * rowHeight + 1;
-    const left = (n.tTicks - viewT0Ticks) * pxPerTick;
+    const renderTick = preview && preview.idx === i ? preview.tick : n.tTicks;
+    const left = (renderTick - viewT0Ticks) * pxPerTick;
     const w = Math.max(2, n.durTicks * pxPerTick);
     const h = Math.max(5, rowHeight - 2);
     const sel = effectiveSel.includes(i);
@@ -127,20 +244,20 @@ export function PianoRoll({
     }
 
     const onPointerDownNote: PointerEventHandler<HTMLDivElement> | undefined =
-      onNoteSelect === undefined
-        ? undefined
-        : (e) => {
-            e.stopPropagation();
-            onNoteSelect(i);
-          };
+      interactive
+        ? (e) => handlePointerDown(e, i, n.tTicks)
+        : undefined;
 
     noteEls.push(
       <div
         key={`n${i}`}
-        className={`mr-note${onNoteSelect ? ' mr-note--hit' : ''}`}
+        className={`mr-note${interactive ? ' mr-note--hit' : ''}`}
         data-sel={sel ? 'true' : undefined}
         data-selected={sel ? 'true' : undefined}
         onPointerDown={onPointerDownNote}
+        onPointerMove={dragEnabled ? handlePointerMove : undefined}
+        onPointerUp={dragEnabled ? handlePointerUp : undefined}
+        onPointerCancel={dragEnabled ? handlePointerCancel : undefined}
         style={{
           top,
           left,

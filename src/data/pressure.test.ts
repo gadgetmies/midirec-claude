@@ -3,11 +3,9 @@ import type { ActionEvent, PressurePoint } from './dj';
 import {
   EDITOR_BINS,
   PRESSURE_CELLS,
-  clearPressure,
   flattenPressure,
   rasterizePressure,
   smoothPressure,
-  summarizePressure,
   synthesizePressure,
 } from './pressure';
 import { beatsToSessionTicks } from '../midi/sessionTicks';
@@ -86,33 +84,6 @@ describe('rasterizePressure', () => {
   });
 });
 
-describe('summarizePressure', () => {
-  test('empty input → zero count/peak/avg', () => {
-    expect(summarizePressure([])).toEqual({ count: 0, peak: 0, avg: 0 });
-  });
-
-  test('count is the source-points length, not the bin count', () => {
-    const points: PressurePoint[] = [
-      { t: 0, v: 0.4 },
-      { t: 0.5, v: 0.8 },
-      { t: 1, v: 0.6 },
-    ];
-    const s = summarizePressure(points);
-    expect(s.count).toBe(3);
-    expect(s.peak).toBeGreaterThan(0.5);
-    expect(s.peak).toBeLessThanOrEqual(1);
-    expect(s.avg).toBeGreaterThan(0);
-    expect(s.avg).toBeLessThan(1);
-  });
-
-  test('avg is mean of rasterised bins', () => {
-    const flat: PressurePoint[] = [{ t: 0.5, v: 0.5 }];
-    const s = summarizePressure(flat);
-    expect(s.avg).toBeCloseTo(0.5, 5);
-    expect(s.peak).toBeCloseTo(0.5, 5);
-  });
-});
-
 describe('smoothPressure', () => {
   test('returns 16 evenly-spaced points', () => {
     const points = synthesizePressure(seedEvent());
@@ -174,12 +145,3 @@ describe('flattenPressure', () => {
   });
 });
 
-describe('clearPressure', () => {
-  test('returns a fresh empty array on every call', () => {
-    const a = clearPressure();
-    const b = clearPressure();
-    expect(a).toEqual([]);
-    expect(b).toEqual([]);
-    expect(a).not.toBe(b);
-  });
-});

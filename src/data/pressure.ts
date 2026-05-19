@@ -66,23 +66,6 @@ export function rasterizePressure(
   return out;
 }
 
-/* Summary statistics for the editor's readout. Stats run on the rasterised
-   bins so they're stable regardless of stored-point density. */
-export function summarizePressure(
-  points: PressurePoint[],
-  bins: number = EDITOR_BINS,
-): { count: number; peak: number; avg: number } {
-  if (points.length === 0) return { count: 0, peak: 0, avg: 0 };
-  const rast = rasterizePressure(points, bins);
-  let peak = 0;
-  let sum = 0;
-  for (let i = 0; i < bins; i++) {
-    if (rast[i] > peak) peak = rast[i];
-    sum += rast[i];
-  }
-  return { count: points.length, peak, avg: sum / bins };
-}
-
 /* Centered moving-average smoothing across the rasterised bins. Re-samples
    the input to `EDITOR_BINS` and returns 16 evenly-spaced points. Each
    click reduces the variance further — non-idempotent, matches the
@@ -128,8 +111,3 @@ export function flattenPressure(points: PressurePoint[]): PressurePoint[] {
   return out;
 }
 
-/* Fresh empty array on every call so callers can rely on reference
-   inequality (matches Slice 9 spec scenario). */
-export function clearPressure(): PressurePoint[] {
-  return [];
-}

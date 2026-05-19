@@ -8,12 +8,18 @@
    `synthesizePressure` (Slice 9). Click an event to set
    `djEventSelection` and open the Inspector's pressure editor.
 
+   Horizontal drag-to-move (timeline-drag-move-items): `.mr-djtrack__note`
+   and `.mr-djtrack__cc` participate in a pointer-driven gesture that
+   commits a new `tTicks` on pointerup. CC groups shift every member by the
+   same delta so internal spacing is preserved.
+
    NOTE: the dynamic per-note `style={{ background: ... }}` is unavoidable
    here — `devColor()` returns a per-action OKLCH string that has to flow
    through `color-mix(...)`, which CSS variables can't compose at this
    density. The static `box-shadow` colors do come from tokens. */
 
-import type { MouseEvent } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   actionMode,
   devColor,
@@ -35,8 +41,10 @@ import { useStage } from '../../hooks/useStage';
 import { rasterizePressure, synthesizePressure } from '../../data/pressure';
 import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
+import { quantizeGridToTicks, type QuantizeGrid } from '../../midi/quantizeGrid';
 
 const PRESSURE_CELLS = 14;
+const DRAG_THRESHOLD_PX = 3;
 
 interface ActionRollProps {
   track: DJActionTrack;
@@ -45,6 +53,48 @@ interface ActionRollProps {
   pxPerBeat: number;
   rowHeight: number;
   playheadTicks?: number;
+  quantizeOn?: boolean;
+  quantizeGrid?: QuantizeGrid;
+  snapAbsoluteOn?: boolean;
+}
+
+type DragMode = 'pre-click' | 'dragging';
+
+interface EventDragState {
+  kind: 'event';
+  pointerId: number;
+  element: HTMLDivElement;
+  px0: number;
+  mode: DragMode;
+  eventIdx: number;
+  pitch: number;
+  tick0: number;
+}
+
+interface CcGroupDragState {
+  kind: 'cc-group';
+  pointerId: number;
+  element: HTMLDivElement;
+  px0: number;
+  mode: DragMode;
+  pitch: number;
+  representativeIdx: number;
+  memberIndices: number[];
+  memberOriginalTicks: number[];
+  earliestTTicks: number;
+}
+
+type DragState = EventDragState | CcGroupDragState;
+
+type Preview =
+  | { kind: 'event'; eventIdx: number; tTicks: number }
+  | { kind: 'cc-group'; pitch: number; memberIndices: Set<number>; deltaTicks: number };
+
+interface PointerHandlers {
+  onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerCancel: (e: ReactPointerEvent<HTMLDivElement>) => void;
 }
 
 export function ActionRoll({
@@ -54,9 +104,18 @@ export function ActionRoll({
   pxPerBeat,
   rowHeight,
   playheadTicks = 0,
+  quantizeOn = false,
+  quantizeGrid = '1/16',
+  snapAbsoluteOn = false,
 }: ActionRollProps) {
-  const { djEventSelection, setDJEventSelection, djActionSelection, setDJActionSelection, pressureRenderMode } =
-    useStage();
+  const {
+    djEventSelection,
+    setDJEventSelection,
+    djActionSelection,
+    setDJActionSelection,
+    pressureRenderMode,
+    setDJEventTTicks,
+  } = useStage();
   const tpq = DEFAULT_MIDI_TPQ;
   const pxPerTick = pxPerBeat / tpq;
   const rowOrder = djActionRowOrderTopToBottom(track.actionMap);
@@ -72,6 +131,199 @@ export function ActionRoll({
   };
 
   const ccGroupByMemberIdx = buildCcMergedGroupsByMemberIndex(track, CC_GROUP_MAX_START_GAP_TICKS);
+
+  const dragRef = useRef<DragState | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
+
+  const snapDelta = useCallback(
+    (deltaTicksRaw: number): number => {
+      if (!quantizeOn) return deltaTicksRaw;
+      const snap = quantizeGridToTicks(quantizeGrid, tpq);
+      return Math.round(deltaTicksRaw / snap) * snap;
+    },
+    [quantizeOn, quantizeGrid, tpq],
+  );
+
+  const computeEventFinalTick = useCallback(
+    (tick0: number, deltaPx: number): number => {
+      const deltaTicksRaw = Math.round(deltaPx / pxPerTick);
+      if (quantizeOn && snapAbsoluteOn) {
+        const snap = quantizeGridToTicks(quantizeGrid, tpq);
+        return Math.max(0, Math.round((tick0 + deltaTicksRaw) / snap) * snap);
+      }
+      const deltaTicks = snapDelta(deltaTicksRaw);
+      return Math.max(0, tick0 + deltaTicks);
+    },
+    [pxPerTick, quantizeOn, snapAbsoluteOn, quantizeGrid, tpq, snapDelta],
+  );
+
+  const computeGroupDelta = useCallback(
+    (earliestTTicks: number, deltaPx: number): number => {
+      const deltaTicksRaw = Math.round(deltaPx / pxPerTick);
+      if (quantizeOn && snapAbsoluteOn) {
+        const snap = quantizeGridToTicks(quantizeGrid, tpq);
+        const earliestFinal = Math.max(
+          0,
+          Math.round((earliestTTicks + deltaTicksRaw) / snap) * snap,
+        );
+        return earliestFinal - earliestTTicks;
+      }
+      const snapped = snapDelta(deltaTicksRaw);
+      return Math.max(snapped, -earliestTTicks);
+    },
+    [pxPerTick, quantizeOn, snapAbsoluteOn, quantizeGrid, tpq, snapDelta],
+  );
+
+  const releasePointer = useCallback((drag: DragState) => {
+    if (drag.element.hasPointerCapture(drag.pointerId)) {
+      drag.element.releasePointerCapture(drag.pointerId);
+    }
+  }, []);
+
+  const fireEventClick = useCallback(
+    (pitch: number, eventIdx: number) => {
+      setDJEventSelection({ trackId: track.id, pitch, eventIdx });
+      if (
+        !djActionSelection ||
+        djActionSelection.trackId !== track.id ||
+        djActionSelection.pitch !== pitch
+      ) {
+        setDJActionSelection({ trackId: track.id, pitch });
+      }
+    },
+    [djActionSelection, setDJActionSelection, setDJEventSelection, track.id],
+  );
+
+  const buildEventHandlers = useCallback(
+    (eventIdx: number, pitch: number, tick0: number): PointerHandlers => ({
+      onPointerDown: (e) => {
+        e.stopPropagation();
+        const element = e.currentTarget;
+        element.setPointerCapture(e.pointerId);
+        dragRef.current = {
+          kind: 'event',
+          pointerId: e.pointerId,
+          element,
+          px0: e.clientX,
+          mode: 'pre-click',
+          eventIdx,
+          pitch,
+          tick0,
+        };
+      },
+      onPointerMove: (e) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== e.pointerId || drag.kind !== 'event') return;
+        const deltaPx = e.clientX - drag.px0;
+        if (drag.mode === 'pre-click') {
+          if (Math.abs(deltaPx) < DRAG_THRESHOLD_PX) return;
+          drag.mode = 'dragging';
+        }
+        const finalTick = computeEventFinalTick(drag.tick0, deltaPx);
+        setPreview({ kind: 'event', eventIdx: drag.eventIdx, tTicks: finalTick });
+      },
+      onPointerUp: (e) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== e.pointerId || drag.kind !== 'event') return;
+        if (drag.mode === 'pre-click') {
+          fireEventClick(drag.pitch, drag.eventIdx);
+        } else {
+          const deltaPx = e.clientX - drag.px0;
+          const finalTick = computeEventFinalTick(drag.tick0, deltaPx);
+          setDJEventTTicks(track.id, drag.pitch, drag.eventIdx, finalTick);
+        }
+        releasePointer(drag);
+        dragRef.current = null;
+        setPreview(null);
+      },
+      onPointerCancel: (e) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== e.pointerId || drag.kind !== 'event') return;
+        releasePointer(drag);
+        dragRef.current = null;
+        setPreview(null);
+      },
+    }),
+    [computeEventFinalTick, fireEventClick, releasePointer, setDJEventTTicks, track.id],
+  );
+
+  const buildCcGroupHandlers = useCallback(
+    (group: CcMergedGroup): PointerHandlers => {
+      const memberOriginalTicks = group.memberIndices.map(
+        (idx) => track.events[idx]!.tTicks,
+      );
+      const earliestTTicks = memberOriginalTicks.reduce(
+        (a, b) => Math.min(a, b),
+        memberOriginalTicks[0]!,
+      );
+      return {
+        onPointerDown: (e) => {
+          e.stopPropagation();
+          const element = e.currentTarget;
+          element.setPointerCapture(e.pointerId);
+          dragRef.current = {
+            kind: 'cc-group',
+            pointerId: e.pointerId,
+            element,
+            px0: e.clientX,
+            mode: 'pre-click',
+            pitch: group.pitch,
+            representativeIdx: group.representativeIdx,
+            memberIndices: group.memberIndices.slice(),
+            memberOriginalTicks,
+            earliestTTicks,
+          };
+        },
+        onPointerMove: (e) => {
+          const drag = dragRef.current;
+          if (!drag || drag.pointerId !== e.pointerId || drag.kind !== 'cc-group') return;
+          const deltaPx = e.clientX - drag.px0;
+          if (drag.mode === 'pre-click') {
+            if (Math.abs(deltaPx) < DRAG_THRESHOLD_PX) return;
+            drag.mode = 'dragging';
+          }
+          const groupDeltaTicks = computeGroupDelta(drag.earliestTTicks, deltaPx);
+          setPreview({
+            kind: 'cc-group',
+            pitch: drag.pitch,
+            memberIndices: new Set(drag.memberIndices),
+            deltaTicks: groupDeltaTicks,
+          });
+        },
+        onPointerUp: (e) => {
+          const drag = dragRef.current;
+          if (!drag || drag.pointerId !== e.pointerId || drag.kind !== 'cc-group') return;
+          if (drag.mode === 'pre-click') {
+            fireEventClick(drag.pitch, drag.representativeIdx);
+          } else {
+            const deltaPx = e.clientX - drag.px0;
+            const groupDeltaTicks = computeGroupDelta(drag.earliestTTicks, deltaPx);
+            for (let m = 0; m < drag.memberIndices.length; m++) {
+              const memberIdx = drag.memberIndices[m]!;
+              const memberOriginal = drag.memberOriginalTicks[m]!;
+              setDJEventTTicks(
+                track.id,
+                drag.pitch,
+                memberIdx,
+                Math.max(0, memberOriginal + groupDeltaTicks),
+              );
+            }
+          }
+          releasePointer(drag);
+          dragRef.current = null;
+          setPreview(null);
+        },
+        onPointerCancel: (e) => {
+          const drag = dragRef.current;
+          if (!drag || drag.pointerId !== e.pointerId || drag.kind !== 'cc-group') return;
+          releasePointer(drag);
+          dragRef.current = null;
+          setPreview(null);
+        },
+      };
+    },
+    [computeGroupDelta, fireEventClick, releasePointer, setDJEventTTicks, track.events, track.id],
+  );
 
   const lanes: JSX.Element[] = rowOrder.map((pitch) => {
     const muted = track.mutedRows.includes(pitch);
@@ -123,7 +375,6 @@ export function ActionRoll({
     const e = perPitchIndex.get(event.pitch) ?? 0;
     perPitchIndex.set(event.pitch, e + 1);
     const top = topForPitch(event.pitch) + 1;
-    const left = event.tTicks * pxPerTick;
     const noteH = Math.max(5, rowHeight - 2);
     const color = devColor(action.device);
     const audible = isDJRowAudible(track, event.pitch, soloing);
@@ -133,26 +384,16 @@ export function ActionRoll({
       if (!group || group.representativeIdx !== originalIdx) {
         continue;
       }
-      const onClick = (ev: MouseEvent) => {
-        ev.stopPropagation();
-        setDJEventSelection({
-          trackId: track.id,
-          pitch: group.pitch,
-          eventIdx: group.representativeIdx,
-        });
-        if (
-          !djActionSelection ||
-          djActionSelection.trackId !== track.id ||
-          djActionSelection.pitch !== group.pitch
-        ) {
-          setDJActionSelection({ trackId: track.id, pitch: group.pitch });
-        }
-      };
+      const handlers = buildCcGroupHandlers(group);
       const groupSelected =
         djEventSelection !== null &&
         djEventSelection.trackId === track.id &&
         djEventSelection.pitch === group.pitch &&
         group.memberIndices.includes(djEventSelection.eventIdx);
+      const previewDelta =
+        preview && preview.kind === 'cc-group' && preview.pitch === group.pitch
+          ? preview.deltaTicks
+          : 0;
       noteEls.push(
         renderCcAutomation(
           group,
@@ -164,29 +405,25 @@ export function ActionRoll({
           pxPerBeat,
           audible,
           groupSelected,
-          onClick,
+          handlers,
           rowCc,
+          previewDelta,
         ),
       );
       continue;
     }
-    const onClick = (ev: MouseEvent) => {
-      ev.stopPropagation();
-      setDJEventSelection({ trackId: track.id, pitch: event.pitch, eventIdx: originalIdx });
-      if (
-        !djActionSelection ||
-        djActionSelection.trackId !== track.id ||
-        djActionSelection.pitch !== event.pitch
-      ) {
-        setDJActionSelection({ trackId: track.id, pitch: event.pitch });
-      }
-    };
+    const handlers = buildEventHandlers(originalIdx, event.pitch, event.tTicks);
     const selected =
       djEventSelection !== null &&
       djEventSelection.trackId === track.id &&
       djEventSelection.pitch === event.pitch &&
       djEventSelection.eventIdx === originalIdx;
     const mode = actionMode(action);
+    const renderTick =
+      preview && preview.kind === 'event' && preview.eventIdx === originalIdx
+        ? preview.tTicks
+        : event.tTicks;
+    const left = renderTick * pxPerTick;
     noteEls.push(
       renderNote(
         originalIdx,
@@ -203,7 +440,7 @@ export function ActionRoll({
         pxPerBeat,
         audible,
         selected,
-        onClick,
+        handlers,
         event.pressure,
         pressureRenderMode,
       ),
@@ -256,8 +493,9 @@ function renderCcAutomation(
   pxPerBeat: number,
   audible: boolean,
   selected: boolean,
-  onClick: (e: MouseEvent) => void,
+  handlers: PointerHandlers,
   ccNum: number,
+  previewDeltaTicks: number,
 ): JSX.Element {
   const messages = collapseCcMessagesByPixelX(group, track, pxPerBeat);
   const w = Math.max(8, group.dur * pxPerBeat);
@@ -279,6 +517,7 @@ function renderCcAutomation(
   });
   const audibleAttr = audible ? 'true' : 'false';
   const selectedAttr = selected ? 'true' : undefined;
+  const deltaBeats = previewDeltaTicks / DEFAULT_MIDI_TPQ;
   return (
     <div
       key={`cc${group.representativeIdx}`}
@@ -286,10 +525,13 @@ function renderCcAutomation(
       title={`${action.label} · ${action.short} · CC ${ccNum}`}
       data-audible={audibleAttr}
       data-selected={selectedAttr}
-      onClick={onClick}
+      onPointerDown={handlers.onPointerDown}
+      onPointerMove={handlers.onPointerMove}
+      onPointerUp={handlers.onPointerUp}
+      onPointerCancel={handlers.onPointerCancel}
       style={{
         top,
-        left: group.t0 * pxPerBeat,
+        left: (group.t0 + deltaBeats) * pxPerBeat,
         width: w,
         height: noteH,
         background: `color-mix(in oklab, ${color} 22%, transparent)`,
@@ -317,7 +559,7 @@ function renderNote(
   pxPerBeat: number,
   audible: boolean,
   selected: boolean,
-  onClick: (e: MouseEvent) => void,
+  handlers: PointerHandlers,
   storedPressure: PressurePoint[] | undefined,
   pressureRenderMode: PressureRenderMode,
 ): JSX.Element {
@@ -334,7 +576,10 @@ function renderNote(
         title={titleText}
         data-audible={audibleAttr}
         data-selected={selectedAttr}
-        onClick={onClick}
+        onPointerDown={handlers.onPointerDown}
+        onPointerMove={handlers.onPointerMove}
+        onPointerUp={handlers.onPointerUp}
+        onPointerCancel={handlers.onPointerCancel}
         style={{
           top,
           left,
@@ -358,7 +603,10 @@ function renderNote(
         title={titleText}
         data-audible={audibleAttr}
         data-selected={selectedAttr}
-        onClick={onClick}
+        onPointerDown={handlers.onPointerDown}
+        onPointerMove={handlers.onPointerMove}
+        onPointerUp={handlers.onPointerUp}
+        onPointerCancel={handlers.onPointerCancel}
         style={{
           top,
           left,
@@ -420,7 +668,10 @@ function renderNote(
         data-audible={audibleAttr}
         data-selected={selectedAttr}
         data-pressure-mode={pressureRenderMode}
-        onClick={onClick}
+        onPointerDown={handlers.onPointerDown}
+        onPointerMove={handlers.onPointerMove}
+        onPointerUp={handlers.onPointerUp}
+        onPointerCancel={handlers.onPointerCancel}
         style={{
           top,
           left,
@@ -453,7 +704,10 @@ function renderNote(
       title={titleText}
       data-audible={audibleAttr}
       data-selected={selectedAttr}
-      onClick={onClick}
+      onPointerDown={handlers.onPointerDown}
+      onPointerMove={handlers.onPointerMove}
+      onPointerUp={handlers.onPointerUp}
+      onPointerCancel={handlers.onPointerCancel}
       style={{
         top,
         left,

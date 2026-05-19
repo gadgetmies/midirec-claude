@@ -888,6 +888,243 @@ describe('createScheduler — DJ pressure-mode dispatch', () => {
   });
 });
 
+describe('createScheduler — DJ Pitch-bend dispatch', () => {
+  test('PB row emits a 14-bit Pitch-bend at center for vel 0.5', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.1, 0.25, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, out: 'pb' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    /* drain the tick-0 PB-center emit before measuring per-event dispatch */
+    const callsAfterStart = output.calls.length;
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const after = output.calls.slice(callsAfterStart);
+    const pbs = after.filter((c) => (c.data[0]! & 0xf0) === 0xe0);
+    const noteOns = after.filter((c) => (c.data[0]! & 0xf0) === 0x90);
+    const ccs = after.filter((c) => (c.data[0]! & 0xf0) === 0xb0);
+    expect(pbs).toHaveLength(1);
+    expect(noteOns).toHaveLength(0);
+    expect(ccs).toHaveLength(0);
+    expect(pbs[0]!.data).toEqual([0xe1, 0x00, 0x40]);
+  });
+
+  test('PB value coverage: vel 0 → [0,0], vel 0.5 → [0,64], vel 1 → [127,127]', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [
+        djEvent(80, 0.0, 0.02, 0.0),
+        djEvent(80, 0.05, 0.02, 0.5, { perPitchIndex: 1 }),
+        djEvent(80, 0.1, 0.02, 1.0, { perPitchIndex: 2 }),
+      ],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 1, pitch: 80, out: 'pb' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    const callsAfterStart = output.calls.length;
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const pbs = output.calls.slice(callsAfterStart).filter((c) => (c.data[0]! & 0xf0) === 0xe0);
+    expect(pbs).toHaveLength(3);
+    expect(pbs[0]!.data).toEqual([0xe0, 0x00, 0x00]);
+    expect(pbs[1]!.data).toEqual([0xe0, 0x00, 0x40]);
+    expect(pbs[2]!.data).toEqual([0xe0, 0x7f, 0x7f]);
+  });
+
+  test('PB row does not insert into activeNoteOns', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.1, 5.0, 0.7)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 1, pitch: 80, out: 'pb' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(scheduler.activeNoteCount()).toBe(0);
+  });
+
+  test('PB row ignores stale cc field on the mapping', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.1, 0.05, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, cc: 7, out: 'pb' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    const callsAfterStart = output.calls.length;
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const after = output.calls.slice(callsAfterStart);
+    expect(after.filter((c) => (c.data[0]! & 0xf0) === 0xb0)).toHaveLength(0);
+    expect(after.filter((c) => (c.data[0]! & 0xf0) === 0xe0)).toHaveLength(1);
+  });
+
+  test('legacy { cc } with no out still emits CC, not PB', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.0, 0.1, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, cc: 16 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xe0)).toHaveLength(0);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xb0)).toHaveLength(1);
+  });
+
+  test('out:cc with missing cc field silently skips dispatch', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.0, 0.1, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, out: 'cc' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xb0)).toHaveLength(0);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(0);
+  });
+
+  test('out:note suppresses CC even when cc is set', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.0, 0.1, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 60, cc: 7, out: 'note' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xb0)).toHaveLength(0);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0x90)).toHaveLength(1);
+  });
+});
+
+describe('createScheduler — DJ PB tick-0 center and panic sweep', () => {
+  test('PB-only session emits one PB-center per channel before first event', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 5.0, 0.05, 0.7), djEvent(81, 5.0, 0.05, 0.7)],
+      actionMap: {
+        80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }),
+        81: makeAction({ id: 'ch1_vol', cat: 'mixer', pad: true }),
+      },
+      outputMap: {
+        80: { device: 'mixer', channel: 2, pitch: 80, out: 'pb' },
+        81: { device: 'mixer', channel: 6, pitch: 81, out: 'pb' },
+      },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    const pbs = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xe0);
+    expect(pbs).toHaveLength(2);
+    const channelBytes = new Set(pbs.map((c) => c.data[0]! & 0x0f));
+    expect(channelBytes).toEqual(new Set([1, 5]));
+    for (const pb of pbs) {
+      expect(pb.data).toEqual([pb.data[0], 0x00, 0x40]);
+    }
+  });
+
+  test('CC-only session emits no PB tick-0', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [djEvent(80, 0.0, 0.1, 0.5)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, cc: 16 } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    expect(output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xe0)).toHaveLength(0);
+  });
+
+  test('mixed session emits PB center only for PB channels', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      actionMap: {
+        80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }),
+        81: makeAction({ id: 'ch1_vol', cat: 'mixer', pad: true }),
+      },
+      outputMap: {
+        80: { device: 'mixer', channel: 2, pitch: 80, cc: 16 },
+        81: { device: 'mixer', channel: 6, pitch: 81, out: 'pb' },
+      },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    const pbs = output.calls.filter((c) => (c.data[0]! & 0xf0) === 0xe0);
+    expect(pbs).toHaveLength(1);
+    expect(pbs[0]!.data[0]! & 0x0f).toBe(5);
+  });
+
+  test('panic emits PB-center even when no PB event dispatched this session', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      /* events are far in the future so none dispatch in tick(0) */
+      events: [djEvent(80, 100.0, 0.05, 0.7)],
+      actionMap: { 80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }) },
+      outputMap: { 80: { device: 'mixer', channel: 2, pitch: 80, out: 'pb' } },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const callsBeforePanic = output.calls.length;
+    scheduler.panic();
+    const after = output.calls.slice(callsBeforePanic);
+    const pbs = after.filter((c) => (c.data[0]! & 0xf0) === 0xe0);
+    expect(pbs).toHaveLength(1);
+    expect(pbs[0]!.data).toEqual([0xe1, 0x00, 0x40]);
+  });
+
+  test('panic ordering: note-offs, then ANO, then PB-center', () => {
+    const output = makeFakeOutput();
+    const toast = makeToast();
+    const scheduler = createScheduler(schedDeps(output, toast.show));
+    const track = makeDJTrack({
+      events: [
+        djEvent(48, 0.0, 10.0, 0.8),
+        djEvent(80, 0.1, 0.05, 0.7, { perPitchIndex: 1 }),
+      ],
+      actionMap: {
+        48: makeAction({ id: 'play', cat: 'deck' }),
+        80: makeAction({ id: 'xfade_pos', cat: 'mixer', pad: true }),
+      },
+      outputMap: {
+        48: { device: 'global', channel: 1, pitch: 60 },
+        80: { device: 'mixer', channel: 2, pitch: 80, out: 'pb' },
+      },
+    });
+    scheduler.start(0, 120, [], false, [track]);
+    scheduler.tick(performance.now(), 0, [], false, [track]);
+    const callsBeforePanic = output.calls.length;
+    scheduler.panic();
+    const after = output.calls.slice(callsBeforePanic);
+    const firstOffIdx = after.findIndex((c) => (c.data[0]! & 0xf0) === 0x80);
+    const firstAnoIdx = after.findIndex(
+      (c) => (c.data[0]! & 0xf0) === 0xb0 && c.data[1] === 0x7b,
+    );
+    const firstPbIdx = after.findIndex((c) => (c.data[0]! & 0xf0) === 0xe0);
+    expect(firstOffIdx).toBeGreaterThanOrEqual(0);
+    expect(firstAnoIdx).toBeGreaterThan(firstOffIdx);
+    expect(firstPbIdx).toBeGreaterThan(firstAnoIdx);
+  });
+});
+
 describe('createScheduler — DJ seek and panic', () => {
   test('seek-back rebinds DJ cursor so later events still fire', () => {
     const output = makeFakeOutput();

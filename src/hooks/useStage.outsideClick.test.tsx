@@ -134,3 +134,85 @@ describe('useStage outside-click — intentional clear paths still work', () => 
     expect(handle.current?.djEventSelection).not.toBeNull();
   });
 });
+
+function HarnessWithDJ({ handle }: { handle: ProbeHandle }) {
+  return (
+    <TransportProvider>
+      <StageProvider>
+        <div className="mr-timeline">
+          <div className="mr-djtrack">
+            <div className="mr-djtrack__hdr" data-target="dj-hdr" />
+            <div className="mr-djtrack__keys">
+              <div className="mr-actkey" data-target="dj-keys" />
+            </div>
+            <div className="mr-djtrack__lanes">
+              <div className="mr-djtrack__lane" data-target="dj-lane-empty" />
+              <div className="mr-djtrack__cc" data-target="dj-cc" />
+              <div className="mr-djtrack__note" data-target="dj-note" />
+            </div>
+          </div>
+          <div className="mr-dj-value-editor">
+            <div className="mr-dj-value-editor__canvas-clip" data-target="dj-editor-canvas" />
+          </div>
+        </div>
+        <Probe handle={handle} />
+      </StageProvider>
+    </TransportProvider>
+  );
+}
+
+describe('useStage outside-click — DJ track / editor subselectors', () => {
+  test('click on .mr-actkey preserves DJ selection', () => {
+    const handle: ProbeHandle = { current: null };
+    render(<HarnessWithDJ handle={handle} />);
+    seedSelection(handle, 'dj');
+    dispatchPointerDown(document.querySelector('[data-target="dj-keys"]') as Element);
+    expect(handle.current?.djActionSelection).not.toBeNull();
+    expect(handle.current?.djEventSelection).not.toBeNull();
+  });
+
+  test('click on .mr-djtrack__cc preserves DJ selection', () => {
+    const handle: ProbeHandle = { current: null };
+    render(<HarnessWithDJ handle={handle} />);
+    seedSelection(handle, 'dj');
+    dispatchPointerDown(document.querySelector('[data-target="dj-cc"]') as Element);
+    expect(handle.current?.djActionSelection).not.toBeNull();
+    expect(handle.current?.djEventSelection).not.toBeNull();
+  });
+
+  test('click on .mr-djtrack__note preserves DJ selection', () => {
+    const handle: ProbeHandle = { current: null };
+    render(<HarnessWithDJ handle={handle} />);
+    seedSelection(handle, 'dj');
+    dispatchPointerDown(document.querySelector('[data-target="dj-note"]') as Element);
+    expect(handle.current?.djActionSelection).not.toBeNull();
+    expect(handle.current?.djEventSelection).not.toBeNull();
+  });
+
+  test('click on .mr-djtrack__hdr preserves DJ selection', () => {
+    const handle: ProbeHandle = { current: null };
+    render(<HarnessWithDJ handle={handle} />);
+    seedSelection(handle, 'dj');
+    dispatchPointerDown(document.querySelector('[data-target="dj-hdr"]') as Element);
+    expect(handle.current?.djActionSelection).not.toBeNull();
+    expect(handle.current?.djEventSelection).not.toBeNull();
+  });
+
+  test('click on empty .mr-djtrack__lane clears both DJ selections', () => {
+    const handle: ProbeHandle = { current: null };
+    render(<HarnessWithDJ handle={handle} />);
+    seedSelection(handle, 'dj');
+    dispatchPointerDown(document.querySelector('[data-target="dj-lane-empty"]') as Element);
+    expect(handle.current?.djActionSelection).toBeNull();
+    expect(handle.current?.djEventSelection).toBeNull();
+  });
+
+  test('click inside .mr-dj-value-editor preserves DJ selection', () => {
+    const handle: ProbeHandle = { current: null };
+    render(<HarnessWithDJ handle={handle} />);
+    seedSelection(handle, 'dj');
+    dispatchPointerDown(document.querySelector('[data-target="dj-editor-canvas"]') as Element);
+    expect(handle.current?.djActionSelection).not.toBeNull();
+    expect(handle.current?.djEventSelection).not.toBeNull();
+  });
+});

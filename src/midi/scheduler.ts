@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Note } from '../components/piano-roll/notes';
 import type { ActionMapEntry, OutputMapping, PressurePoint } from '../data/dj';
+import { resolveOutKind } from '../data/dj';
 import { beatsToSessionTicks } from './sessionTicks';
 import { DEFAULT_MIDI_TPQ } from './timelineTicks';
 import { synthesizePressure } from '../data/pressure';
@@ -90,9 +91,11 @@ type PlayableSource = ChannelPlayableSource | DJPlayableSource;
 interface ResolvedEmit {
   channelByte: number;
   pitch: number;
+  /** For note/CC paths: 0..127. For PB path: raw 0..1; `emitPitchBend` converts to 14-bit. */
   vel: number;
   pressure?: PressurePoint[];
   ccOut?: number;
+  pbOut?: true;
 }
 
 function binarySearchFirstAtOrAfterTicks(items: NoteLikeEvent[], targetTicks: number): number {
@@ -185,7 +188,30 @@ function resolveDJEmit(
   const channel = mapping?.channel ?? source.track.midiChannel;
   const channelByte = (channel - 1) & 0x0f;
   const outputPitch = mapping?.pitch ?? event.pitch;
+  const kind = resolveOutKind(mapping);
 
+  if (kind === 'pb') {
+    return {
+      channelByte,
+      pitch: outputPitch,
+      vel: event.vel,
+      pbOut: true,
+    };
+  }
+
+  if (kind === 'cc') {
+    const ccNum = mapping?.cc;
+    if (ccNum === undefined || ccNum < 0 || ccNum > 127) return null;
+    const ccVal = Math.min(127, Math.max(0, Math.round(event.vel * 127)));
+    return {
+      channelByte,
+      pitch: outputPitch,
+      vel: ccVal,
+      ccOut: ccNum,
+    };
+  }
+
+  /* kind === 'note' */
   if (action.pressure === true) {
     const vel = Math.min(127, Math.max(1, Math.round(event.vel * 127)));
     const pressurePoints =
@@ -205,17 +231,6 @@ function resolveDJEmit(
       pitch: outputPitch,
       vel,
       pressure: pressurePoints,
-    };
-  }
-
-  const ccNum = mapping?.cc;
-  if (ccNum !== undefined && ccNum >= 0 && ccNum <= 127) {
-    const ccVal = Math.min(127, Math.max(0, Math.round(event.vel * 127)));
-    return {
-      channelByte,
-      pitch: outputPitch,
-      vel: ccVal,
-      ccOut: ccNum,
     };
   }
 
@@ -347,6 +362,48 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     channelsActivated.set(channelActKey(output.id, channelByte), { outputId: output.id, channelByte });
   }
 
+  function emitPitchBend(
+    output: SchedulerOutput | null,
+    channelByte: number,
+    vel: number,
+    eventStartPlayheadMs: number,
+    now: number,
+    playheadMs: number,
+  ): void {
+    if (!output) return;
+    const v14 = Math.max(0, Math.min(16383, Math.round(vel * 16383)));
+    const lsb = v14 & 0x7f;
+    const msb = (v14 >> 7) & 0x7f;
+    const nowFloor = typeof performance !== 'undefined' ? performance.now() : now;
+    const ts = Math.max(nowFloor, now + (eventStartPlayheadMs - playheadMs));
+    output.send([0xe0 | channelByte, lsb, msb], ts);
+    channelsActivated.set(channelActKey(output.id, channelByte), { outputId: output.id, channelByte });
+  }
+
+  /* (outputId, channelByte) pairs that have at least one PB-output row in the
+     active session — populated by `start()` from the djTracks snapshot. Used
+     to emit a tick-0 PB-center on play and a PB-center sweep during panic
+     even when no PB event actually dispatched. */
+  const pbRowChannels = new Map<string, { outputId: string; channelByte: number }>();
+
+  function collectPBRowChannels(djTracks: DJTrackSnapshot[]): void {
+    pbRowChannels.clear();
+    for (const track of djTracks) {
+      const pitches = Object.keys(track.outputMap);
+      for (const ps of pitches) {
+        const pitch = Number(ps);
+        const mapping = track.outputMap[pitch];
+        if (resolveOutKind(mapping) !== 'pb') continue;
+        const channel = mapping?.channel ?? track.midiChannel;
+        const channelByte = (channel - 1) & 0x0f;
+        const portId = resolveDJPortId(track, pitch) || undefined;
+        const out = deps.getMidiOutput(portId);
+        if (!out) continue;
+        pbRowChannels.set(`${out.id}|${channelByte}`, { outputId: out.id, channelByte });
+      }
+    }
+  }
+
   function start(
     playheadMs: number,
     bpm: number,
@@ -362,6 +419,15 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     channelsActivated.clear();
     atLastEmitMsByChannel.clear();
     rebindCursors(buildSources(channels, djTracks), playheadMs);
+    collectPBRowChannels(djTracks);
+    /* Tick-0 PB center: put every PB-output channel at MIDI neutral (8192)
+       before the first scheduled event dispatches. */
+    for (const [, { outputId, channelByte }] of pbRowChannels) {
+      const out = deps.getMidiOutput(outputId);
+      if (out) {
+        out.send([0xe0 | channelByte, 0x00, 0x40]);
+      }
+    }
     if (!deps.primaryOutput) {
       deps.toast('No output device available');
     } else {
@@ -421,7 +487,16 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
                   resolveDJPortId(source.track, evPitch) || undefined,
                 );
           const endMs = ((event.tTicks + event.durTicks) / DEFAULT_MIDI_TPQ) * msPerBeat;
-          if (emit.ccOut !== undefined) {
+          if (emit.pbOut === true) {
+            emitPitchBend(
+              midiOut,
+              emit.channelByte,
+              emit.vel,
+              startMs,
+              now,
+              playheadMs,
+            );
+          } else if (emit.ccOut !== undefined) {
             emitControlChange(
               midiOut,
               emit.channelByte,
@@ -456,6 +531,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (!running) {
       activeNoteOns.clear();
       channelsActivated.clear();
+      pbRowChannels.clear();
       cursors.clear();
       atLastEmitMsByChannel.clear();
       return;
@@ -473,8 +549,17 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         out.send([0xb0 | channelByte, 0x7b, 0x00]);
       }
     }
+    /* PB-center sweep: re-center any channel carrying a PB-output row,
+       regardless of whether a PB event dispatched this session. AFTER ANO. */
+    for (const [, { outputId, channelByte }] of pbRowChannels) {
+      const out = deps.getMidiOutput(outputId);
+      if (out) {
+        out.send([0xe0 | channelByte, 0x00, 0x40]);
+      }
+    }
     activeNoteOns.clear();
     channelsActivated.clear();
+    pbRowChannels.clear();
     cursors.clear();
     atLastEmitMsByChannel.clear();
     tempoSnapshot = 0;

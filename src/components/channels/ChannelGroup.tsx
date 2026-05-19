@@ -16,6 +16,7 @@ import {
   type ChannelId,
   type PianoRollTrack,
 } from '../../hooks/useChannels';
+import type { QuantizeGrid } from '../../midi/quantizeGrid';
 import './ChannelGroup.css';
 
 interface ChannelGroupProps {
@@ -40,6 +41,10 @@ interface ChannelGroupProps {
   onAddParamLane: (channelId: ChannelId, kind: ParamLaneKind, cc?: number) => void;
   onSelectTimelineChannel?: () => void;
   onRollNoteSelect?: (noteIndex: number) => void;
+  onRollNoteMove?: (noteIndex: number, nextTTicks: number) => void;
+  quantizeOn?: boolean;
+  quantizeGrid?: QuantizeGrid;
+  snapAbsoluteOn?: boolean;
   timelineHeaderSelected?: boolean;
 }
 
@@ -65,6 +70,10 @@ export function ChannelGroup({
   onAddParamLane,
   onSelectTimelineChannel,
   onRollNoteSelect,
+  onRollNoteMove,
+  quantizeOn,
+  quantizeGrid,
+  snapAbsoluteOn,
   timelineHeaderSelected,
 }: ChannelGroupProps) {
   const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
@@ -138,6 +147,10 @@ export function ChannelGroup({
               onToggleSoloed={onToggleRollSoloed}
               onSelectTimelineChannel={onSelectTimelineChannel}
               onRollNoteSelect={onRollNoteSelect}
+              onRollNoteMove={onRollNoteMove}
+              quantizeOn={quantizeOn}
+              quantizeGrid={quantizeGrid}
+              snapAbsoluteOn={snapAbsoluteOn}
               trackHeaderSelected={timelineHeaderSelected}
             />
           )}

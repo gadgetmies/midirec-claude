@@ -109,6 +109,15 @@ export interface UseDJActionTracksReturn {
   setDJTrackDefaultMidiInputDevice: (id: DJTrackId, inputDeviceId: string) => void;
   setDJTrackDefaultMidiOutputDevice: (id: DJTrackId, outputDeviceId: string) => void;
   appendDJActionEvent: (id: DJTrackId, event: ActionEvent) => void;
+  upsertDJEvent: (id: DJTrackId, pitch: number, tTicks: number, vel: number) => void;
+  removeDJEventAtTick: (id: DJTrackId, pitch: number, tTicks: number) => void;
+  replaceDJEventsInRange: (
+    id: DJTrackId,
+    pitch: number,
+    rangeStart: number,
+    rangeEnd: number,
+    replacements: readonly { tTicks: number; vel: number }[],
+  ) => void;
 }
 
 /* Demo seed (`demo=dj` or `demo=dj-empty`): same deck + mixer strips and
@@ -509,6 +518,32 @@ export function useDJActionTracks(
     });
   }, []);
 
+  const upsertDJEvent = useCallback(
+    (id: DJTrackId, pitch: number, tTicks: number, vel: number) => {
+      setDJActionTracks((prev) => applyUpsertDJEvent(prev, id, pitch, tTicks, vel));
+    },
+    [],
+  );
+
+  const removeDJEventAtTick = useCallback((id: DJTrackId, pitch: number, tTicks: number) => {
+    setDJActionTracks((prev) => applyRemoveDJEventAtTick(prev, id, pitch, tTicks));
+  }, []);
+
+  const replaceDJEventsInRange = useCallback(
+    (
+      id: DJTrackId,
+      pitch: number,
+      rangeStart: number,
+      rangeEnd: number,
+      replacements: readonly { tTicks: number; vel: number }[],
+    ) => {
+      setDJActionTracks((prev) =>
+        applyReplaceDJEventsInRange(prev, id, pitch, rangeStart, rangeEnd, replacements),
+      );
+    },
+    [],
+  );
+
   return {
     djActionTracks,
     toggleDJTrackCollapsed,
@@ -527,6 +562,9 @@ export function useDJActionTracks(
     setDJTrackDefaultMidiInputDevice,
     setDJTrackDefaultMidiOutputDevice,
     appendDJActionEvent,
+    upsertDJEvent,
+    removeDJEventAtTick,
+    replaceDJEventsInRange,
   };
 }
 
@@ -645,6 +683,101 @@ export function applySetEventPressure(
   nextEvents[eventIdx] = nextEvent;
   const next = tracks.slice();
   next[trackIdx] = { ...track, events: nextEvents };
+  return next;
+}
+
+/* Pure: upsert a single event on `(id, pitch)` keyed by `tTicks`.
+   - If an existing event on the row has `tTicks === target`, replace its
+     `vel` (preserving its `durTicks` and `pressure`).
+   - Otherwise append a new event `{ pitch, tTicks, durTicks: 0, vel }`.
+
+   No-op (returns the input reference) for unknown track ids. */
+export function applyUpsertDJEvent(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  tTicks: number,
+  vel: number,
+): DJActionTrack[] {
+  const trackIdx = tracks.findIndex((t) => t.id === id);
+  if (trackIdx < 0) return tracks;
+  const track = tracks[trackIdx];
+  const clampedTicks = Math.max(0, Math.round(tTicks));
+  const clampedVel = Math.max(0, Math.min(1, vel));
+  const existingIdx = track.events.findIndex(
+    (ev) => ev.pitch === pitch && ev.tTicks === clampedTicks,
+  );
+  const nextEvents = track.events.slice();
+  if (existingIdx >= 0) {
+    const existing = nextEvents[existingIdx];
+    if (existing.vel === clampedVel) return tracks;
+    nextEvents[existingIdx] = { ...existing, vel: clampedVel };
+  } else {
+    nextEvents.push({ pitch, tTicks: clampedTicks, durTicks: 0, vel: clampedVel });
+  }
+  const next = tracks.slice();
+  next[trackIdx] = { ...track, events: nextEvents };
+  return next;
+}
+
+/* Pure: remove every event on `(id, pitch)` whose `tTicks === target`.
+   Right-click delete in the value editor uses this to clear a single cell.
+   No-op for unknown track ids or when the row has no event at `target`. */
+export function applyRemoveDJEventAtTick(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  tTicks: number,
+): DJActionTrack[] {
+  const trackIdx = tracks.findIndex((t) => t.id === id);
+  if (trackIdx < 0) return tracks;
+  const track = tracks[trackIdx];
+  const target = Math.round(tTicks);
+  const filtered = track.events.filter((ev) => !(ev.pitch === pitch && ev.tTicks === target));
+  if (filtered.length === track.events.length) return tracks;
+  const next = tracks.slice();
+  next[trackIdx] = { ...track, events: filtered };
+  return next;
+}
+
+/* Pure: replace every event on `(id, pitch)` with `tTicks` in the inclusive
+   range `[rangeStart, rangeEnd]` with the given `replacements`. Events on
+   other pitches or outside the range are left untouched. `replacements` are
+   appended as new ActionEvent rows with `durTicks: 0`. Used by:
+   - Shift-click interpolation (write interp cells + clear off-grid in range)
+   - Bulk-op chips Smooth / Flatten (replace in-range with 16 cells)
+   - Bulk-op chip Clear (empty replacements)
+
+   No-op for unknown track ids; rangeStart > rangeEnd is normalized. */
+export function applyReplaceDJEventsInRange(
+  tracks: DJActionTrack[],
+  id: DJTrackId,
+  pitch: number,
+  rangeStart: number,
+  rangeEnd: number,
+  replacements: readonly { tTicks: number; vel: number }[],
+): DJActionTrack[] {
+  const trackIdx = tracks.findIndex((t) => t.id === id);
+  if (trackIdx < 0) return tracks;
+  const track = tracks[trackIdx];
+  const lo = Math.min(rangeStart, rangeEnd);
+  const hi = Math.max(rangeStart, rangeEnd);
+  const filtered = track.events.filter(
+    (ev) => !(ev.pitch === pitch && ev.tTicks >= lo && ev.tTicks <= hi),
+  );
+  const appended = replacements.map((r) => ({
+    pitch,
+    tTicks: Math.max(0, Math.round(r.tTicks)),
+    durTicks: 0,
+    vel: Math.max(0, Math.min(1, r.vel)),
+  }));
+  /* Avoid producing a new reference when nothing changed (empty range with
+     no events to remove and no replacements to insert). */
+  if (filtered.length === track.events.length && appended.length === 0) {
+    return tracks;
+  }
+  const next = tracks.slice();
+  next[trackIdx] = { ...track, events: [...filtered, ...appended] };
   return next;
 }
 

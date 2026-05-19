@@ -145,6 +145,15 @@ export interface StageState {
   setDJTrackDefaultMidiInputDevice: (trackId: DJTrackId, inputDeviceId: string) => void;
   setDJTrackDefaultMidiOutputDevice: (trackId: DJTrackId, outputDeviceId: string) => void;
   appendDJActionEvent: (trackId: DJTrackId, event: ActionEvent) => void;
+  upsertDJEvent: (trackId: DJTrackId, pitch: number, tTicks: number, vel: number) => void;
+  removeDJEventAtTick: (trackId: DJTrackId, pitch: number, tTicks: number) => void;
+  replaceDJEventsInRange: (
+    trackId: DJTrackId,
+    pitch: number,
+    rangeStart: number,
+    rangeEnd: number,
+    replacements: readonly { tTicks: number; vel: number }[],
+  ) => void;
   toggleDJTrackCollapsed: (id: DJTrackId) => void;
   toggleDJTrackMuted: (id: DJTrackId) => void;
   toggleDJTrackSoloed: (id: DJTrackId) => void;
@@ -233,8 +242,25 @@ function useStageState(): StageState {
       const target = e.target as Element | null;
       if (!target) return;
       if (isSelectionPreservingChrome(target)) return;
-      if (target.closest('.mr-djtrack')) return;
       if (target.closest('[data-mr-dj-selection-region]')) return;
+      /* The DJ value editor footer paints into the same selection target —
+         clicks inside its canvas / chrome must not clear the selection that
+         keeps the editor mounted. */
+      if (target.closest('.mr-dj-value-editor')) return;
+      /* Within a DJ track, preserve clicks on selection-bearing chrome only:
+         the keys column row (mr-actkey), CC clusters/cells, note items, and
+         the header. A click in empty lane-body space falls through to the
+         clear path so the editor closes and any item highlight clears. */
+      if (target.closest('.mr-djtrack')) {
+        if (
+          target.closest('.mr-actkey') ||
+          target.closest('.mr-djtrack__cc') ||
+          target.closest('.mr-djtrack__note') ||
+          target.closest('.mr-djtrack__hdr')
+        ) {
+          return;
+        }
+      }
       setDJActionSelection(null);
       setDJEventSelection(null);
     };
@@ -364,6 +390,9 @@ function useStageState(): StageState {
     setDJTrackDefaultMidiInputDevice: djTracks.setDJTrackDefaultMidiInputDevice,
     setDJTrackDefaultMidiOutputDevice: djTracks.setDJTrackDefaultMidiOutputDevice,
     appendDJActionEvent: djTracks.appendDJActionEvent,
+    upsertDJEvent: djTracks.upsertDJEvent,
+    removeDJEventAtTick: djTracks.removeDJEventAtTick,
+    replaceDJEventsInRange: djTracks.replaceDJEventsInRange,
     djActionTracks: djTracks.djActionTracks,
     djActionSelection,
     setDJActionSelection,

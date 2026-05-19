@@ -5,6 +5,7 @@ import { KEYS_COLUMN_WIDTH, PianoRoll } from '../piano-roll/PianoRoll';
 import type { Marquee } from '../piano-roll/notes';
 import { Minimap } from './Minimap';
 import type { Channel, PianoRollTrack } from '../../hooks/useChannels';
+import type { QuantizeGrid } from '../../midi/quantizeGrid';
 import './Track.css';
 
 export interface TrackViewProps {
@@ -34,6 +35,10 @@ interface TrackProps {
   onToggleSoloed: () => void;
   onSelectTimelineChannel?: () => void;
   onRollNoteSelect?: (noteIndex: number) => void;
+  onRollNoteMove?: (noteIndex: number, nextTTicks: number) => void;
+  quantizeOn?: boolean;
+  quantizeGrid?: QuantizeGrid;
+  snapAbsoluteOn?: boolean;
   trackHeaderSelected?: boolean;
 }
 
@@ -50,6 +55,10 @@ export function Track({
   onToggleSoloed,
   onSelectTimelineChannel,
   onRollNoteSelect,
+  onRollNoteMove,
+  quantizeOn,
+  quantizeGrid,
+  snapAbsoluteOn,
   trackHeaderSelected,
 }: TrackProps) {
   const selectHeader = (event: MouseEvent<HTMLDivElement>) => {
@@ -137,6 +146,10 @@ export function Track({
             viewT0Ticks={v0}
             playheadTicks={viewProps.playheadTicks}
             onNoteSelect={onRollNoteSelect}
+            onNoteMove={onRollNoteMove}
+            quantizeOn={quantizeOn}
+            quantizeGrid={quantizeGrid}
+            snapAbsoluteOn={snapAbsoluteOn}
           />
         </div>
       )}

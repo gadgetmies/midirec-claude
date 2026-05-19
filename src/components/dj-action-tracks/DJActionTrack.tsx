@@ -4,6 +4,7 @@ import { MSChip } from '../ms-chip/MSChip';
 import { ActionKeys } from './ActionKeys';
 import { ActionRoll } from './ActionRoll';
 import type { DJActionTrack as DJActionTrackData } from '../../hooks/useDJActionTracks';
+import type { QuantizeGrid } from '../../midi/quantizeGrid';
 import './DJActionTrack.css';
 import './ActionKeys.css';
 import './ActionRoll.css';
@@ -23,6 +24,9 @@ interface DJActionTrackProps {
   onToggleRowSoloed: (pitch: number) => void;
   onSelectTimelineTrack?: () => void;
   timelineHeaderSelected?: boolean;
+  quantizeOn?: boolean;
+  quantizeGrid?: QuantizeGrid;
+  snapAbsoluteOn?: boolean;
 }
 
 export function DJActionTrack({
@@ -40,6 +44,9 @@ export function DJActionTrack({
   onToggleRowSoloed,
   onSelectTimelineTrack,
   timelineHeaderSelected,
+  quantizeOn,
+  quantizeGrid,
+  snapAbsoluteOn,
 }: DJActionTrackProps) {
   const rowCount = Object.keys(track.actionMap).length;
 
@@ -111,6 +118,9 @@ export function DJActionTrack({
             pxPerBeat={pxPerBeat}
             rowHeight={rowHeight}
             playheadTicks={playheadTicks}
+            quantizeOn={quantizeOn}
+            quantizeGrid={quantizeGrid}
+            snapAbsoluteOn={snapAbsoluteOn}
           />
         </div>
       )}

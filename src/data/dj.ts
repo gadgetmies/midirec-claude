@@ -48,6 +48,9 @@ export interface ActionMapEntry {
   midiInputCc?: number;
 }
 
+/** Discriminates which MIDI message family playback emits for events on a row. */
+export type OutputKind = 'note' | 'cc' | 'pb';
+
 /* The MIDI emitted on playback when an action fires. Distinct from the
    input binding in ActionMapEntry (which says "incoming pitch X means this
    action"). An action may have no output mapping at all (the entry can be
@@ -60,8 +63,19 @@ export interface OutputMapping {
   channel: number;
   pitch: number;
   cc?: number;
+  /** Output message family discriminator. When unset, legacy semantics apply:
+      `cc !== undefined` resolves to `'cc'`, otherwise `'note'`. */
+  out?: OutputKind;
   /** Web MIDI output port id; when absent, DJ playback uses the track default output port. */
   midiOutputDeviceId?: string;
+}
+
+/** Resolve the effective output kind for an OutputMapping, applying legacy back-compat.
+ *  Explicit `out` always wins. When unset, `cc !== undefined` means CC, otherwise note. */
+export function resolveOutKind(mapping: OutputMapping | undefined): OutputKind {
+  if (mapping?.out) return mapping.out;
+  if (mapping?.cc !== undefined) return 'cc';
+  return 'note';
 }
 
 /** Default output MIDI CC numbers for continuous mixer template actions (DJ mixer surface). */
@@ -128,6 +142,9 @@ export function normalizeOutputMapping(m: OutputMapping): OutputMapping {
   }
   if (m.cc !== undefined && Number.isFinite(m.cc)) {
     next.cc = Math.max(0, Math.min(127, Math.round(m.cc)));
+  }
+  if (m.out === 'note' || m.out === 'cc' || m.out === 'pb') {
+    next.out = m.out;
   }
   return next;
 }

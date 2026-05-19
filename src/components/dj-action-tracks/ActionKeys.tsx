@@ -20,12 +20,16 @@ interface ActionKeysProps {
 }
 
 export function ActionKeys({ track, onToggleRowMuted, onToggleRowSoloed }: ActionKeysProps) {
-  const { djActionSelection, setDJActionSelection } = useStage();
+  const { djActionSelection, setDJActionSelection, setDJEventSelection } = useStage();
 
   const pitches = djActionRowOrderTopToBottom(track.actionMap);
 
   const selectRow = (pitch: number) => {
     setDJActionSelection({ trackId: track.id, pitch });
+    /* Switching rows invalidates any previously-selected event (the event
+       lives on the previous row). Without this, deriveEditorMode would
+       see a stale evtSel pointing at a different row's event. */
+    setDJEventSelection(null);
   };
 
   return (

@@ -28,7 +28,6 @@ import { useMidiOutputs } from '../../midi/MidiRuntimeProvider';
 import { useMidiLearn } from '../../midi/useMidiLearn';
 import type { MidiLearnWireMessage } from '../../midi/midiLearn';
 import type { ChannelId } from '../../hooks/useChannels';
-import { PressureEditor } from './PressureEditor';
 import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 import './Inspector.css';
@@ -397,7 +396,6 @@ function ActionPanel({
     djEventSelection.eventIdx < track.events.length &&
     track.events[djEventSelection.eventIdx].pitch === pitch;
   const showStart = eventMatches;
-  const showPressure = eventMatches && entry.pressure === true;
   const selectedEvent = eventMatches ? track.events[djEventSelection!.eventIdx] : null;
   /* For a CC merged cluster representative, the editor's Length/End should
      reflect the cluster's full span, not the representative event's own
@@ -587,14 +585,6 @@ function ActionPanel({
         />
       )}
 
-      {showPressure && djEventSelection && (
-        <PressureEditor
-          track={track}
-          pitch={pitch}
-          eventIdx={djEventSelection.eventIdx}
-          entry={entry}
-        />
-      )}
     </div>
   );
 }

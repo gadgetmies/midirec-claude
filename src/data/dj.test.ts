@@ -6,6 +6,7 @@ import {
   defaultMixerOutputCc,
   normalizeActionMapEntry,
   normalizeOutputMapping,
+  resolveOutKind,
   resolvedDjRowOutputCc,
   type ActionMapEntry,
   type OutputMapping,
@@ -158,6 +159,34 @@ describe('resolvedDjRowOutputCc', () => {
     const actionMap = { 48: play };
     const outputMap: Record<number, OutputMapping> = {};
     expect(resolvedDjRowOutputCc(actionMap, outputMap, 48)).toBeUndefined();
+  });
+});
+
+describe('resolveOutKind', () => {
+  const base = { device: 'mixer', channel: 1, pitch: 60 } as const;
+
+  test('explicit out:pb wins', () => {
+    expect(resolveOutKind({ ...base, out: 'pb' })).toBe('pb');
+  });
+
+  test('explicit out:cc wins', () => {
+    expect(resolveOutKind({ ...base, out: 'cc' })).toBe('cc');
+  });
+
+  test('explicit out:note wins even when cc is set (stale data)', () => {
+    expect(resolveOutKind({ ...base, cc: 7, out: 'note' })).toBe('note');
+  });
+
+  test('legacy: cc set with no out resolves to cc', () => {
+    expect(resolveOutKind({ ...base, cc: 7 })).toBe('cc');
+  });
+
+  test('bare mapping with neither cc nor out resolves to note', () => {
+    expect(resolveOutKind(base)).toBe('note');
+  });
+
+  test('undefined mapping resolves to note', () => {
+    expect(resolveOutKind(undefined)).toBe('note');
   });
 });
 
