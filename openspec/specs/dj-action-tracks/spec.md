@@ -89,6 +89,15 @@ interface ActionEvent {
   vel: number;
 }
 
+interface OutputMapping {
+  device: string;
+  channel: number;
+  pitch: number;
+  cc?: number;
+  out?: 'note' | 'cc' | 'pb';
+  midiOutputDeviceId?: string;
+}
+
 interface DJActionTrack {
   id: DJTrackId;
   name: string;
@@ -113,9 +122,21 @@ The `midiChannel` field SHALL be a MIDI channel number in the inclusive range `1
 
 The `actionMap` field SHALL be **the set of input bindings actively configured on this track** — NOT a reference to a catalog of all possible actions. The track's body SHALL render exactly one row per entry in `actionMap`. The catalog of available actions a user can pick from lives in `DEFAULT_ACTION_MAP` (exported from `src/data/dj.ts`), which is a SOURCE for the picker, not a track's actionMap.
 
-The `outputMap` field SHALL hold per-pitch **optional output-mapping overrides**, keyed by the same pitch keys that drive `actionMap`. When `outputMap[pitch]` is present and **`cc` is absent or `undefined`**, its `channel` and `pitch` override `track.midiChannel` and the event's row pitch for note-on/note-off emission, respectively. When `outputMap[pitch].cc` is present (`0..127`), playback SHALL emit **Control Change** messages on that CC number on the resolved output channel per `midi-playback`; the `pitch` field remains persisted for UI and migration. When `outputMap[pitch]` is absent, the event emits with `track.midiChannel` as the channel and the event's own `pitch` as the output pitch for note mode. Deleting an action via `deleteActionEntry` SHALL also remove the matching `outputMap` entry. When a DJ demo track is seeded, initial `outputMap` SHALL be `{}`.
+The `outputMap` field SHALL hold per-pitch **optional output-mapping overrides**, keyed by the same pitch keys that drive `actionMap`. The **`out` discriminator** SHALL determine which MIDI message family playback emits for events on that row:
 
-The `events` field SHALL be the list of action events associated with this track. In Slice 7b these are synthetic demo events seeded **only when `demo=dj` is enabled** at first render; a future routing slice MAY replace this with events derived from channel-track notes via `inputRouting`.
+| `out` value | Behavior |
+|---|---|
+| `'note'` | Note-on / note-off using `outputMap[pitch].channel` / `outputMap[pitch].pitch` as overrides; the `cc` field is ignored. |
+| `'cc'` | Control Change on `outputMap[pitch].cc` (which MUST be `0..127` for this branch to dispatch); the `pitch` field is persisted for UI/migration but ignored for emit. |
+| `'pb'` | Pitch-bend (`0xE_`); the `cc` field is ignored; the `pitch` field is persisted for UI/migration but ignored for emit. |
+
+When `out` is **unset**: legacy data SHALL be interpreted by the `cc` field's presence — `cc !== undefined` means CC out, `cc === undefined` means note out. New writes SHOULD set `out` explicitly; readers SHALL accept both legacy and explicit forms identically.
+
+The `midiOutputDeviceId` field, when present and non-empty, SHALL identify the Web MIDI output port for events on this row (see `midi-playback`). When absent or empty, the track-level `defaultMidiOutputDeviceId` (or the session-wide fallback) applies.
+
+Deleting an action via `deleteActionEntry` SHALL also remove the matching `outputMap` entry. When a DJ demo track is seeded, initial `outputMap` SHALL be `{}`.
+
+The `events` field SHALL be the list of action events associated with this track. In Slice 7b these are synthetic demo events seeded **only when `demo=dj` is enabled** at first render; a future routing slice MAY replace this with events derived from channel-track notes via `inputRouting`. For CC-out and PB-out rows, each `ActionEvent` represents one continuous-value sample: `event.vel` carries the normalized `0..1` value the scheduler expands to a 7-bit CC data byte (`Math.round(vel * 127)`) or a 14-bit pitch-bend value (`Math.round(vel * 16383)`) at emit time.
 
 The `mutedRows` and `soloedRows` fields SHALL track per-row M/S state, exactly as in Slice 7b.
 
@@ -135,13 +156,25 @@ When **no** `demo=dj` flag is present at first render, `useDJActionTracks()` SHA
 - **AND** `djActionTracks[0]` SHALL have `id === 'dj1'`
 - **AND** `djActionTracks[0].midiChannel` SHALL be `16`
 - **AND** `djActionTracks[0].outputMap` SHALL be an empty object
-- **AND** `Object.keys(djActionTracks[0].actionMap).length` SHALL equal the implementation’s seeded pitch count (`6`)
+- **AND** `Object.keys(djActionTracks[0].actionMap).length` SHALL equal the implementation's seeded pitch count (`6`)
 - **AND** `djActionTracks[0].events.length` SHALL be ≥ 10
 
-#### Scenario: outputMap with cc overrides note output per midi-playback
+#### Scenario: outputMap with out:'cc' emits Control Change
 
-- **WHEN** `outputMap[80]` exists as `{ device: 'mixer', channel: 2, pitch: 80, cc: 7 }` for a mixer volume row
+- **WHEN** `outputMap[80]` exists as `{ device: 'mixer', channel: 2, pitch: 80, cc: 7, out: 'cc' }` for a mixer volume row
 - **THEN** playback SHALL emit Control Change on CC 7 (not note-on for pitch 80) when that row dispatches, subject to `midi-playback` CC rules
+
+#### Scenario: outputMap with out:'pb' emits Pitch-bend
+
+- **WHEN** `outputMap[80]` exists as `{ device: 'mixer', channel: 2, pitch: 80, out: 'pb' }` for a pitch-bend row
+- **THEN** playback SHALL emit Pitch-bend (`0xE_ LSB MSB`) on channel 2 when that row dispatches, subject to the `midi-playback` PB rules
+- **AND** the `pitch` field SHALL be persisted but ignored for the wire-level emit
+
+#### Scenario: Legacy outputMap with cc but no out is interpreted as CC out
+
+- **WHEN** `outputMap[80]` exists as `{ device: 'mixer', channel: 2, pitch: 80, cc: 7 }` with no `out` field
+- **THEN** playback SHALL emit Control Change on CC 7 (back-compat behavior)
+- **AND** the row SHALL be treated as a CC-output row by selection-derived consumers (e.g. the DJ value editor)
 
 ### Requirement: Stage exposes dj-action-track state and per-track toggles
 

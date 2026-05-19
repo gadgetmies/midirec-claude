@@ -277,7 +277,8 @@ The panel SHALL render, in DOM order:
 6. A `.mr-kv` row with key text `Channel` and a value that is an `<input type="number" min="1" max="16" class="mr-input">`. The current value SHALL be the existing `outputMap[pitch].channel` if set, otherwise `1`.
 7. A `.mr-kv` row with key text `Pitch` and a value that contains an `<input type="number" min="0" max="127" class="mr-input">` followed by a `<span>` showing `pitchLabel(currentPitch)`. The input's current value SHALL be the existing `outputMap[pitch].pitch` if set, otherwise the input binding's `pitch`.
 8. When `outputMap[pitch]` is set (i.e. the mapping has been created), a footer row containing a single button with `data-danger="true"` and text content `Delete output`.
-9. When ALL of the following hold — `djEventSelection !== null`, the event selection refers to the same `(trackId, pitch)` as `djActionSelection`, `actionMap[pitch]?.pressure === true`, and `track.events[djEventSelection.eventIdx] !== undefined` — a Pressure section SHALL render below the Output rows (see the `dj-pressure-editor` capability for the section's internal layout). When any of those conditions is false, the Pressure section SHALL NOT render.
+
+The Inspector body SHALL NOT render any `.mr-pressure` element. The pressure section that previously appeared below the Output rows (when `djEventSelection` referred to a pressure-bearing event on the same row) has been removed: pressure editing now happens in the dedicated DJ value editor (see `dj-value-editor` capability), which mounts as a global sticky footer keyed off `djEventSelection`.
 
 #### Scenario: Output panel renders for a selected DJ action row with no existing outputMap
 
@@ -310,23 +311,11 @@ The panel SHALL render, in DOM order:
 - **WHEN** the Output panel is rendered
 - **THEN** the wrapper element SHALL carry `data-mr-dj-selection-region="true"`
 
-#### Scenario: Pressure section renders below Output rows when an event is selected on a pressure-bearing action
+#### Scenario: Inspector body never contains a pressure section
 
-- **WHEN** `djActionSelection === { trackId: 'dj1', pitch: 56 }` AND `djEventSelection === { trackId: 'dj1', pitch: 56, eventIdx: 2 }` AND `actionMap[56].pressure === true` AND `track.events[2]` exists
-- **THEN** the Inspector body SHALL contain exactly one `.mr-pressure` element
-- **AND** that `.mr-pressure` element SHALL be a child of the same wrapper that contains the Output `.mr-kv` rows
-
-#### Scenario: Pressure section absent when event is not selected
-
-- **WHEN** `djActionSelection === { trackId: 'dj1', pitch: 56 }` AND `djEventSelection === null`
-- **THEN** the Inspector body SHALL contain the Output rows
-- **AND** the Inspector body SHALL NOT contain any `.mr-pressure` element
-
-#### Scenario: Pressure section absent when action does not support pressure
-
-- **WHEN** `djActionSelection === { trackId: 'dj1', pitch: 48 }` AND `djEventSelection === { trackId: 'dj1', pitch: 48, eventIdx: 0 }` AND `actionMap[48].pressure !== true`
-- **THEN** the Inspector body SHALL contain the Output rows for the action
-- **AND** the Inspector body SHALL NOT contain any `.mr-pressure` element
+- **WHEN** the Inspector renders for any combination of `djActionSelection` and `djEventSelection`
+- **THEN** the Inspector body SHALL NOT contain any `.mr-pressure` element
+- **AND** the Inspector body SHALL NOT contain any `.mr-pressure__graph`, `.mr-pressure__summary`, `.mr-pressure__bulk`, `.mr-pressure__mode`, or `.mr-pressure__eyebrow` element
 
 #### Scenario: Output learn appears between Device and Channel
 
