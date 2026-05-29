@@ -43,7 +43,6 @@ import {
 import { parseDemoQueryFlags } from '../session/demoQuery';
 import {
   beatsToSessionTicks,
-  playheadTicksFromTimecodeMs,
   sessionTicksToBeats,
 } from '../midi/sessionTicks';
 import { isSelectionPreservingChrome } from './selectionChrome';
@@ -167,7 +166,7 @@ const LO = 48;
 const HI = 76;
 
 function useStageState(): StageState {
-  const { timecodeMs, bpm } = useTransport();
+  const { playheadTicks } = useTransport();
   const demo = useMemo(
     () =>
       typeof window === 'undefined'
@@ -296,7 +295,9 @@ function useStageState(): StageState {
   // rather than wrap back to 0. Visual overflow (cursor off the right edge of
   // the rendered timeline) is the lesser evil vs. an unrequested loop. Loop
   // wrap belongs to the transport tick reducer once loopRegion is real.
-  const playheadTicks = playheadTicksFromTimecodeMs(timecodeMs, bpm);
+  // `playheadTicks` is the transport's monotonic tick counter — pulse-counted
+  // under external clock so it doesn't wobble with smoothed bpm jitter, and
+  // bpm-derived under internal clock via the rAF tick reducer.
   const playheadT = sessionTicksToBeats(playheadTicks);
 
   const sessionHorizonFloorTicks = useMemo(

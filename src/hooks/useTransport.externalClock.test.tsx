@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
 import { TransportProvider, useTransport, type TransportValue } from './useTransport';
+import { DEFAULT_MIDI_TPQ } from '../midi/timelineTicks';
+
+const TICKS_PER_PULSE = DEFAULT_MIDI_TPQ / 24;
 
 afterEach(() => {
   cleanup();
@@ -136,5 +139,45 @@ describe('useTransport — external clock', () => {
     const initial = t.current!;
     act(() => t.current!.revertToInternalClock());
     expect(t.current!).toBe(initial);
+  });
+
+  test('applyExternalPulse advances playheadTicks by tpq/24 per pulse, regardless of bpm', () => {
+    const t = harness();
+    act(() => t.current!.play());
+    expect(t.current!.playheadTicks).toBe(0);
+
+    act(() => t.current!.applyExternalPulse(20.83, 120));
+    expect(t.current!.playheadTicks).toBe(TICKS_PER_PULSE);
+
+    // BPM jitter must not change tick advance: still +20 ticks per pulse.
+    act(() => t.current!.applyExternalPulse(20.16, 125));
+    expect(t.current!.playheadTicks).toBe(2 * TICKS_PER_PULSE);
+
+    act(() => t.current!.applyExternalPulse(20.9, 119));
+    expect(t.current!.playheadTicks).toBe(3 * TICKS_PER_PULSE);
+  });
+
+  test('applyExternalPulse does not advance playheadTicks when mode === idle', () => {
+    const t = harness();
+    expect(t.current!.mode).toBe('idle');
+    act(() => t.current!.applyExternalPulse(20.83, 120));
+    expect(t.current!.playheadTicks).toBe(0);
+  });
+
+  test('external playhead is monotonic across a downward bpm swing', () => {
+    const t = harness();
+    act(() => t.current!.play());
+
+    // Settle: simulate the smoother seeing 120bpm pulses for ~1 beat
+    for (let i = 0; i < 24; i++) {
+      act(() => t.current!.applyExternalPulse(20.83, 120));
+    }
+    const before = t.current!.playheadTicks;
+    expect(before).toBe(24 * TICKS_PER_PULSE);
+
+    // Smoother window sees a slow interval -> bpm reading dips to 100. The
+    // visible playhead must NOT regress because of the bpm drop.
+    act(() => t.current!.applyExternalPulse(20.83, 100));
+    expect(t.current!.playheadTicks).toBe(before + TICKS_PER_PULSE);
   });
 });

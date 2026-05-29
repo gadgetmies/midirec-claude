@@ -10,8 +10,11 @@ import {
 } from 'react';
 
 import type { QuantizeGrid } from '../midi/quantizeGrid';
+import { DEFAULT_MIDI_TPQ } from '../midi/timelineTicks';
 
 export type { QuantizeGrid };
+
+const TICKS_PER_PULSE = DEFAULT_MIDI_TPQ / 24;
 
 export type TransportMode = 'idle' | 'play' | 'record';
 
@@ -27,6 +30,11 @@ export interface TransportState {
   quantizeGrid: QuantizeGrid;
   snapAbsoluteOn: boolean;
   timecodeMs: number;
+  /** Playhead position in session ticks. In external-clock mode this advances
+      by `TICKS_PER_PULSE` per incoming `applyExternalPulse` so it stays
+      monotonic across smoother bpm jitter — the visible playhead must not
+      regress when the rounded bpm dips between pulses. */
+  playheadTicks: number;
   bar: string;
   bpm: number;
   sig: string;
@@ -81,6 +89,7 @@ interface InternalState {
   quantizeGrid: QuantizeGrid;
   snapAbsoluteOn: boolean;
   timecodeMs: number;
+  playheadTicks: number;
   /** The current effective BPM (mirrors external master when slaved). */
   bpm: number;
   /** The user-set BPM, restored when reverting to internal clock. */
@@ -98,12 +107,17 @@ const initialState: InternalState = {
   quantizeGrid: '1/16',
   snapAbsoluteOn: false,
   timecodeMs: 0,
+  playheadTicks: 0,
   bpm: 124,
   userBpm: 124,
   sig: '4/4',
   clockSource: 'internal',
   recordingStartedAt: null,
 };
+
+function ticksFromMsAtBpm(ms: number, bpm: number): number {
+  return (ms / 1000) * (bpm / 60) * DEFAULT_MIDI_TPQ;
+}
 
 function reducer(state: InternalState, action: Action): InternalState {
   switch (action.type) {
@@ -112,12 +126,13 @@ function reducer(state: InternalState, action: Action): InternalState {
     case 'pause':
       return { ...state, mode: 'idle', recordingStartedAt: null };
     case 'stop':
-      return { ...state, mode: 'idle', timecodeMs: 0, recordingStartedAt: null };
+      return { ...state, mode: 'idle', timecodeMs: 0, playheadTicks: 0, recordingStartedAt: null };
     case 'record':
       return {
         ...state,
         mode: 'record',
         timecodeMs: state.mode === 'idle' ? 0 : state.timecodeMs,
+        playheadTicks: state.mode === 'idle' ? 0 : state.playheadTicks,
         recordingStartedAt: state.mode === 'record' ? state.recordingStartedAt : performance.now(),
       };
     case 'toggleLoop':
@@ -130,23 +145,34 @@ function reducer(state: InternalState, action: Action): InternalState {
       return { ...state, snapAbsoluteOn: !state.snapAbsoluteOn };
     case 'setQuantizeGrid':
       return state.quantizeGrid === action.grid ? state : { ...state, quantizeGrid: action.grid };
-    case 'seek':
-      return { ...state, timecodeMs: Math.max(0, action.ms) };
+    case 'seek': {
+      const ms = Math.max(0, action.ms);
+      return { ...state, timecodeMs: ms, playheadTicks: ticksFromMsAtBpm(ms, state.bpm) };
+    }
     case 'tick':
       if (state.mode === 'idle') return state;
       // When slaved to external clock, the rAF tick is gated off — but if a
       // stray tick gets through (e.g., during a source-flip frame), no-op.
       if (state.clockSource === 'external-clock') return state;
-      return { ...state, timecodeMs: state.timecodeMs + action.deltaMs };
+      return {
+        ...state,
+        timecodeMs: state.timecodeMs + action.deltaMs,
+        playheadTicks: state.playheadTicks + ticksFromMsAtBpm(action.deltaMs, state.bpm),
+      };
     case 'applyExternalPulse': {
       // Source flips to external-clock atomically with the per-pulse advance —
       // combined action keeps the visible source / bpm / timecode commit in one frame.
+      // `playheadTicks` advances by a constant `TICKS_PER_PULSE` independent of
+      // the smoothed bpm reading so the visible playhead doesn't wobble when
+      // the rounded bpm bounces between neighbouring integers.
       const advance = state.mode !== 'idle' ? Math.max(0, action.deltaMs) : 0;
+      const tickAdvance = state.mode !== 'idle' ? TICKS_PER_PULSE : 0;
       return {
         ...state,
         clockSource: 'external-clock',
         bpm: action.bpm,
         timecodeMs: state.timecodeMs + advance,
+        playheadTicks: state.playheadTicks + tickAdvance,
       };
     }
     case 'revertToInternalClock': {
@@ -251,6 +277,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       quantizeGrid: state.quantizeGrid,
       snapAbsoluteOn: state.snapAbsoluteOn,
       timecodeMs: state.timecodeMs,
+      playheadTicks: state.playheadTicks,
       bar: bbsFromMs(state.timecodeMs, state.bpm, state.sig),
       bpm: state.bpm,
       sig: state.sig,
