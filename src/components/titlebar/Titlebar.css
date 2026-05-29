@@ -331,6 +331,82 @@
   color: var(--mr-accent);
 }
 
+/* Clk meta cell becomes a clickable picker. The .mr-meta wrapper needs
+   position: relative so the absolutely-positioned menu anchors to it. */
+.mr-meta--clk {
+  position: relative;
+}
+
+.mr-meta__val--btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mr-sp-2);
+}
+
+.mr-meta__val--btn svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0.55;
+}
+
+.mr-meta__val--btn:hover,
+.mr-meta__val--btn:focus-visible {
+  color: var(--mr-text-1);
+  outline: none;
+}
+
+.mr-clk__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 140px;
+  max-width: 240px;
+  background: var(--mr-bg-panel);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  border-radius: var(--mr-r-1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mr-clk__menu-row {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-2);
+  padding: 4px 8px;
+  border-radius: var(--mr-r-1);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-clk__menu-row:hover,
+.mr-clk__menu-row:focus {
+  background: var(--mr-bg-panel-2);
+  color: var(--mr-text-1);
+  outline: none;
+}
+
+.mr-clk__menu-row[data-on='true'] {
+  background: var(--mr-accent-soft);
+  color: var(--mr-accent);
+}
+
 .mr-status {
   display: inline-flex;
   align-items: center;
@@ -351,3 +427,18 @@
 
 /* `.mr-led` and its `data-state` variants live in src/styles/leds.css —
    shared with the Browser Sidebar's device rows. */
+
+/* Beat indicator: dim accent while external clock is present; transient
+   `is-pulse` class (driven by React on each beat increment, not a CSS
+   keyframe) provides the flash so the cadence matches the actual incoming
+   0xF8 pulse rather than a CSS-timed approximation. */
+.mr-led[data-state='beat'] {
+  background: var(--mr-accent);
+  opacity: 0.5;
+  transition: opacity 60ms ease-out, box-shadow 60ms ease-out;
+}
+
+.mr-led[data-state='beat'].is-pulse {
+  opacity: 1;
+  box-shadow: 0 0 6px var(--mr-accent-soft);
+}

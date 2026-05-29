@@ -1,14 +1,31 @@
-import { describe, expect, test, vi, afterEach } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { describe, expect, test, vi, afterEach, beforeEach } from 'vitest';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Titlebar } from './Titlebar';
 import { TransportProvider, useTransport, type TransportValue } from '../../hooks/useTransport';
+import type { MidiClockValue, ClockSourceSelection } from '../../midi/MidiClockProvider';
+
+let mockInputs: Array<{ id: string; name: string }> = [{ id: 'in1', name: 'Input 1' }];
+const setSelectionSpy = vi.fn<(sel: ClockSourceSelection) => void>();
+let mockClock: MidiClockValue = {
+  present: false,
+  bpm: null,
+  pulse: 0,
+  beat: 0,
+  running: false,
+  selection: 'auto',
+  setSelection: setSelectionSpy,
+};
 
 vi.mock('../../hooks/useStatusbar', () => ({
   useStatusbar: () => ({ active: false }),
 }));
 
 vi.mock('../../midi/MidiRuntimeProvider', () => ({
-  useMidiInputs: () => ({ inputs: [{ id: 'in1', name: 'Input 1' }] }),
+  useMidiInputs: () => ({ inputs: mockInputs }),
+}));
+
+vi.mock('../../midi/MidiClockProvider', () => ({
+  useMidiClock: () => mockClock,
 }));
 
 vi.mock('../toast/Toast', async () => {
@@ -16,6 +33,20 @@ vi.mock('../toast/Toast', async () => {
   return {
     ...actual,
     useToast: () => ({ show: vi.fn() }),
+  };
+});
+
+beforeEach(() => {
+  setSelectionSpy.mockClear();
+  mockInputs = [{ id: 'in1', name: 'Input 1' }];
+  mockClock = {
+    present: false,
+    bpm: null,
+    pulse: 0,
+    beat: 0,
+    running: false,
+    selection: 'auto',
+    setSelection: setSelectionSpy,
   };
 });
 
@@ -137,5 +168,140 @@ describe('Titlebar quantize grid select', () => {
     expect(gridChip.disabled).toBe(true);
     fireEvent.click(gridChip);
     expect(container.querySelector('.mr-quant__menu')).toBeNull();
+  });
+});
+
+describe('Titlebar BPM cell mirrors external clock', () => {
+  test('BPM cell renders 128 after external pulse injects bpm=128', () => {
+    const { container, transport } = renderTitlebar();
+    const metaCells = container.querySelectorAll('.mr-meta');
+    const bpmCell = metaCells[1]!;
+    expect(bpmCell.querySelector('.mr-meta__lbl')!.textContent).toBe('BPM');
+    expect(bpmCell.querySelector('.mr-meta__val')!.textContent).toBe('124');
+
+    act(() => {
+      transport.current!.applyExternalPulse(0, 128);
+    });
+    expect(bpmCell.querySelector('.mr-meta__val')!.textContent).toBe('128');
+
+    // Clk cell flips to Ext as well (3rd meta cell).
+    const clkCell = metaCells[2]!;
+    expect(clkCell.querySelector('.mr-meta__lbl')!.textContent).toBe('Clk');
+    expect(clkCell.querySelector('.mr-meta__val')!.textContent).toBe('Ext');
+
+    // Reverting clears it.
+    act(() => {
+      transport.current!.revertToInternalClock();
+    });
+    expect(bpmCell.querySelector('.mr-meta__val')!.textContent).toBe('124');
+    expect(clkCell.querySelector('.mr-meta__val')!.textContent).toBe('Int');
+  });
+});
+
+describe('Titlebar Clk picker', () => {
+  test('Clk cell renders as a button with aria-haspopup="listbox"', () => {
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    expect(clkBtn).toBeTruthy();
+    expect(clkBtn.tagName).toBe('BUTTON');
+    expect(clkBtn.getAttribute('aria-haspopup')).toBe('listbox');
+    expect(clkBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(clkBtn.textContent).toContain('Int');
+  });
+
+  test('clicking the Clk button opens menu with Auto + Internal + each device row', () => {
+    mockInputs = [
+      { id: 'a', name: 'Korg' },
+      { id: 'b', name: 'MicroFreak' },
+    ];
+    const { container } = renderTitlebar();
+    expect(container.querySelector('.mr-clk__menu')).toBeNull();
+
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+
+    const menu = container.querySelector('.mr-clk__menu');
+    expect(menu).toBeTruthy();
+    expect(menu!.getAttribute('role')).toBe('listbox');
+    expect(clkBtn.getAttribute('aria-expanded')).toBe('true');
+
+    const rows = Array.from(menu!.querySelectorAll('.mr-clk__menu-row'));
+    expect(rows.map((r) => r.textContent)).toEqual(['Auto', 'Internal', 'Korg', 'MicroFreak']);
+  });
+
+  test('selected row carries data-on and aria-selected matching current selection', () => {
+    mockClock = { ...mockClock, selection: 'internal' };
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+
+    const rows = Array.from(container.querySelectorAll('.mr-clk__menu-row')) as HTMLButtonElement[];
+    const auto = rows.find((r) => r.textContent === 'Auto')!;
+    const internal = rows.find((r) => r.textContent === 'Internal')!;
+    expect(auto.getAttribute('data-on')).toBeNull();
+    expect(auto.getAttribute('aria-selected')).toBe('false');
+    expect(internal.getAttribute('data-on')).toBe('true');
+    expect(internal.getAttribute('aria-selected')).toBe('true');
+  });
+
+  test('clicking Internal row calls setSelection("internal") and closes menu', () => {
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+
+    const internalRow = Array.from(container.querySelectorAll('.mr-clk__menu-row')).find(
+      (r) => r.textContent === 'Internal',
+    ) as HTMLButtonElement;
+    fireEvent.click(internalRow);
+
+    expect(setSelectionSpy).toHaveBeenCalledTimes(1);
+    expect(setSelectionSpy).toHaveBeenCalledWith('internal');
+    expect(container.querySelector('.mr-clk__menu')).toBeNull();
+  });
+
+  test('clicking a device row calls setSelection with the device id', () => {
+    mockInputs = [{ id: 'micro-1', name: 'MicroFreak' }];
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+
+    const deviceRow = Array.from(container.querySelectorAll('.mr-clk__menu-row')).find(
+      (r) => r.textContent === 'MicroFreak',
+    ) as HTMLButtonElement;
+    fireEvent.click(deviceRow);
+
+    expect(setSelectionSpy).toHaveBeenCalledWith('micro-1');
+  });
+
+  test('outside click closes menu without changing selection', () => {
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+    expect(container.querySelector('.mr-clk__menu')).toBeTruthy();
+
+    fireEvent.pointerDown(document.body);
+    expect(container.querySelector('.mr-clk__menu')).toBeNull();
+    expect(setSelectionSpy).not.toHaveBeenCalled();
+  });
+
+  test('Escape closes menu without changing selection', () => {
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+    expect(container.querySelector('.mr-clk__menu')).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(container.querySelector('.mr-clk__menu')).toBeNull();
+    expect(setSelectionSpy).not.toHaveBeenCalled();
+  });
+
+  test('menu still shows Auto + Internal when no devices are connected', () => {
+    mockInputs = [];
+    const { container } = renderTitlebar();
+    const clkBtn = container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement;
+    fireEvent.click(clkBtn);
+
+    const rows = Array.from(container.querySelectorAll('.mr-clk__menu-row'));
+    expect(rows.map((r) => r.textContent)).toEqual(['Auto', 'Internal']);
   });
 });

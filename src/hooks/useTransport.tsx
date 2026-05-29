@@ -45,6 +45,14 @@ export interface TransportActions {
   toggleSnapAbsolute(): void;
   setQuantizeGrid(grid: QuantizeGrid): void;
   seek(ms: number): void;
+  /** Only `MidiClockProvider` may call this — see midi-clock spec. Flips
+      `clockSource` to `'external-clock'`, mirrors the incoming BPM, and
+      advances `timecodeMs` by `deltaMs` when `mode !== 'idle'`. */
+  applyExternalPulse(deltaMs: number, bpm: number): void;
+  /** Only `MidiClockProvider` may call this — see midi-clock spec. Flips
+      `clockSource` back to `'internal'` and restores `bpm` to the user-set
+      value (`userBpm`). */
+  revertToInternalClock(): void;
 }
 
 export type TransportValue = TransportState & TransportActions;
@@ -60,7 +68,10 @@ type Action =
   | { type: 'toggleSnapAbsolute' }
   | { type: 'setQuantizeGrid'; grid: QuantizeGrid }
   | { type: 'seek'; ms: number }
-  | { type: 'tick'; deltaMs: number };
+  | { type: 'tick'; deltaMs: number }
+  // Only `MidiClockProvider` may dispatch these — see midi-clock spec.
+  | { type: 'applyExternalPulse'; deltaMs: number; bpm: number }
+  | { type: 'revertToInternalClock' };
 
 interface InternalState {
   mode: TransportMode;
@@ -70,7 +81,10 @@ interface InternalState {
   quantizeGrid: QuantizeGrid;
   snapAbsoluteOn: boolean;
   timecodeMs: number;
+  /** The current effective BPM (mirrors external master when slaved). */
   bpm: number;
+  /** The user-set BPM, restored when reverting to internal clock. */
+  userBpm: number;
   sig: string;
   clockSource: ClockSource;
   recordingStartedAt: number | null;
@@ -85,6 +99,7 @@ const initialState: InternalState = {
   snapAbsoluteOn: false,
   timecodeMs: 0,
   bpm: 124,
+  userBpm: 124,
   sig: '4/4',
   clockSource: 'internal',
   recordingStartedAt: null,
@@ -119,7 +134,25 @@ function reducer(state: InternalState, action: Action): InternalState {
       return { ...state, timecodeMs: Math.max(0, action.ms) };
     case 'tick':
       if (state.mode === 'idle') return state;
+      // When slaved to external clock, the rAF tick is gated off — but if a
+      // stray tick gets through (e.g., during a source-flip frame), no-op.
+      if (state.clockSource === 'external-clock') return state;
       return { ...state, timecodeMs: state.timecodeMs + action.deltaMs };
+    case 'applyExternalPulse': {
+      // Source flips to external-clock atomically with the per-pulse advance —
+      // combined action keeps the visible source / bpm / timecode commit in one frame.
+      const advance = state.mode !== 'idle' ? Math.max(0, action.deltaMs) : 0;
+      return {
+        ...state,
+        clockSource: 'external-clock',
+        bpm: action.bpm,
+        timecodeMs: state.timecodeMs + advance,
+      };
+    }
+    case 'revertToInternalClock': {
+      if (state.clockSource === 'internal') return state;
+      return { ...state, clockSource: 'internal', bpm: state.userBpm };
+    }
     default:
       return state;
   }
@@ -149,7 +182,10 @@ export function TransportProvider({ children }: { children: ReactNode }) {
   modeRef.current = state.mode;
 
   useEffect(() => {
-    if (state.mode === 'idle') {
+    // rAF only drives the playhead in internal-clock mode. When slaved to
+    // external clock, the MidiClockProvider dispatches `applyExternalPulse`
+    // on each incoming 0xF8 instead.
+    if (state.mode === 'idle' || state.clockSource === 'external-clock') {
       lastFrameRef.current = null;
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
@@ -179,7 +215,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       }
       lastFrameRef.current = null;
     };
-  }, [state.mode]);
+  }, [state.mode, state.clockSource]);
 
   const play = useCallback(() => dispatch({ type: 'play' }), []);
   const pause = useCallback(() => dispatch({ type: 'pause' }), []);
@@ -194,6 +230,15 @@ export function TransportProvider({ children }: { children: ReactNode }) {
     [],
   );
   const seek = useCallback((ms: number) => dispatch({ type: 'seek', ms }), []);
+  const applyExternalPulse = useCallback(
+    (deltaMs: number, bpm: number) =>
+      dispatch({ type: 'applyExternalPulse', deltaMs, bpm }),
+    [],
+  );
+  const revertToInternalClock = useCallback(
+    () => dispatch({ type: 'revertToInternalClock' }),
+    [],
+  );
 
   const value = useMemo<TransportValue>(
     () => ({
@@ -221,6 +266,8 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleSnapAbsolute,
       setQuantizeGrid,
       seek,
+      applyExternalPulse,
+      revertToInternalClock,
     }),
     [
       state,
@@ -234,6 +281,8 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleSnapAbsolute,
       setQuantizeGrid,
       seek,
+      applyExternalPulse,
+      revertToInternalClock,
     ],
   );
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStatusbar } from '../../hooks/useStatusbar';
 import { useTransport, type ClockSource } from '../../hooks/useTransport';
+import { useMidiClock, type ClockSourceSelection } from '../../midi/MidiClockProvider';
 import { useMidiInputs } from '../../midi/MidiRuntimeProvider';
 import { QUANTIZE_GRIDS, type QuantizeGrid } from '../../midi/quantizeGrid';
 import { useToast } from '../toast/Toast';
@@ -16,6 +17,7 @@ import {
   RewIcon,
   StopIcon,
 } from '../icons/transport';
+import { BeatLed } from './BeatLed';
 import { formatBig, formatMs } from './format';
 import './Titlebar.css';
 
@@ -29,10 +31,14 @@ export function Titlebar() {
   const transport = useTransport();
   const { active: midiActive } = useStatusbar();
   const { inputs } = useMidiInputs();
+  const { selection: clockSelection, setSelection: setClockSelection } = useMidiClock();
   const toast = useToast();
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const gridChipRef = useRef<HTMLButtonElement>(null);
   const gridMenuRef = useRef<HTMLDivElement>(null);
+  const [clkMenuOpen, setClkMenuOpen] = useState(false);
+  const clkBtnRef = useRef<HTMLButtonElement>(null);
+  const clkMenuRef = useRef<HTMLDivElement>(null);
 
   const hasInput = inputs.length > 0;
   const recDisabled = !hasInput;
@@ -107,6 +113,30 @@ export function Titlebar() {
   const handleSelectGrid = (grid: QuantizeGrid) => {
     transport.setQuantizeGrid(grid);
     setGridMenuOpen(false);
+  };
+
+  useEffect(() => {
+    if (!clkMenuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node | null;
+      if (clkMenuRef.current?.contains(target)) return;
+      if (clkBtnRef.current?.contains(target)) return;
+      setClkMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setClkMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [clkMenuOpen]);
+
+  const handleSelectClockSource = (sel: ClockSourceSelection) => {
+    setClockSelection(sel);
+    setClkMenuOpen(false);
   };
 
   const statusLed = recording ? 'rec' : playing ? 'play' : undefined;
@@ -190,9 +220,60 @@ export function Titlebar() {
           <span className="mr-meta__lbl">BPM</span>
           <span className="mr-meta__val mr-mono">{bpm}</span>
         </div>
-        <div className="mr-meta">
+        <div className="mr-meta mr-meta--clk">
           <span className="mr-meta__lbl">Clk</span>
-          <span className="mr-meta__val mr-mono">{CLOCK_LABEL[clockSource]}</span>
+          <button
+            ref={clkBtnRef}
+            className="mr-meta__val mr-meta__val--btn mr-mono"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={clkMenuOpen}
+            onClick={() => setClkMenuOpen((open) => !open)}
+            title="MIDI clock source"
+          >
+            {CLOCK_LABEL[clockSource]}
+            <ChevDownIcon />
+          </button>
+          {clkMenuOpen && (
+            <div ref={clkMenuRef} className="mr-clk__menu" role="listbox">
+              <button
+                key="auto"
+                type="button"
+                role="option"
+                aria-selected={clockSelection === 'auto'}
+                data-on={clockSelection === 'auto' || undefined}
+                className="mr-clk__menu-row mr-mono"
+                onClick={() => handleSelectClockSource('auto')}
+              >
+                Auto
+              </button>
+              <button
+                key="internal"
+                type="button"
+                role="option"
+                aria-selected={clockSelection === 'internal'}
+                data-on={clockSelection === 'internal' || undefined}
+                className="mr-clk__menu-row mr-mono"
+                onClick={() => handleSelectClockSource('internal')}
+              >
+                Internal
+              </button>
+              {inputs.map((dev) => (
+                <button
+                  key={dev.id}
+                  type="button"
+                  role="option"
+                  aria-selected={clockSelection === dev.id}
+                  data-on={clockSelection === dev.id || undefined}
+                  className="mr-clk__menu-row mr-mono"
+                  onClick={() => handleSelectClockSource(dev.id)}
+                  title={dev.name}
+                >
+                  {dev.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="mr-meta">
           <span className="mr-meta__lbl">Sig</span>
@@ -296,6 +377,8 @@ export function Titlebar() {
       <div className="mr-spacer" />
 
       <div className="mr-status">
+        <BeatLed />
+        <span className="mr-status__sep mr-mono">·</span>
         <span className="mr-led" data-state={statusLed} />
         <span className="mr-status__label mr-mono" style={{ color: statusColor }}>
           {statusLabel}
