@@ -128,7 +128,9 @@ The hook SHALL throw with a clear error message when invoked outside `<MidiClock
 
 When `useMidiClock().present === true`, the clock receiver SHALL flip `useTransport().clockSource` to `'external-clock'`. When `present` transitions from `true` to `false`, the receiver SHALL flip `clockSource` back to `'internal'`.
 
-While `useTransport().clockSource === 'external-clock'`, the transport's `requestAnimationFrame` tick SHALL NOT advance `timecodeMs`. Instead, each incoming `0xF8` pulse SHALL dispatch an `{ type: 'externalTick', deltaMs }` action where `deltaMs = (meanIntervalMs_rolling24) / 1` — i.e., the smoothed per-pulse duration. The `externalTick` reducer behaves identically to the existing `tick` reducer: it advances `timecodeMs` by `deltaMs` when `mode !== 'idle'` and is a no-op otherwise.
+While `useTransport().clockSource === 'external-clock'`, the transport's `requestAnimationFrame` tick SHALL NOT advance `timecodeMs`. Instead, each incoming `0xF8` pulse SHALL dispatch an `{ type: 'applyExternalPulse', deltaMs, bpm }` action where `deltaMs` is the raw inter-pulse interval (in ms) since the previous pulse from the active master. The reducer SHALL advance `timecodeMs` by `Math.max(0, deltaMs)` when `mode !== 'idle'` and SHALL advance `playheadTicks` by a constant `DEFAULT_MIDI_TPQ / 24` (one twenty-fourth of a quarter note) when `mode !== 'idle'`. Both are no-ops when `mode === 'idle'`.
+
+`useTransport().playheadTicks` SHALL be the source of truth for the visible playhead position. Under external clock the per-pulse tick advance is independent of the carried `bpm`, so the playhead SHALL NOT regress when the smoother's rounded `bpm` reading oscillates between neighbouring integers.
 
 When `clockSource === 'external-clock'`, `useTransport().bpm` SHALL mirror `useMidiClock().bpm` (or the last known value while `present === false` is briefly true between updates). When `clockSource === 'internal'`, `useTransport().bpm` SHALL be the user-set value (the existing reducer-managed field), unaffected by any cached external BPM.
 
@@ -153,11 +155,32 @@ Incoming Start (`0xFA`) SHALL invoke `useTransport().play()` if `mode === 'idle'
 - **THEN** `timecodeMs` SHALL NOT advance from rAF ticks
 - **AND** `timecodeMs` SHALL only advance on the next `0xF8` arrival
 
-#### Scenario: External pulse advances timecode by smoothed per-pulse duration
+#### Scenario: External pulse advances timecode by raw inter-pulse interval
 
-- **GIVEN** `clockSource === 'external-clock'`, `mode === 'play'`, smoothed BPM is 120 (per-pulse `≈20.833` ms), and `timecodeMs === 1000`
-- **WHEN** a `0xF8` arrives
+- **GIVEN** `clockSource === 'external-clock'`, `mode === 'play'`, `timecodeMs === 1000`
+- **WHEN** a `0xF8` arrives with raw inter-pulse interval `20.833 ms`
 - **THEN** `timecodeMs` SHALL be approximately `1020.833` (±0.1 ms rounding tolerance)
+
+#### Scenario: External pulse advances playheadTicks by tpq/24 regardless of bpm
+
+- **GIVEN** `clockSource === 'external-clock'`, `mode === 'play'`, `DEFAULT_MIDI_TPQ === 480`, and `playheadTicks === 0`
+- **WHEN** three consecutive `0xF8` pulses arrive carrying bpm readings `124`, `125`, `124` (rounding jitter)
+- **THEN** `playheadTicks` SHALL be `20`, then `40`, then `60`
+- **AND** the per-pulse advance SHALL NOT depend on the carried bpm
+
+#### Scenario: External playhead is monotonic across a downward bpm swing
+
+- **GIVEN** `clockSource === 'external-clock'`, `mode === 'play'`, and the smoother has been reporting bpm `≈120` for at least 24 pulses
+- **WHEN** the next pulse carries a sharply lower bpm reading (e.g. `100`) because the rolling-window mean was pulled up by a slow interval
+- **THEN** `playheadTicks` SHALL strictly increase across that pulse
+- **AND** the new value SHALL equal the previous value plus `DEFAULT_MIDI_TPQ / 24`
+
+#### Scenario: applyExternalPulse does not advance playheadTicks when idle
+
+- **GIVEN** `mode === 'idle'` and `playheadTicks === 0`
+- **WHEN** a `0xF8` pulse arrives carrying any bpm and any `deltaMs`
+- **THEN** `playheadTicks` SHALL remain `0`
+- **AND** `clockSource` SHALL transition to `'external-clock'`
 
 #### Scenario: useTransport.bpm mirrors external BPM
 
@@ -311,3 +334,4 @@ If `newSel === selection` (no change), the call SHALL be a no-op (no state reset
 - **THEN** `useMidiClock().pulse` SHALL remain `50`
 - **AND** `useMidiClock().bpm` SHALL remain `124`
 - **AND** no transport action SHALL be dispatched
+
