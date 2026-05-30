@@ -6,6 +6,7 @@ import { TimelineStorageProvider } from './hooks/useTimelineStorage';
 import { TransportProvider } from './hooks/useTransport';
 import { MidiClockProvider } from './midi/MidiClockProvider';
 import { MidiRuntimeProvider } from './midi/MidiRuntimeProvider';
+import { MetronomeRunner } from './midi/metronome';
 import { MidiRecorderRunner } from './midi/recorder';
 import { MidiSchedulerRunner } from './midi/scheduler';
 
@@ -21,6 +22,7 @@ export function App() {
                   <TimelineDropProvider>
                     <MidiRecorderRunner />
                     <MidiSchedulerRunner />
+                    <MetronomeRunner />
                     <AppShell />
                   </TimelineDropProvider>
                 </TimelineStorageProvider>
