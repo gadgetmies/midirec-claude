@@ -42,7 +42,13 @@ function makeFakeAccess(inputs: FakeInput[]): MIDIAccess {
 }
 
 function fakeEvent(bytes: number[]): MIDIMessageEvent {
-  return { data: new Uint8Array(bytes), timeStamp: 0 } as unknown as MIDIMessageEvent;
+  /* The provider now reads `event.timeStamp` for inter-pulse delta math
+     (immune to JS main-thread jitter). Populate from performance.now()
+     which is spied to track fake-time in these tests. */
+  return {
+    data: new Uint8Array(bytes),
+    timeStamp: typeof performance !== 'undefined' ? performance.now() : 0,
+  } as unknown as MIDIMessageEvent;
 }
 
 async function mountAndGrant(inputs: FakeInput[]) {
@@ -150,7 +156,10 @@ describe('MidiClockProvider — no-op when MIDI runtime not granted', () => {
       beat: 0,
       running: false,
       selection: 'auto',
+      strictStart: true,
       setSelection: expect.any(Function),
+      setStrictStart: expect.any(Function),
+      onPulse: expect.any(Function),
     });
     expect(input.onmidimessage).toBeNull();
   });
@@ -274,6 +283,128 @@ describe('MidiClockProvider — present flag', () => {
     expect(captured.current!.present).toBe(false);
     expect(captured.current!.bpm).toBe(bpmBefore);
   });
+
+  test('clockSource does NOT revert after 500ms silence (only present flips)', async () => {
+    /* Spec: revert is at 2000ms, not 500ms. A brief gap (USB jitter, GC
+       pause) should NOT drop us back to internal. */
+    const { useTransport } = await import('../hooks/useTransport');
+    const a = makeInput('a');
+    const access = makeFakeAccess([a]);
+    const transportProbe: {
+      current: ReturnType<typeof useTransport> | null;
+    } = { current: null };
+
+    function Probe() {
+      transportProbe.current = useTransport();
+      return null;
+    }
+
+    await act(async () => {
+      render(
+        <TransportProvider>
+          <ToastProvider>
+            <MidiRuntimeProvider
+              supported={true}
+              requestMIDIAccessImpl={() => Promise.resolve(access)}
+            >
+              <MidiClockProvider>
+                <Probe />
+              </MidiClockProvider>
+            </MidiRuntimeProvider>
+          </ToastProvider>
+        </TransportProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    startFakeTimers();
+
+    fireMany(a, 30, 21);
+    expect(transportProbe.current!.clockSource).toBe('external-clock');
+
+    /* 600ms silence: present flips false, but source stays external. */
+    act(() => vi.advanceTimersByTime(600));
+    expect(transportProbe.current!.clockSource).toBe('external-clock');
+
+    /* Another 1500ms (cumulative ~2100ms): source reverts to internal. */
+    act(() => vi.advanceTimersByTime(1500));
+    expect(transportProbe.current!.clockSource).toBe('internal');
+  });
+});
+
+describe('MidiClockProvider — deltaMs cap protects timecode from jolts', () => {
+  test('a long gap followed by a resumed pulse advances timecode by at most one pulse interval', async () => {
+    const { useTransport } = await import('../hooks/useTransport');
+    const a = makeInput('a');
+    const access = makeFakeAccess([a]);
+    const transportProbe: {
+      current: ReturnType<typeof useTransport> | null;
+    } = { current: null };
+
+    function Probe() {
+      transportProbe.current = useTransport();
+      return null;
+    }
+
+    await act(async () => {
+      render(
+        <TransportProvider>
+          <ToastProvider>
+            <MidiRuntimeProvider
+              supported={true}
+              requestMIDIAccessImpl={() => Promise.resolve(access)}
+            >
+              <MidiClockProvider>
+                <Probe />
+              </MidiClockProvider>
+            </MidiRuntimeProvider>
+          </ToastProvider>
+        </TransportProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    startFakeTimers();
+
+    /* Build up a normal pulse history and enter play mode so external
+       pulses advance timecodeMs. */
+    act(() => transportProbe.current!.play());
+    fireMany(a, 24, 21);
+    const tcBefore = transportProbe.current!.timecodeMs;
+
+    /* Long silence (1000ms) then a single resumed pulse — the raw delta
+       would be ~1000ms, but the cap forces ≤50ms. */
+    act(() => vi.advanceTimersByTime(1000));
+    firePulse(a);
+
+    const tcAfter = transportProbe.current!.timecodeMs;
+    const advanced = tcAfter - tcBefore;
+    expect(advanced).toBeLessThanOrEqual(60); // cap is 50 + flush slack
+  });
+});
+
+describe('MidiClockProvider — event.timeStamp drives delta math', () => {
+  test('subscriber timestamps mirror event.timeStamp, not performance.now()', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    startFakeTimers();
+
+    const calls: number[] = [];
+    act(() => {
+      captured.current!.onPulse((ts) => calls.push(ts));
+    });
+
+    /* Fire one pulse, then advance time, then verify the subscriber saw the
+       event's timestamp (= performance.now() at fire time), not a later
+       value. */
+    const tBefore = performance.now();
+    firePulse(a);
+
+    expect(calls.length).toBe(1);
+    expect(calls[0]).toBeCloseTo(tBefore, 0);
+  });
 });
 
 describe('MidiClockProvider — selection', () => {
@@ -389,5 +520,268 @@ describe('MidiClockProvider — selection', () => {
     expect(captured.current!.bpm).toBeNull();
     expect(captured.current!.running).toBe(false);
     expect(captured.current!.present).toBe(false);
+  });
+});
+
+describe('MidiClockProvider — onPulse subscription', () => {
+  test('subscriber fires once per accepted pulse with monotonic timestamps', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    startFakeTimers();
+
+    const calls: number[] = [];
+    act(() => {
+      captured.current!.onPulse((ts) => calls.push(ts));
+    });
+
+    fireMany(a, 5, 21);
+    expect(calls.length).toBe(5);
+    for (let i = 1; i < calls.length; i++) {
+      expect(calls[i]).toBeGreaterThanOrEqual(calls[i - 1]);
+    }
+  });
+
+  test('discarded pulses (non-active master) do not fire subscribers', async () => {
+    const a = makeInput('a');
+    const b = makeInput('b');
+    const { captured } = await mountAndGrant([a, b]);
+    startFakeTimers();
+
+    const calls: number[] = [];
+    act(() => {
+      captured.current!.onPulse((ts) => calls.push(ts));
+    });
+
+    firePulse(a); // A becomes master
+    expect(calls.length).toBe(1);
+
+    firePulse(b); // B should be discarded
+    expect(calls.length).toBe(1);
+  });
+
+  test('selection === "internal" silences subscribers', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    startFakeTimers();
+
+    act(() => {
+      captured.current!.setSelection('internal');
+    });
+
+    const calls: number[] = [];
+    act(() => {
+      captured.current!.onPulse((ts) => calls.push(ts));
+    });
+
+    fireMany(a, 5, 21);
+    expect(calls.length).toBe(0);
+  });
+
+  test('returned unsubscribe stops calls', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    startFakeTimers();
+
+    const calls: number[] = [];
+    let unsub: (() => void) | null = null;
+    act(() => {
+      unsub = captured.current!.onPulse((ts) => calls.push(ts));
+    });
+
+    firePulse(a);
+    expect(calls.length).toBe(1);
+
+    act(() => {
+      unsub!();
+    });
+
+    fireMany(a, 3, 21);
+    expect(calls.length).toBe(1);
+  });
+
+  test('throwing subscriber does not block other subscribers; logs error', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    startFakeTimers();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const goodCalls: number[] = [];
+    act(() => {
+      captured.current!.onPulse(() => {
+        throw new Error('boom');
+      });
+      captured.current!.onPulse((ts) => goodCalls.push(ts));
+    });
+
+    firePulse(a);
+    expect(goodCalls.length).toBe(1);
+    expect(captured.current!.pulse).toBe(1);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+});
+
+describe('MidiClockProvider — strictStart', () => {
+  test('default strictStart is true (matches MIDI 1.0 Start semantics)', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    expect(captured.current!.strictStart).toBe(true);
+  });
+
+  test('setStrictStart(false) flips state; setStrictStart(true) flips back', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    act(() => {
+      captured.current!.setStrictStart(false);
+    });
+    expect(captured.current!.strictStart).toBe(false);
+    act(() => {
+      captured.current!.setStrictStart(true);
+    });
+    expect(captured.current!.strictStart).toBe(true);
+  });
+
+  test('setStrictStart with same value is a no-op', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    const before = captured.current!;
+    act(() => {
+      captured.current!.setStrictStart(true);
+    });
+    expect(captured.current!.pulse).toBe(before.pulse);
+    expect(captured.current!.bpm).toBe(before.bpm);
+  });
+
+  test('setSelection preserves strictStart across selection changes', async () => {
+    const a = makeInput('a');
+    const { captured } = await mountAndGrant([a]);
+    act(() => {
+      captured.current!.setStrictStart(false);
+    });
+    expect(captured.current!.strictStart).toBe(false);
+    act(() => {
+      captured.current!.setSelection('internal');
+    });
+    expect(captured.current!.strictStart).toBe(false);
+  });
+
+  test('strictStart=true causes Start to rewind transport before play', async () => {
+    /* End-to-end: probe transport alongside MidiClock so we can advance the
+       playhead, then send Start and verify it rewinds to 0. */
+    const { useTransport } = await import('../hooks/useTransport');
+    const a = makeInput('a');
+    const access = makeFakeAccess([a]);
+    const clockProbe: { current: MidiClockValue | null } = { current: null };
+    const transportProbe: {
+      current: ReturnType<typeof useTransport> | null;
+    } = { current: null };
+
+    function Probe() {
+      clockProbe.current = useMidiClock();
+      transportProbe.current = useTransport();
+      return null;
+    }
+
+    await act(async () => {
+      render(
+        <TransportProvider>
+          <ToastProvider>
+            <MidiRuntimeProvider
+              supported={true}
+              requestMIDIAccessImpl={() => Promise.resolve(access)}
+            >
+              <MidiClockProvider>
+                <Probe />
+              </MidiClockProvider>
+            </MidiRuntimeProvider>
+          </ToastProvider>
+        </TransportProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    startFakeTimers();
+
+    /* Drive timecodeMs > 0 via play + external pulses (under external clock
+       the rAF tick is gated, so pulses are the only advance path). */
+    act(() => {
+      transportProbe.current!.play();
+    });
+    fireMany(a, 48, 21); // 2 beats at 120 BPM-ish → tc advances by ~1000 ms
+    act(() => {
+      transportProbe.current!.pause();
+    });
+
+    const tcBeforeStart = transportProbe.current!.timecodeMs;
+    expect(tcBeforeStart).toBeGreaterThan(0);
+
+    /* strictStart is true by default — no need to flip it. */
+    expect(clockProbe.current!.strictStart).toBe(true);
+
+    fireStart(a);
+
+    expect(transportProbe.current!.mode).toBe('play');
+    expect(transportProbe.current!.timecodeMs).toBe(0);
+    expect(transportProbe.current!.playheadTicks).toBe(0);
+  });
+
+  test('with strictStart=false, Start preserves position (resume-style)', async () => {
+    const { useTransport } = await import('../hooks/useTransport');
+    const a = makeInput('a');
+    const access = makeFakeAccess([a]);
+    const clockProbe: { current: MidiClockValue | null } = { current: null };
+    const transportProbe: {
+      current: ReturnType<typeof useTransport> | null;
+    } = { current: null };
+
+    function Probe() {
+      clockProbe.current = useMidiClock();
+      transportProbe.current = useTransport();
+      return null;
+    }
+
+    await act(async () => {
+      render(
+        <TransportProvider>
+          <ToastProvider>
+            <MidiRuntimeProvider
+              supported={true}
+              requestMIDIAccessImpl={() => Promise.resolve(access)}
+            >
+              <MidiClockProvider>
+                <Probe />
+              </MidiClockProvider>
+            </MidiRuntimeProvider>
+          </ToastProvider>
+        </TransportProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    startFakeTimers();
+
+    act(() => {
+      clockProbe.current!.setStrictStart(false);
+    });
+
+    act(() => {
+      transportProbe.current!.play();
+    });
+    fireMany(a, 48, 21);
+    act(() => {
+      transportProbe.current!.pause();
+    });
+
+    const tcBefore = transportProbe.current!.timecodeMs;
+    expect(tcBefore).toBeGreaterThan(0);
+
+    fireStart(a);
+
+    expect(transportProbe.current!.mode).toBe('play');
+    /* Position preserved (within a small tolerance for floating-point math
+       and the post-Start pulse-cap behavior). */
+    expect(transportProbe.current!.timecodeMs).toBeGreaterThan(tcBefore - 1);
   });
 });

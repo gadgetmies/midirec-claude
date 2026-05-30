@@ -22,10 +22,15 @@ export interface MidiClockState {
   beat: number;
   running: boolean;
   selection: ClockSourceSelection;
+  strictStart: boolean;
 }
+
+export type PulseSubscriber = (timestampMs: number) => void;
 
 export interface MidiClockValue extends MidiClockState {
   setSelection: (sel: ClockSourceSelection) => void;
+  setStrictStart: (b: boolean) => void;
+  onPulse: (callback: PulseSubscriber) => () => void;
 }
 
 const DEFAULT_STATE: MidiClockState = {
@@ -35,10 +40,22 @@ const DEFAULT_STATE: MidiClockState = {
   beat: 0,
   running: false,
   selection: 'auto',
+  /* Default true: matches the MIDI 1.0 spec — incoming Start = rewind to 0
+     then play. Real-world slave scenarios (e.g. Traktor master + this app as
+     slave) require this for downbeat alignment. Users wanting resume-style
+     "Start continues from current position" flip it off in the Clk menu. */
+  strictStart: true,
 };
 
 const PRESENT_TIMEOUT_MS = 500;
+const REVERT_TIMEOUT_MS = 2000;
 const ACTIVE_MASTER_TIMEOUT_MS = 2000;
+/* Cap on per-pulse `deltaMs` passed to applyExternalPulse. Anything longer
+   is treated as a gap-recovery pulse: rather than advancing timecodeMs by
+   the raw gap (which jolts the scheduler forward), we cap to one steady
+   pulse interval (≈20.8 ms at 120 BPM, ≈10.4 ms at 240 BPM). Picked at
+   50 ms to allow up to 50 BPM steady-state without artificial capping. */
+const MAX_PULSE_DELTA_MS = 50;
 
 const MidiClockContext = createContext<MidiClockValue | null>(null);
 
@@ -56,10 +73,14 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
   const lastPulseAtByIdRef = useRef<Map<string, number>>(new Map());
   const smootherRef = useRef(new BpmSmoother());
   const presentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transportRef = useRef(transport);
   transportRef.current = transport;
   const selectionRef = useRef(state.selection);
   selectionRef.current = state.selection;
+  const strictStartRef = useRef(state.strictStart);
+  strictStartRef.current = state.strictStart;
+  const pulseSubscribersRef = useRef<Set<PulseSubscriber>>(new Set());
 
   const inputsKey = useMemo(() => {
     if (runtimeState.status !== 'granted') return '';
@@ -71,17 +92,28 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
     const access = runtimeState.access;
     const detachers: Array<() => void> = [];
 
+    /* Two-stage silence handling, decoupled per the spec:
+       - At 500 ms of silence: flip `present` to false (UI dims, smoother is
+         considered stale). Source stays external-clock; bpm is preserved.
+       - At 2000 ms of silence: auto-revert to internal clock (when in
+         auto mode). Device-locked selections stay external indefinitely.
+       Brief same-machine MIDI jitter (USB buffering, browser GC, ~100ms
+       main-thread blocks) used to trigger spurious reverts that drifted us
+       off Traktor's grid — this split absorbs jitter up to 2 seconds. */
     const armPresentTimer = () => {
       if (presentTimerRef.current != null) clearTimeout(presentTimerRef.current);
       presentTimerRef.current = setTimeout(() => {
         setState((prev) => (prev.present ? { ...prev, present: false } : prev));
-        // Only auto-revert in auto mode. Device-locked selections stay
-        // external-clock with bpm frozen until the user picks Internal.
+        presentTimerRef.current = null;
+      }, PRESENT_TIMEOUT_MS);
+
+      if (revertTimerRef.current != null) clearTimeout(revertTimerRef.current);
+      revertTimerRef.current = setTimeout(() => {
         if (selectionRef.current === 'auto') {
           transportRef.current.revertToInternalClock();
         }
-        presentTimerRef.current = null;
-      }, PRESENT_TIMEOUT_MS);
+        revertTimerRef.current = null;
+      }, REVERT_TIMEOUT_MS);
     };
 
     for (const device of runtimeState.inputs) {
@@ -89,12 +121,17 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
       if (!port) continue;
 
       const detach = attachClockReceiver(port, {
-        onPulse: (input) => {
+        onPulse: (input, timestampMs) => {
           const selection = selectionRef.current;
           if (selection === 'internal') return;
           if (selection !== 'auto' && selection !== input.id) return;
           const inputId = input.id;
-          const now = performance.now();
+          /* Use the OS-level RX timestamp instead of performance.now(). This
+             survives JS main-thread blocking (heavy renders, GC pauses, etc.):
+             pulses that queue in the event loop still report their original
+             arrival time, so the smoother and inter-pulse delta stay accurate
+             even when the handler drains in a burst. */
+          const now = timestampMs;
           const prevActive = activeMasterIdRef.current;
           const prevPulseAt = lastPulseAtByIdRef.current.get(inputId);
 
@@ -117,6 +154,30 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
           smootherRef.current.pulse(now);
           const bpm = smootherRef.current.bpm();
 
+          // Notify external pulse subscribers (e.g. MidiClockSendProvider's
+          // relay path) synchronously — relayed clock to downstream gear
+          // must mirror master timing as closely as possible, not wait for
+          // our rAF flush. One try/catch per subscriber so a throwing one
+          // does not block others or the receiver's own bookkeeping.
+          for (const cb of pulseSubscribersRef.current) {
+            try {
+              cb(now);
+            } catch (err) {
+              console.error('MidiClockProvider onPulse subscriber threw:', err);
+            }
+          }
+
+          const sameMasterPrevPulseAt = masterChanged ? undefined : prevPulseAt;
+          const rawDelta =
+            sameMasterPrevPulseAt != null ? Math.max(0, now - sameMasterPrevPulseAt) : 0;
+          /* Cap deltaMs so a gap-recovery pulse (silence + first resumed
+             pulse) does not jolt timecodeMs by the entire gap duration. The
+             scheduler keys off timecodeMs for note emission — a jolt skips
+             notes. With the cap, timecodeMs advances smoothly even when the
+             master pulses through a long pause. */
+          const deltaMs = Math.min(MAX_PULSE_DELTA_MS, rawDelta);
+          const effectiveBpm = bpm ?? transportRef.current.bpm;
+
           setState((prev) => {
             const basePulse = masterChanged ? 0 : prev.pulse;
             const baseBpm = masterChanged ? null : prev.bpm;
@@ -131,12 +192,6 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
             };
           });
 
-          // Dispatch into transport: flip source to external-clock, mirror bpm,
-          // and advance the playhead by the raw inter-pulse interval (immediate,
-          // no smoother delay). The reducer guards mode === 'idle' itself.
-          const sameMasterPrevPulseAt = masterChanged ? undefined : prevPulseAt;
-          const deltaMs = sameMasterPrevPulseAt != null ? Math.max(0, now - sameMasterPrevPulseAt) : 0;
-          const effectiveBpm = bpm ?? transportRef.current.bpm;
           transportRef.current.applyExternalPulse(deltaMs, effectiveBpm);
 
           armPresentTimer();
@@ -147,7 +202,13 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
           setState((prev) => (prev.running ? prev : { ...prev, running: true }));
           const t = transportRef.current;
           // Recording is driven by the user's record button, not the master.
-          if (t.mode === 'idle') t.play();
+          if (t.mode === 'idle') {
+            // Strict-Start mode: per MIDI 1.0 spec, Start = rewind to 0 then play.
+            // React 18 auto-batches non-event updates, so rewind+play commit
+            // atomically — no intermediate render with mode==='idle' && tc>0.
+            if (strictStartRef.current) t.rewind();
+            t.play();
+          }
         },
         onContinue: (input) => {
           if (selectionRef.current === 'internal') return;
@@ -173,6 +234,10 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
         clearTimeout(presentTimerRef.current);
         presentTimerRef.current = null;
       }
+      if (revertTimerRef.current != null) {
+        clearTimeout(revertTimerRef.current);
+        revertTimerRef.current = null;
+      }
     };
   }, [status, runtimeState, inputsKey]);
 
@@ -186,15 +251,32 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
       clearTimeout(presentTimerRef.current);
       presentTimerRef.current = null;
     }
+    if (revertTimerRef.current != null) {
+      clearTimeout(revertTimerRef.current);
+      revertTimerRef.current = null;
+    }
     if (newSel === 'internal') {
       transportRef.current.revertToInternalClock();
     }
-    setState({ ...DEFAULT_STATE, selection: newSel });
+    // Preserve strictStart across selection changes — it's a receiver-mode
+    // preference, not source-bound.
+    setState((prev) => ({ ...DEFAULT_STATE, selection: newSel, strictStart: prev.strictStart }));
+  }, []);
+
+  const setStrictStart = useCallback((b: boolean) => {
+    setState((prev) => (prev.strictStart === b ? prev : { ...prev, strictStart: b }));
+  }, []);
+
+  const onPulse = useCallback((cb: PulseSubscriber) => {
+    pulseSubscribersRef.current.add(cb);
+    return () => {
+      pulseSubscribersRef.current.delete(cb);
+    };
   }, []);
 
   const value = useMemo<MidiClockValue>(
-    () => ({ ...state, setSelection }),
-    [state, setSelection],
+    () => ({ ...state, setSelection, setStrictStart, onPulse }),
+    [state, setSelection, setStrictStart, onPulse],
   );
 
   return <MidiClockContext.Provider value={value}>{children}</MidiClockContext.Provider>;

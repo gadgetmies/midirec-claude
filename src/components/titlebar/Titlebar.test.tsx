@@ -14,7 +14,10 @@ let mockClock: MidiClockValue = {
   beat: 0,
   running: false,
   selection: 'auto',
+  strictStart: false,
   setSelection: setSelectionSpy,
+  setStrictStart: () => {},
+  onPulse: () => () => {},
 };
 
 vi.mock('../../hooks/useStatusbar', () => ({
@@ -48,7 +51,10 @@ beforeEach(() => {
     beat: 0,
     running: false,
     selection: 'auto',
+    strictStart: false,
     setSelection: setSelectionSpy,
+    setStrictStart: () => {},
+    onPulse: () => () => {},
   };
 });
 
