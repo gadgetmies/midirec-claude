@@ -120,6 +120,7 @@ describe('serializeTimeline', () => {
         'looping',
         'metronomeOn',
         'clockSource',
+        'cuePointTicks',
       ].sort(),
     );
   });
@@ -157,6 +158,7 @@ describe('serialize / deserialize round trip', () => {
         looping: true,
         metronomeOn: false,
         clockSource: 'external-clock',
+        cuePointTicks: 1920,
       },
       loopRegion: { start: 1.5, end: 4.0 },
     });
@@ -172,8 +174,20 @@ describe('serialize / deserialize round trip', () => {
       looping: true,
       metronomeOn: false,
       clockSource: 'external-clock',
+      cuePointTicks: 1920,
     });
     expect(slices.loopRegion).toEqual({ start: 1.5, end: 4.0 });
+  });
+
+  it('defaults cuePointTicks to 0 when missing from a legacy payload', () => {
+    const input = makeInput();
+    const payload = serializeTimeline(input, 'legacy');
+    const decoded = JSON.parse(JSON.stringify(payload)) as TimelinePayload;
+    /* Simulate a pre-cuePointTicks save: strip the field. */
+    delete (decoded.session.transportAuthoring as Partial<typeof decoded.session.transportAuthoring>)
+      .cuePointTicks;
+    const slices = deserializeTimeline(decoded);
+    expect(slices.transportAuthoring.cuePointTicks).toBe(0);
   });
 });
 
@@ -204,5 +218,6 @@ describe('empty defaults', () => {
     expect(empty.transportAuthoring.bpm).toBe(124);
     expect(empty.transportAuthoring.sig).toBe('4/4');
     expect(empty.transportAuthoring.clockSource).toBe('internal');
+    expect(empty.transportAuthoring.cuePointTicks).toBe(0);
   });
 });

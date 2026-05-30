@@ -51,14 +51,6 @@ export function FfwIcon(props: IconProps) {
   );
 }
 
-export function CueIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" width={14} height={14} {...props}>
-      <path d="M7 2v10M3 7h8" />
-    </svg>
-  );
-}
-
 export function LoopIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" width={14} height={14} {...props}>

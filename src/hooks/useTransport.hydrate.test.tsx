@@ -21,9 +21,10 @@ function harness() {
 }
 
 describe('useTransport.hydrate', () => {
-  test('replaces the transport-authoring subset', () => {
+  test('replaces the transport-authoring subset including cuePointTicks', () => {
     const t = harness();
     expect(t.current!.bpm).toBe(124);
+    expect(t.current!.cuePointTicks).toBe(0);
 
     act(() => {
       t.current!.hydrate({
@@ -35,6 +36,7 @@ describe('useTransport.hydrate', () => {
         looping: true,
         metronomeOn: false,
         clockSource: 'external-clock',
+        cuePointTicks: 1920,
       });
     });
 
@@ -46,16 +48,22 @@ describe('useTransport.hydrate', () => {
     expect(t.current!.looping).toBe(true);
     expect(t.current!.metronomeOn).toBe(false);
     expect(t.current!.clockSource).toBe('external-clock');
+    expect(t.current!.cuePointTicks).toBe(1920);
   });
 
-  test('does not touch runtime/transient transport fields', () => {
+  test('resets runtime fields atomically (mode, timecodeMs, playheadTicks, recordingStartedAt)', () => {
     const t = harness();
 
     act(() => {
-      t.current!.play();
+      t.current!.record();
     });
-    expect(t.current!.playing).toBe(true);
-    expect(t.current!.mode).toBe('play');
+    act(() => {
+      t.current!.seek(2500);
+    });
+    expect(t.current!.mode).toBe('record');
+    expect(t.current!.timecodeMs).toBeGreaterThan(0);
+    expect(t.current!.playheadTicks).toBeGreaterThan(0);
+    expect(t.current!.recordingStartedAt).not.toBeNull();
 
     act(() => {
       t.current!.hydrate({
@@ -67,15 +75,17 @@ describe('useTransport.hydrate', () => {
         looping: false,
         metronomeOn: true,
         clockSource: 'internal',
+        cuePointTicks: 0,
       });
     });
 
     expect(t.current!.bpm).toBe(100);
-    expect(t.current!.mode).toBe('play');
-    expect(t.current!.playing).toBe(true);
-
-    act(() => {
-      t.current!.stop();
-    });
+    expect(t.current!.mode).toBe('idle');
+    expect(t.current!.playing).toBe(false);
+    expect(t.current!.recording).toBe(false);
+    expect(t.current!.timecodeMs).toBe(0);
+    expect(t.current!.playheadTicks).toBe(0);
+    expect(t.current!.recordingStartedAt).toBeNull();
+    expect(t.current!.cuePointTicks).toBe(0);
   });
 });

@@ -6,6 +6,7 @@ import type { MidiClockValue, ClockSourceSelection } from '../../midi/MidiClockP
 
 let mockInputs: Array<{ id: string; name: string }> = [{ id: 'in1', name: 'Input 1' }];
 const setSelectionSpy = vi.fn<(sel: ClockSourceSelection) => void>();
+const toastShowSpy = vi.fn<(...args: unknown[]) => void>();
 let mockClock: MidiClockValue = {
   present: false,
   bpm: null,
@@ -32,12 +33,13 @@ vi.mock('../toast/Toast', async () => {
   const actual = await vi.importActual<object>('../toast/Toast');
   return {
     ...actual,
-    useToast: () => ({ show: vi.fn() }),
+    useToast: () => ({ show: toastShowSpy }),
   };
 });
 
 beforeEach(() => {
   setSelectionSpy.mockClear();
+  toastShowSpy.mockClear();
   mockInputs = [{ id: 'in1', name: 'Input 1' }];
   mockClock = {
     present: false,
@@ -303,5 +305,114 @@ describe('Titlebar Clk picker', () => {
 
     const rows = Array.from(container.querySelectorAll('.mr-clk__menu-row'));
     expect(rows.map((r) => r.textContent)).toEqual(['Auto', 'Internal']);
+  });
+});
+
+describe('Titlebar transport-group-A buttons', () => {
+  test('4.2 renders exactly five .mr-tbtn buttons in spec order, no Stop button', () => {
+    const { container } = renderTitlebar();
+    const groupA = container.querySelector('.mr-tgroup');
+    expect(groupA).toBeTruthy();
+    const buttons = Array.from(groupA!.querySelectorAll('.mr-tbtn')) as HTMLButtonElement[];
+    expect(buttons.length).toBe(5);
+    const labels = buttons.map((b) => b.getAttribute('aria-label'));
+    expect(labels).toEqual(['Rewind', 'Play', 'Cue', 'Record', 'Fast forward']);
+    expect(labels).not.toContain('Stop');
+  });
+
+  test('4.3 clicking Rewind resets playheadTicks and timecodeMs to 0', () => {
+    const { container, transport } = renderTitlebar();
+    act(() => {
+      transport.current!.seek(2500);
+    });
+    expect(transport.current!.playheadTicks).toBeGreaterThan(0);
+    const rewindBtn = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Rewind"]') as HTMLButtonElement;
+    fireEvent.click(rewindBtn);
+    expect(transport.current!.playheadTicks).toBe(0);
+    expect(transport.current!.timecodeMs).toBe(0);
+  });
+
+  test('4.4 clicking Cue from idle stores playhead into cuePointTicks', () => {
+    const { container, transport } = renderTitlebar();
+    act(() => {
+      transport.current!.seek(1500);
+    });
+    const ticks = transport.current!.playheadTicks;
+    expect(ticks).toBeGreaterThan(0);
+    expect(transport.current!.mode).toBe('idle');
+    const cueBtn = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Cue"]') as HTMLButtonElement;
+    fireEvent.click(cueBtn);
+    expect(transport.current!.cuePointTicks).toBe(ticks);
+    expect(transport.current!.mode).toBe('idle');
+  });
+
+  test('4.5 clicking Cue from play snaps playhead to cuePointTicks and idles', () => {
+    const { container, transport } = renderTitlebar();
+    act(() => {
+      transport.current!.seek(1500);
+    });
+    act(() => {
+      transport.current!.cue();
+    });
+    const cue = transport.current!.cuePointTicks;
+    expect(cue).toBeGreaterThan(0);
+    act(() => {
+      transport.current!.play();
+    });
+    act(() => {
+      transport.current!.seek(3000);
+    });
+    expect(transport.current!.mode).toBe('play');
+    expect(transport.current!.playheadTicks).not.toBe(cue);
+    const cueBtn = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Cue"]') as HTMLButtonElement;
+    fireEvent.click(cueBtn);
+    expect(transport.current!.mode).toBe('idle');
+    expect(transport.current!.playheadTicks).toBe(cue);
+  });
+
+  test('4.6 Play-Pause resumes recording when a take is paused', () => {
+    const { container, transport } = renderTitlebar();
+    act(() => {
+      transport.current!.record();
+    });
+    const stamp = transport.current!.recordingStartedAt;
+    expect(stamp).not.toBeNull();
+    act(() => {
+      transport.current!.seek(1500);
+    });
+    const ms = transport.current!.timecodeMs;
+    const ticks = transport.current!.playheadTicks;
+
+    const playBtn = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Pause"]') as HTMLButtonElement;
+    fireEvent.click(playBtn);
+    expect(transport.current!.mode).toBe('idle');
+    expect(transport.current!.recordingStartedAt).toBe(stamp);
+
+    const playBtnAgain = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Play"]') as HTMLButtonElement;
+    fireEvent.click(playBtnAgain);
+    expect(transport.current!.mode).toBe('record');
+    expect(transport.current!.recordingStartedAt).toBe(stamp);
+    expect(transport.current!.timecodeMs).toBe(ms);
+    expect(transport.current!.playheadTicks).toBe(ticks);
+  });
+
+  test('4.7 play-after-pause-from-play starts fresh play and emits the "Started · BPM" toast', () => {
+    const { container, transport } = renderTitlebar();
+    act(() => {
+      transport.current!.play();
+    });
+    expect(transport.current!.mode).toBe('play');
+
+    const pauseBtn = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Pause"]') as HTMLButtonElement;
+    fireEvent.click(pauseBtn);
+    expect(transport.current!.mode).toBe('idle');
+    expect(transport.current!.recordingStartedAt).toBeNull();
+
+    toastShowSpy.mockClear();
+    const playBtn = container.querySelector('.mr-tgroup .mr-tbtn[aria-label="Play"]') as HTMLButtonElement;
+    fireEvent.click(playBtn);
+    expect(transport.current!.mode).toBe('play');
+    expect(toastShowSpy).toHaveBeenCalledTimes(1);
+    expect(toastShowSpy.mock.calls[0]![0]).toMatch(/Started · \d+ BPM/);
   });
 });

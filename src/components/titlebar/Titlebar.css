@@ -95,6 +95,14 @@
     box-shadow var(--mr-dur-fast) var(--mr-ease);
 }
 
+.mr-tbtn__text {
+  font-size: 9px;
+  font-weight: var(--mr-fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--mr-tracking-cap);
+  line-height: 1;
+}
+
 .mr-tbtn:hover {
   background: var(--mr-bg-panel-2);
   color: var(--mr-text-1);

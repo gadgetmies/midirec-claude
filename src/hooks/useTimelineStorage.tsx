@@ -72,6 +72,7 @@ function transportAuthoringFromTransport(t: {
   looping: boolean;
   metronomeOn: boolean;
   clockSource: TransportAuthoringSlice['clockSource'];
+  cuePointTicks: number;
 }): TransportAuthoringSlice {
   return {
     bpm: t.bpm,
@@ -82,6 +83,7 @@ function transportAuthoringFromTransport(t: {
     looping: t.looping,
     metronomeOn: t.metronomeOn,
     clockSource: t.clockSource,
+    cuePointTicks: t.cuePointTicks,
   };
 }
 
@@ -176,9 +178,11 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
       const name = rawName.trim();
       if (name.length === 0) return;
 
-      // Stop a running recorder so its buffered notes commit before serialise.
+      // Pause a running recorder so its buffered notes commit before serialise.
+      // pause() preserves position and recordingStartedAt so the user's take
+      // context survives a save mid-recording.
       if (transportRef.current.recording) {
-        transportRef.current.stop();
+        transportRef.current.pause();
       }
 
       const isOverwrite = entries.some((e) => e.name === name);
@@ -222,7 +226,6 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
       }
       try {
         const slices = deserializeTimeline(payload);
-        transportRef.current.stop();
         const s = stageRef.current;
         s.channelsHydrate(slices.channels);
         s.djActionTracksHydrate(slices.djActionTracks);
@@ -267,7 +270,6 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
   );
 
   const newTimeline = useCallback(async () => {
-    transportRef.current.stop();
     const empty = emptySessionPayload();
     const s = stageRef.current;
     s.channelsHydrate({ channels: empty.channels, rolls: empty.rolls, lanes: empty.lanes });
@@ -289,7 +291,6 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyDeserializedSlices = useCallback((slices: DeserializedSlices) => {
-    transportRef.current.stop();
     const s = stageRef.current;
     s.channelsHydrate(slices.channels);
     s.djActionTracksHydrate(slices.djActionTracks);

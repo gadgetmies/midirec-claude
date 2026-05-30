@@ -150,7 +150,11 @@ export function parseTimelineJsonl(text: string): ParsedTimelineJsonl {
         if (!isObject(parsed.slice)) {
           throw new PayloadShapeError(`line ${idx + 1}: transport.slice is missing`);
         }
-        slices.transportAuthoring = parsed.slice as unknown as TransportAuthoringSlice;
+        const slice = parsed.slice as unknown as TransportAuthoringSlice;
+        /* Older payloads predate `cuePointTicks`; default to 0 so loads of
+           legacy JSONL files are silent. */
+        const cuePointTicks = typeof slice.cuePointTicks === 'number' ? slice.cuePointTicks : 0;
+        slices.transportAuthoring = { ...slice, cuePointTicks };
         break;
       }
       case 'loop': {

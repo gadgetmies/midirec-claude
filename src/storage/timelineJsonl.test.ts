@@ -117,7 +117,24 @@ describe('parseTimelineJsonl', () => {
     expect(parsed.slices.channels.lanes[0]?.cc).toBe(1);
     expect(parsed.slices.djActionTracks[0]?.events[0]?.tTicks).toBe(1920);
     expect(parsed.slices.transportAuthoring.bpm).toBe(124);
+    expect(parsed.slices.transportAuthoring.cuePointTicks).toBe(0);
     expect(parsed.slices.loopRegion).toBe(null);
+  });
+
+  it('round-trips a non-zero cuePointTicks on the transport line', () => {
+    const input = makeInput({
+      transport: { ...emptyTransportAuthoring(), cuePointTicks: 1920 },
+    });
+    const parsed = parseTimelineJsonl(serializeTimelineToJsonl(input));
+    expect(parsed.slices.transportAuthoring.cuePointTicks).toBe(1920);
+  });
+
+  it('defaults cuePointTicks to 0 on a legacy transport line that lacks the field', () => {
+    const text =
+      `{"kind":"meta","version":${STORAGE_SCHEMA_VERSION},"appVersion":"x","name":"legacy","savedAt":0}\n` +
+      `{"kind":"transport","slice":{"bpm":124,"sig":"4/4","quantizeOn":true,"quantizeGrid":"1/16","snapAbsoluteOn":false,"looping":false,"metronomeOn":true,"clockSource":"internal"}}\n`;
+    const parsed = parseTimelineJsonl(text);
+    expect(parsed.slices.transportAuthoring.cuePointTicks).toBe(0);
   });
 
   it('tolerates CRLF line endings and trailing blank lines', () => {

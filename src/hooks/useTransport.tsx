@@ -35,6 +35,11 @@ export interface TransportState {
       monotonic across smoother bpm jitter — the visible playhead must not
       regress when the rounded bpm dips between pulses. */
   playheadTicks: number;
+  /** In-memory cue point in session ticks. Default 0. Set via `cue()` while
+      idle; jumped to via `cue()` while playing/recording. Tempo-independent
+      (ticks rather than ms) so the cue stays anchored to the musical position
+      when bpm changes. Not persisted across reloads. */
+  cuePointTicks: number;
   bar: string;
   bpm: number;
   sig: string;
@@ -51,13 +56,20 @@ export interface TransportAuthoringHydrateSlice {
   looping: boolean;
   metronomeOn: boolean;
   clockSource: ClockSource;
+  cuePointTicks: number;
 }
 
 export interface TransportActions {
   play(): void;
   pause(): void;
-  stop(): void;
   record(): void;
+  /** Resets `timecodeMs` and `playheadTicks` to 0; preserves mode, bpm,
+      clockSource, recordingStartedAt, cuePointTicks. */
+  rewind(): void;
+  /** Mode-dependent. From idle: stores `playheadTicks` into `cuePointTicks`.
+      From play/record: stops (mode → idle), snaps playhead to `cuePointTicks`,
+      and clears `recordingStartedAt`. */
+  cue(): void;
   toggleLoop(): void;
   toggleMetronome(): void;
   toggleQuantize(): void;
@@ -83,8 +95,9 @@ export type TransportValue = TransportState & TransportActions;
 type Action =
   | { type: 'play' }
   | { type: 'pause' }
-  | { type: 'stop' }
   | { type: 'record' }
+  | { type: 'rewind' }
+  | { type: 'cue' }
   | { type: 'toggleLoop' }
   | { type: 'toggleMetronome' }
   | { type: 'toggleQuantize' }
@@ -107,6 +120,7 @@ interface InternalState {
   snapAbsoluteOn: boolean;
   timecodeMs: number;
   playheadTicks: number;
+  cuePointTicks: number;
   /** The current effective BPM (mirrors external master when slaved). */
   bpm: number;
   /** The user-set BPM, restored when reverting to internal clock. */
@@ -125,6 +139,7 @@ const initialState: InternalState = {
   snapAbsoluteOn: false,
   timecodeMs: 0,
   playheadTicks: 0,
+  cuePointTicks: 0,
   bpm: 124,
   userBpm: 124,
   sig: '4/4',
@@ -136,22 +151,47 @@ function ticksFromMsAtBpm(ms: number, bpm: number): number {
   return (ms / 1000) * (bpm / 60) * DEFAULT_MIDI_TPQ;
 }
 
+function msFromTicksAtBpm(ticks: number, bpm: number): number {
+  return (ticks / DEFAULT_MIDI_TPQ) * (60 / bpm) * 1000;
+}
+
 function reducer(state: InternalState, action: Action): InternalState {
   switch (action.type) {
     case 'play':
       return { ...state, mode: 'play', recordingStartedAt: null };
     case 'pause':
-      return { ...state, mode: 'idle', recordingStartedAt: null };
-    case 'stop':
-      return { ...state, mode: 'idle', timecodeMs: 0, playheadTicks: 0, recordingStartedAt: null };
-    case 'record':
+      return { ...state, mode: 'idle' };
+    case 'record': {
+      if (state.mode === 'record') return state;
+      if (state.mode === 'play') {
+        return { ...state, mode: 'record', recordingStartedAt: performance.now() };
+      }
+      // idle: fresh vs. resume depends on whether a take is already stamped.
+      if (state.recordingStartedAt === null) {
+        return {
+          ...state,
+          mode: 'record',
+          timecodeMs: 0,
+          playheadTicks: 0,
+          recordingStartedAt: performance.now(),
+        };
+      }
+      return { ...state, mode: 'record' };
+    }
+    case 'rewind':
+      return { ...state, timecodeMs: 0, playheadTicks: 0 };
+    case 'cue': {
+      if (state.mode === 'idle') {
+        return { ...state, cuePointTicks: state.playheadTicks };
+      }
       return {
         ...state,
-        mode: 'record',
-        timecodeMs: state.mode === 'idle' ? 0 : state.timecodeMs,
-        playheadTicks: state.mode === 'idle' ? 0 : state.playheadTicks,
-        recordingStartedAt: state.mode === 'record' ? state.recordingStartedAt : performance.now(),
+        mode: 'idle',
+        playheadTicks: state.cuePointTicks,
+        timecodeMs: msFromTicksAtBpm(state.cuePointTicks, state.bpm),
+        recordingStartedAt: null,
       };
+    }
     case 'toggleLoop':
       return { ...state, looping: !state.looping };
     case 'toggleMetronome':
@@ -177,10 +217,16 @@ function reducer(state: InternalState, action: Action): InternalState {
         playheadTicks: state.playheadTicks + ticksFromMsAtBpm(action.deltaMs, state.bpm),
       };
     case 'hydrate': {
-      /* SHALL NOT touch mode/timecodeMs/recordingStartedAt — those are
-         runtime/transient state per session-model spec. */
+      /* Writes the authoring slice AND atomically resets runtime fields. This
+         is the session-swap entry point — useTimelineStorage relies on it to
+         clear stale mode/position/take handle when loading or creating a
+         session. cuePointTicks is now part of the persisted slice. */
       return {
         ...state,
+        mode: 'idle',
+        timecodeMs: 0,
+        playheadTicks: 0,
+        recordingStartedAt: null,
         bpm: action.slice.bpm,
         userBpm: action.slice.bpm,
         sig: action.slice.sig,
@@ -190,6 +236,7 @@ function reducer(state: InternalState, action: Action): InternalState {
         looping: action.slice.looping,
         metronomeOn: action.slice.metronomeOn,
         clockSource: action.slice.clockSource,
+        cuePointTicks: action.slice.cuePointTicks,
       };
     }
     case 'applyExternalPulse': {
@@ -278,8 +325,9 @@ export function TransportProvider({ children }: { children: ReactNode }) {
 
   const play = useCallback(() => dispatch({ type: 'play' }), []);
   const pause = useCallback(() => dispatch({ type: 'pause' }), []);
-  const stop = useCallback(() => dispatch({ type: 'stop' }), []);
   const record = useCallback(() => dispatch({ type: 'record' }), []);
+  const rewind = useCallback(() => dispatch({ type: 'rewind' }), []);
+  const cue = useCallback(() => dispatch({ type: 'cue' }), []);
   const toggleLoop = useCallback(() => dispatch({ type: 'toggleLoop' }), []);
   const toggleMetronome = useCallback(() => dispatch({ type: 'toggleMetronome' }), []);
   const toggleQuantize = useCallback(() => dispatch({ type: 'toggleQuantize' }), []);
@@ -315,6 +363,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       snapAbsoluteOn: state.snapAbsoluteOn,
       timecodeMs: state.timecodeMs,
       playheadTicks: state.playheadTicks,
+      cuePointTicks: state.cuePointTicks,
       bar: bbsFromMs(state.timecodeMs, state.bpm, state.sig),
       bpm: state.bpm,
       sig: state.sig,
@@ -322,8 +371,9 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       recordingStartedAt: state.recordingStartedAt,
       play,
       pause,
-      stop,
       record,
+      rewind,
+      cue,
       toggleLoop,
       toggleMetronome,
       toggleQuantize,
@@ -338,8 +388,9 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       state,
       play,
       pause,
-      stop,
       record,
+      rewind,
+      cue,
       toggleLoop,
       toggleMetronome,
       toggleQuantize,

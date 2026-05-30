@@ -30,6 +30,7 @@ export interface TransportAuthoringSlice {
   looping: boolean;
   metronomeOn: boolean;
   clockSource: ClockSource;
+  cuePointTicks: number;
 }
 
 export interface SessionPayload {
@@ -79,6 +80,7 @@ export function serializeTimeline(input: SerializeInput, name: string): Timeline
         looping: input.transport.looping,
         metronomeOn: input.transport.metronomeOn,
         clockSource: input.transport.clockSource,
+        cuePointTicks: input.transport.cuePointTicks,
       },
       loopRegion: input.loopRegion,
     },
@@ -138,6 +140,13 @@ export function deserializeTimeline(payload: unknown): DeserializedSlices {
     throw new PayloadVersionError(payload.version, STORAGE_SCHEMA_VERSION, payload.name);
   }
   const s = payload.session;
+  /* Older payloads predate `cuePointTicks` on the transport-authoring slice.
+     Default to 0 (start of timeline) so loads of pre-cue saves are silent. */
+  const ta = s.transportAuthoring;
+  const cuePointTicks =
+    typeof (ta as TransportAuthoringSlice).cuePointTicks === 'number'
+      ? (ta as TransportAuthoringSlice).cuePointTicks
+      : 0;
   return {
     channels: {
       channels: s.channels,
@@ -145,7 +154,7 @@ export function deserializeTimeline(payload: unknown): DeserializedSlices {
       lanes: s.lanes,
     },
     djActionTracks: s.djActionTracks,
-    transportAuthoring: s.transportAuthoring,
+    transportAuthoring: { ...ta, cuePointTicks },
     loopRegion: s.loopRegion,
   };
 }
@@ -162,6 +171,7 @@ export function emptyTransportAuthoring(): TransportAuthoringSlice {
     looping: false,
     metronomeOn: true,
     clockSource: 'internal',
+    cuePointTicks: 0,
   };
 }
 

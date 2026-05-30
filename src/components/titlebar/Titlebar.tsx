@@ -7,7 +7,6 @@ import { QUANTIZE_GRIDS, type QuantizeGrid } from '../../midi/quantizeGrid';
 import { useToast } from '../toast/Toast';
 import {
   ChevDownIcon,
-  CueIcon,
   FfwIcon,
   LoopIcon,
   MetroIcon,
@@ -15,7 +14,6 @@ import {
   PlayIcon,
   RecIcon,
   RewIcon,
-  StopIcon,
 } from '../icons/transport';
 import { BeatLed } from './BeatLed';
 import { formatBig, formatMs } from './format';
@@ -57,6 +55,7 @@ export function Titlebar() {
     bpm,
     sig,
     clockSource,
+    recordingStartedAt,
   } = transport;
 
   const handlePlay = () => {
@@ -64,24 +63,25 @@ export function Titlebar() {
       transport.pause();
       return;
     }
+    if (recordingStartedAt !== null) {
+      transport.record();
+      return;
+    }
     transport.play();
     toast.show(`Started · ${bpm} BPM`);
   };
 
-  const handleStop = () => {
-    if (recording) {
-      const events = Math.max(1, Math.floor(timecodeMs / 67));
-      const sizeMb = ((events * 1.1) / 1024).toFixed(1);
-      toast.show(`Recording saved · ${sizeMb} MB · ${events.toLocaleString()} events`, {
-        shortcut: '⌘Z',
-      });
-    }
-    transport.stop();
-  };
+  const handleRewind = () => transport.rewind();
+  const handleCue = () => transport.cue();
 
   const handleRec = () => {
     if (recording) {
-      handleStop();
+      const events = Math.max(1, Math.floor(timecodeMs / 67));
+      const sizeMb = ((events * 1.1) / 1024).toFixed(1);
+      transport.pause();
+      toast.show(`Recording saved · ${sizeMb} MB · ${events.toLocaleString()} events`, {
+        shortcut: '⌘Z',
+      });
       return;
     }
     transport.record();
@@ -158,11 +158,14 @@ export function Titlebar() {
       </div>
 
       <div className="mr-tgroup">
-        <button className="mr-tbtn" type="button" title="Cue start" aria-label="Rewind">
+        <button
+          className="mr-tbtn"
+          type="button"
+          onClick={handleRewind}
+          title="Rewind to start"
+          aria-label="Rewind"
+        >
           <RewIcon />
-        </button>
-        <button className="mr-tbtn" type="button" title="Skip back" aria-label="Cue">
-          <CueIcon />
         </button>
         <button
           className="mr-tbtn"
@@ -177,11 +180,11 @@ export function Titlebar() {
         <button
           className="mr-tbtn"
           type="button"
-          onClick={handleStop}
-          aria-label="Stop"
-          title="Stop"
+          onClick={handleCue}
+          title="Set cue point / Stop and return to cue"
+          aria-label="Cue"
         >
-          <StopIcon />
+          <span className="mr-tbtn__text mr-mono">CUE</span>
         </button>
         <button
           className="mr-tbtn"
