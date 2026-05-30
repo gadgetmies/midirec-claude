@@ -128,3 +128,31 @@ export function DownloadIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function DiskIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <rect x="2" y="2" width="10" height="10" rx="1.2" />
+      <rect x="4" y="2" width="6" height="3.5" />
+      <rect x="4" y="8" width="6" height="4" />
+      <circle cx="7" cy="10" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function FolderOpenIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <path d="M2 4.5V3a1 1 0 011-1h3l1.5 1.5h4a1 1 0 011 1V6" />
+      <path d="M2.5 6h10l-1 5.5a1 1 0 01-1 .5H2.5a.5.5 0 01-.5-.5l.5-5.5z" />
+    </svg>
+  );
+}
+
+export function UploadIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" width={12} height={12} {...props}>
+      <path d="M6 10V3M3 6l3-3 3 3M2 10h8" />
+    </svg>
+  );
+}

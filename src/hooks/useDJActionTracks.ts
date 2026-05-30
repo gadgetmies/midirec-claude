@@ -118,6 +118,9 @@ export interface UseDJActionTracksReturn {
     rangeEnd: number,
     replacements: readonly { tTicks: number; vel: number }[],
   ) => void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces the
+      DJ action tracks slice from a deserialised TimelinePayload. */
+  hydrate: (djActionTracks: DJActionTrack[]) => void;
 }
 
 /* Demo seed (`demo=dj` or `demo=dj-empty`): same deck + mixer strips and
@@ -544,6 +547,11 @@ export function useDJActionTracks(
     [],
   );
 
+  // Only `useTimelineStorage` may dispatch this — see app-shell spec.
+  const hydrate = useCallback((next: DJActionTrack[]) => {
+    setDJActionTracks(next);
+  }, []);
+
   return {
     djActionTracks,
     toggleDJTrackCollapsed,
@@ -565,6 +573,7 @@ export function useDJActionTracks(
     upsertDJEvent,
     removeDJEventAtTick,
     replaceDJEventsInRange,
+    hydrate,
   };
 }
 

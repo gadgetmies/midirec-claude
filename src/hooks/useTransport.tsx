@@ -42,6 +42,17 @@ export interface TransportState {
   recordingStartedAt: number | null;
 }
 
+export interface TransportAuthoringHydrateSlice {
+  bpm: number;
+  sig: string;
+  quantizeOn: boolean;
+  quantizeGrid: QuantizeGrid;
+  snapAbsoluteOn: boolean;
+  looping: boolean;
+  metronomeOn: boolean;
+  clockSource: ClockSource;
+}
+
 export interface TransportActions {
   play(): void;
   pause(): void;
@@ -53,6 +64,10 @@ export interface TransportActions {
   toggleSnapAbsolute(): void;
   setQuantizeGrid(grid: QuantizeGrid): void;
   seek(ms: number): void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces the
+      transport-authoring subset (bpm/sig/quantize/looping/metronomeOn/clockSource).
+      Does NOT touch mode/playing/recording/timecodeMs/bar/recordingStartedAt. */
+  hydrate(slice: TransportAuthoringHydrateSlice): void;
   /** Only `MidiClockProvider` may call this — see midi-clock spec. Flips
       `clockSource` to `'external-clock'`, mirrors the incoming BPM, and
       advances `timecodeMs` by `deltaMs` when `mode !== 'idle'`. */
@@ -77,6 +92,8 @@ type Action =
   | { type: 'setQuantizeGrid'; grid: QuantizeGrid }
   | { type: 'seek'; ms: number }
   | { type: 'tick'; deltaMs: number }
+  // Only `useTimelineStorage` may dispatch this — see app-shell spec.
+  | { type: 'hydrate'; slice: TransportAuthoringHydrateSlice }
   // Only `MidiClockProvider` may dispatch these — see midi-clock spec.
   | { type: 'applyExternalPulse'; deltaMs: number; bpm: number }
   | { type: 'revertToInternalClock' };
@@ -159,6 +176,22 @@ function reducer(state: InternalState, action: Action): InternalState {
         timecodeMs: state.timecodeMs + action.deltaMs,
         playheadTicks: state.playheadTicks + ticksFromMsAtBpm(action.deltaMs, state.bpm),
       };
+    case 'hydrate': {
+      /* SHALL NOT touch mode/timecodeMs/recordingStartedAt — those are
+         runtime/transient state per session-model spec. */
+      return {
+        ...state,
+        bpm: action.slice.bpm,
+        userBpm: action.slice.bpm,
+        sig: action.slice.sig,
+        quantizeOn: action.slice.quantizeOn,
+        quantizeGrid: action.slice.quantizeGrid,
+        snapAbsoluteOn: action.slice.snapAbsoluteOn,
+        looping: action.slice.looping,
+        metronomeOn: action.slice.metronomeOn,
+        clockSource: action.slice.clockSource,
+      };
+    }
     case 'applyExternalPulse': {
       // Source flips to external-clock atomically with the per-pulse advance —
       // combined action keeps the visible source / bpm / timecode commit in one frame.
@@ -256,6 +289,10 @@ export function TransportProvider({ children }: { children: ReactNode }) {
     [],
   );
   const seek = useCallback((ms: number) => dispatch({ type: 'seek', ms }), []);
+  const hydrate = useCallback(
+    (slice: TransportAuthoringHydrateSlice) => dispatch({ type: 'hydrate', slice }),
+    [],
+  );
   const applyExternalPulse = useCallback(
     (deltaMs: number, bpm: number) =>
       dispatch({ type: 'applyExternalPulse', deltaMs, bpm }),
@@ -293,6 +330,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleSnapAbsolute,
       setQuantizeGrid,
       seek,
+      hydrate,
       applyExternalPulse,
       revertToInternalClock,
     }),
@@ -308,6 +346,7 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleSnapAbsolute,
       setQuantizeGrid,
       seek,
+      hydrate,
       applyExternalPulse,
       revertToInternalClock,
     ],

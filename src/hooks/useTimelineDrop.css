@@ -1,0 +1,25 @@
+/* Whole-page drop overlay shown while the user is dragging a file over
+   the window. Renders above all chrome but below dialogs. */
+
+.mr-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--mr-z-toast, 60);
+  background: color-mix(in oklab, var(--mr-accent) 14%, transparent);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.mr-drop-overlay__card {
+  background: var(--mr-bg-panel);
+  border: 2px dashed var(--mr-accent);
+  border-radius: var(--mr-r-3);
+  padding: 18px 28px;
+  font-size: var(--mr-fs-14);
+  font-weight: var(--mr-fw-semibold);
+  color: var(--mr-text-1);
+  box-shadow: var(--mr-shadow-lg);
+}

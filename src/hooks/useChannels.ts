@@ -105,6 +105,12 @@ interface State {
   lanes: ParamLane[];
 }
 
+export interface ChannelsHydrateSlice {
+  channels: Channel[];
+  rolls: PianoRollTrack[];
+  lanes: ParamLane[];
+}
+
 type Action =
   | { type: 'channel/toggleCollapsed'; channelId: ChannelId }
   | { type: 'channel/toggleMuted'; channelId: ChannelId }
@@ -129,7 +135,9 @@ type Action =
       channelId: ChannelId;
       inputDeviceId: string;
       channels: ChannelId[];
-    };
+    }
+  // Only `useTimelineStorage` may dispatch this — see app-shell spec.
+  | { type: 'hydrate'; slice: ChannelsHydrateSlice };
 
 function flipChannelField(state: State, channelId: ChannelId, field: keyof Pick<Channel, 'collapsed' | 'muted' | 'soloed'>): State {
   const idx = state.channels.findIndex((c) => c.id === channelId);
@@ -264,6 +272,13 @@ function reducer(state: State, action: Action): State {
       channels[idx] = { ...ch, inputSources: nextSources };
       return { ...state, channels };
     }
+    case 'hydrate': {
+      return {
+        channels: action.slice.channels,
+        rolls: action.slice.rolls,
+        lanes: action.slice.lanes,
+      };
+    }
     default:
       return state;
   }
@@ -381,6 +396,9 @@ export interface UseChannelsReturn {
     patch: Partial<Pick<Note, 'tTicks' | 'durTicks' | 'pitch' | 'vel'>>,
   ) => void;
   setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces the
+      channels/rolls/lanes slice from a deserialised TimelinePayload. */
+  hydrate: (slice: ChannelsHydrateSlice) => void;
 }
 
 export function useChannels(totalT: number, instrumentSeed: boolean = false): UseChannelsReturn {
@@ -411,5 +429,6 @@ export function useChannels(totalT: number, instrumentSeed: boolean = false): Us
         dispatch({ type: 'channel/setInputSourceChannels', channelId, inputDeviceId, channels: channelsArr }),
       [],
     ),
+    hydrate: useCallback((slice: ChannelsHydrateSlice) => dispatch({ type: 'hydrate', slice }), []),
   };
 }

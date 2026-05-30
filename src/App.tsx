@@ -1,6 +1,8 @@
 import { AppShell } from './components/shell/AppShell';
 import { ToastProvider } from './components/toast/Toast';
 import { StageProvider } from './hooks/useStage';
+import { TimelineDropProvider } from './hooks/useTimelineDrop';
+import { TimelineStorageProvider } from './hooks/useTimelineStorage';
 import { TransportProvider } from './hooks/useTransport';
 import { MidiClockProvider } from './midi/MidiClockProvider';
 import { MidiRuntimeProvider } from './midi/MidiRuntimeProvider';
@@ -15,9 +17,13 @@ export function App() {
           <MidiRuntimeProvider>
             <MidiClockProvider>
               <StageProvider>
-                <MidiRecorderRunner />
-                <MidiSchedulerRunner />
-                <AppShell />
+                <TimelineStorageProvider>
+                  <TimelineDropProvider>
+                    <MidiRecorderRunner />
+                    <MidiSchedulerRunner />
+                    <AppShell />
+                  </TimelineDropProvider>
+                </TimelineStorageProvider>
               </StageProvider>
             </MidiClockProvider>
           </MidiRuntimeProvider>

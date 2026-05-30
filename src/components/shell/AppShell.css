@@ -105,7 +105,9 @@
 .mr-toolstrip {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   height: var(--mr-h-toolbar);
+  padding-right: var(--mr-sp-3);
   background: var(--mr-bg-panel-2);
   border-bottom: var(--mr-bw-1) solid var(--mr-line-2);
 }

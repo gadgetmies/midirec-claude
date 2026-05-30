@@ -1,0 +1,140 @@
+/* Toolstrip Save / Open controls. Two icon buttons (re-using `.mr-tool`)
+   each open a popover anchored to the button. Save popover is right-aligned
+   to the button; Open popover is right-aligned and lists saved timelines. */
+
+.mr-tool-storage {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--mr-sp-3);
+  position: relative;
+}
+
+.mr-tool-storage__popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  background: var(--mr-bg-panel);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  border-radius: var(--mr-r-2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mr-tool-storage__popover--save {
+  width: 280px;
+}
+
+.mr-tool-storage__popover--open {
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  gap: 2px;
+}
+
+.mr-tool-storage__label {
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mr-tool-storage__name {
+  appearance: none;
+  background: var(--mr-bg-app);
+  border: var(--mr-bw-1) solid var(--mr-line-2);
+  color: var(--mr-text-1);
+  height: var(--mr-h-control-md);
+  padding: 0 8px;
+  border-radius: var(--mr-r-1);
+  font-size: var(--mr-fs-11);
+  font-family: inherit;
+  width: 100%;
+}
+
+.mr-tool-storage__name:focus-visible {
+  outline: 2px solid var(--mr-accent);
+  outline-offset: -1px;
+}
+
+.mr-tool-storage__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.mr-tool-storage__actions .mr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--mr-fs-10);
+  padding: 0 10px;
+}
+
+.mr-tool-storage__popover-row {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--mr-text-1);
+  text-align: left;
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  padding: 6px 8px;
+  border-radius: var(--mr-r-1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mr-tool-storage__popover-row:hover {
+  background: var(--mr-bg-panel-2);
+}
+
+.mr-tool-storage__popover-row[data-confirming='true'] {
+  background: color-mix(in oklab, var(--mr-accent) 14%, transparent);
+}
+
+.mr-tool-storage__popover-upload {
+  color: var(--mr-text-2);
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.mr-tool-storage__popover-upload:hover {
+  color: var(--mr-text-1);
+}
+
+.mr-tool-storage__popover-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.mr-tool-storage__popover-confirm {
+  font-size: var(--mr-fs-10);
+  color: var(--mr-accent);
+  flex-shrink: 0;
+}
+
+.mr-tool-storage__popover-divider {
+  height: 1px;
+  background: var(--mr-line-1);
+  margin: 4px 2px;
+}
+
+.mr-tool-storage__empty {
+  margin: 0;
+  padding: 8px;
+  font-size: var(--mr-fs-10);
+  color: var(--mr-text-3);
+  font-style: italic;
+}

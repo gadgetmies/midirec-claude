@@ -18,6 +18,7 @@ import {
   channelHasContent,
   type Channel,
   type ChannelId,
+  type ChannelsHydrateSlice,
   type PianoRollTrack,
   type ParamLane,
   type ParamLaneKind,
@@ -140,6 +141,15 @@ export interface StageState {
   selectedTimelineTrack: TimelineTrackSelection | null;
   setSelectedTimelineTrack: (s: TimelineTrackSelection | null) => void;
   selectDJTimelineTrack: (trackId: DJTrackId) => void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces
+      the loop region slice from a deserialised TimelinePayload. */
+  hydrateLoopRegion: (loopRegion: LoopRegion | null) => void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces
+      the channels / rolls / lanes slice from a deserialised TimelinePayload. */
+  channelsHydrate: (slice: ChannelsHydrateSlice) => void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces
+      the DJ action tracks slice from a deserialised TimelinePayload. */
+  djActionTracksHydrate: (tracks: DJActionTrack[]) => void;
   setChannelInputSourceChannels: (channelId: ChannelId, inputDeviceId: string, channels: ChannelId[]) => void;
   setDJTrackDefaultMidiInputDevice: (trackId: DJTrackId, inputDeviceId: string) => void;
   setDJTrackDefaultMidiOutputDevice: (trackId: DJTrackId, outputDeviceId: string) => void;
@@ -183,6 +193,7 @@ function useStageState(): StageState {
   const [dialogOpen, setDialogOpen] = useState(false);
   const openExportDialog = useCallback(() => setDialogOpen(true), []);
   const closeExportDialog = useCallback(() => setDialogOpen(false), []);
+  const [loopRegion, setLoopRegion] = useState<LoopRegion | null>(null);
 
   const [djActionSelection, setDJActionSelection] = useState<DJActionSelection | null>(null);
   const [djEventSelection, setDJEventSelection] = useState<DJEventSelection | null>(null);
@@ -197,6 +208,19 @@ function useStageState(): StageState {
     channelId: null,
     indexes: [],
   }));
+
+  /* Only `useTimelineStorage` may call this — see app-shell spec. Replaces
+     loopRegion and resets all transient stage flags (selections, dialog open
+     flags) to their construction defaults so a load behaves like opening a
+     fresh editor on saved content. */
+  const hydrateLoopRegion = useCallback((next: LoopRegion | null) => {
+    setLoopRegion(next);
+    setDialogOpen(false);
+    setDJActionSelection(null);
+    setDJEventSelection(null);
+    setSelectedTimelineTrack(null);
+    setInteractiveRollSel({ channelId: null, indexes: [] });
+  }, []);
 
   const selectDJTimelineTrack = useCallback((trackId: DJTrackId) => {
     setSelectedTimelineTrack({ kind: 'dj', trackId });
@@ -366,7 +390,7 @@ function useStageState(): StageState {
     marquee,
     selectedIdx,
     resolvedSelection,
-    loopRegion: null,
+    loopRegion,
     soloing,
     dialogOpen,
     openExportDialog,
@@ -387,6 +411,9 @@ function useStageState(): StageState {
     selectedTimelineTrack,
     setSelectedTimelineTrack,
     selectDJTimelineTrack,
+    hydrateLoopRegion,
+    channelsHydrate: channels.hydrate,
+    djActionTracksHydrate: djTracks.hydrate,
     setChannelInputSourceChannels: channels.setChannelInputSourceChannels,
     setDJTrackDefaultMidiInputDevice: djTracks.setDJTrackDefaultMidiInputDevice,
     setDJTrackDefaultMidiOutputDevice: djTracks.setDJTrackDefaultMidiOutputDevice,
