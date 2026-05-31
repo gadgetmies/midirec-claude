@@ -160,6 +160,7 @@ describe('MidiClockProvider — no-op when MIDI runtime not granted', () => {
       setSelection: expect.any(Function),
       setStrictStart: expect.any(Function),
       onPulse: expect.any(Function),
+      onStart: expect.any(Function),
     });
     expect(input.onmidimessage).toBeNull();
   });

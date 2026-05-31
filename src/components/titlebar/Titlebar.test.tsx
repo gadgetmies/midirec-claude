@@ -3,10 +3,17 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Titlebar } from './Titlebar';
 import { TransportProvider, useTransport, type TransportValue } from '../../hooks/useTransport';
 import type { MidiClockValue, ClockSourceSelection } from '../../midi/MidiClockProvider';
+import type { MidiClockSendValue } from '../../midi/MidiClockSendProvider';
 
 let mockInputs: Array<{ id: string; name: string }> = [{ id: 'in1', name: 'Input 1' }];
+let mockOutputs: Array<{ id: string; name: string }> = [];
 const setSelectionSpy = vi.fn<(sel: ClockSourceSelection) => void>();
+const setStrictStartSpy = vi.fn<(b: boolean) => void>();
 const toastShowSpy = vi.fn<(...args: unknown[]) => void>();
+const setSendEnabledSpy = vi.fn<(b: boolean) => void>();
+const toggleSendOutputSpy = vi.fn<(id: string) => void>();
+const setSendSelectedOutputsSpy = vi.fn<(ids: string[]) => void>();
+const syncSpy = vi.fn<() => void>();
 let mockClock: MidiClockValue = {
   present: false,
   bpm: null,
@@ -16,8 +23,29 @@ let mockClock: MidiClockValue = {
   selection: 'auto',
   strictStart: false,
   setSelection: setSelectionSpy,
-  setStrictStart: () => {},
+  setStrictStart: setStrictStartSpy,
   onPulse: () => () => {},
+  onStart: () => () => {},
+};
+
+let mockSend: MidiClockSendValue = {
+  enabled: false,
+  selectedOutputIds: new Set<string>(),
+  txPulse: 0,
+  txPulseByOutputId: new Map<string, number>(),
+  gridAlignment: {
+    enabled: false,
+    outputId: null,
+    message: { kind: 'note', channel: 1, note: 60, velocity: 127 },
+    boundary: 'bar',
+    phraseBars: 8,
+  },
+  setEnabled: setSendEnabledSpy,
+  toggleOutput: toggleSendOutputSpy,
+  setSelectedOutputs: setSendSelectedOutputsSpy,
+  sync: syncSpy,
+  setGridAlignment: () => {},
+  fireGridAlignment: () => {},
 };
 
 vi.mock('../../hooks/useStatusbar', () => ({
@@ -25,11 +53,16 @@ vi.mock('../../hooks/useStatusbar', () => ({
 }));
 
 vi.mock('../../midi/MidiRuntimeProvider', () => ({
-  useMidiInputs: () => ({ inputs: mockInputs }),
+  useMidiInputs: () => ({ inputs: mockInputs, status: 'granted' }),
+  useMidiOutputs: () => ({ outputs: mockOutputs, status: 'granted' }),
 }));
 
 vi.mock('../../midi/MidiClockProvider', () => ({
   useMidiClock: () => mockClock,
+}));
+
+vi.mock('../../midi/MidiClockSendProvider', () => ({
+  useMidiClockSend: () => mockSend,
 }));
 
 vi.mock('../toast/Toast', async () => {
@@ -42,8 +75,14 @@ vi.mock('../toast/Toast', async () => {
 
 beforeEach(() => {
   setSelectionSpy.mockClear();
+  setStrictStartSpy.mockClear();
   toastShowSpy.mockClear();
+  setSendEnabledSpy.mockClear();
+  toggleSendOutputSpy.mockClear();
+  setSendSelectedOutputsSpy.mockClear();
+  syncSpy.mockClear();
   mockInputs = [{ id: 'in1', name: 'Input 1' }];
+  mockOutputs = [];
   mockClock = {
     present: false,
     bpm: null,
@@ -53,8 +92,28 @@ beforeEach(() => {
     selection: 'auto',
     strictStart: false,
     setSelection: setSelectionSpy,
-    setStrictStart: () => {},
+    setStrictStart: setStrictStartSpy,
     onPulse: () => () => {},
+    onStart: () => () => {},
+  };
+  mockSend = {
+    enabled: false,
+    selectedOutputIds: new Set<string>(),
+    txPulse: 0,
+    txPulseByOutputId: new Map<string, number>(),
+    gridAlignment: {
+      enabled: false,
+      outputId: null,
+      message: { kind: 'note', channel: 1, note: 60, velocity: 127 },
+      boundary: 'bar',
+      phraseBars: 8,
+    },
+    setEnabled: setSendEnabledSpy,
+    toggleOutput: toggleSendOutputSpy,
+    setSelectedOutputs: setSendSelectedOutputsSpy,
+    sync: syncSpy,
+    setGridAlignment: () => {},
+    fireGridAlignment: () => {},
   };
 });
 
@@ -420,5 +479,201 @@ describe('Titlebar transport-group-A buttons', () => {
     expect(transport.current!.mode).toBe('play');
     expect(toastShowSpy).toHaveBeenCalledTimes(1);
     expect(toastShowSpy.mock.calls[0]![0]).toMatch(/Started · \d+ BPM/);
+  });
+});
+
+describe('Titlebar Snd pill', () => {
+  test('Snd cell renders immediately after Clk cell with aria-haspopup and TX LED', () => {
+    const { container } = renderTitlebar();
+    const meta = Array.from(container.querySelectorAll('.mr-meta'));
+    /* DOM order: Bar, BPM, Clk, Snd, Sig (5 cells). */
+    const clkIdx = meta.findIndex((el) => el.classList.contains('mr-meta--clk'));
+    const sndIdx = meta.findIndex((el) => el.classList.contains('mr-meta--snd'));
+    expect(sndIdx).toBe(clkIdx + 1);
+    const sndBtn = meta[sndIdx].querySelector('.mr-meta__val--btn') as HTMLButtonElement;
+    expect(sndBtn).toBeTruthy();
+    expect(sndBtn.tagName).toBe('BUTTON');
+    expect(sndBtn.getAttribute('aria-haspopup')).toBe('listbox');
+    expect(sndBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(meta[sndIdx].querySelector('.mr-led[aria-hidden="true"]')).toBeTruthy();
+  });
+
+  test('Off state text when send disabled', () => {
+    const { container } = renderTitlebar();
+    const sndBtn = container.querySelector(
+      '.mr-meta--snd .mr-meta__val--btn',
+    ) as HTMLButtonElement;
+    expect(sndBtn.textContent).toContain('Off');
+  });
+
+  test('No outs text when enabled with empty selection', () => {
+    mockSend = { ...mockSend, enabled: true };
+    const { container } = renderTitlebar();
+    const sndBtn = container.querySelector(
+      '.mr-meta--snd .mr-meta__val--btn',
+    ) as HTMLButtonElement;
+    expect(sndBtn.textContent).toContain('No outs');
+  });
+
+  test('<n> outs text with two or more selected', () => {
+    mockSend = {
+      ...mockSend,
+      enabled: true,
+      selectedOutputIds: new Set(['a', 'b', 'c']),
+    };
+    const { container } = renderTitlebar();
+    const sndBtn = container.querySelector(
+      '.mr-meta--snd .mr-meta__val--btn',
+    ) as HTMLButtonElement;
+    expect(sndBtn.textContent).toContain('3 outs');
+  });
+
+  test('Single-output truncated name when one selected', () => {
+    mockOutputs = [{ id: 'out-a', name: 'IAC Driver — Bus 1' }];
+    mockSend = {
+      ...mockSend,
+      enabled: true,
+      selectedOutputIds: new Set(['out-a']),
+    };
+    const { container } = renderTitlebar();
+    const sndBtn = container.querySelector(
+      '.mr-meta--snd .mr-meta__val--btn',
+    ) as HTMLButtonElement;
+    /* 12-char truncation = 11 chars + ellipsis. */
+    expect(sndBtn.textContent).toMatch(/IAC Driver/);
+    expect(sndBtn.textContent).toContain('…');
+  });
+
+  test('clicking Snd button opens menu with Enable row + output rows + footer', () => {
+    mockOutputs = [
+      { id: 'a', name: 'IAC' },
+      { id: 'b', name: 'USB MIDI' },
+    ];
+    const { container } = renderTitlebar();
+    expect(container.querySelector('.mr-snd__menu')).toBeNull();
+    const sndBtn = container.querySelector(
+      '.mr-meta--snd .mr-meta__val--btn',
+    ) as HTMLButtonElement;
+    fireEvent.click(sndBtn);
+    const menu = container.querySelector('.mr-snd__menu');
+    expect(menu).toBeTruthy();
+    expect(menu!.getAttribute('role')).toBe('listbox');
+    expect(sndBtn.getAttribute('aria-expanded')).toBe('true');
+    /* Enable switch row */
+    expect(menu!.querySelector('[role="switch"]')).toBeTruthy();
+    /* Two option rows */
+    const optionRows = menu!.querySelectorAll('[role="option"]');
+    expect(optionRows.length).toBe(2);
+    /* Footer with Select all, Clear, Sync slaves now */
+    const footer = menu!.querySelector('.mr-snd__menu-footer');
+    expect(footer).toBeTruthy();
+    const footerBtns = Array.from(
+      footer!.querySelectorAll('.mr-snd__menu-footer-btn'),
+    );
+    expect(footerBtns.map((b) => b.textContent)).toEqual([
+      'Select all',
+      'Clear',
+      'Sync slaves now',
+    ]);
+  });
+
+  test('clicking Enable row toggles setEnabled and keeps menu open', () => {
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--snd .mr-meta__val--btn') as HTMLButtonElement);
+    const enableRow = container.querySelector(
+      '.mr-snd__menu [role="switch"]',
+    ) as HTMLButtonElement;
+    fireEvent.click(enableRow);
+    expect(setSendEnabledSpy).toHaveBeenCalledTimes(1);
+    expect(setSendEnabledSpy).toHaveBeenCalledWith(true);
+    expect(container.querySelector('.mr-snd__menu')).toBeTruthy();
+  });
+
+  test('clicking a device row toggles output and keeps menu open', () => {
+    mockOutputs = [{ id: 'out-a', name: 'IAC' }];
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--snd .mr-meta__val--btn') as HTMLButtonElement);
+    const optionRow = container.querySelector(
+      '.mr-snd__menu [role="option"]',
+    ) as HTMLButtonElement;
+    fireEvent.click(optionRow);
+    expect(toggleSendOutputSpy).toHaveBeenCalledTimes(1);
+    expect(toggleSendOutputSpy).toHaveBeenCalledWith('out-a');
+    expect(container.querySelector('.mr-snd__menu')).toBeTruthy();
+  });
+
+  test('Select all + Clear + Sync slaves now footer buttons wire up correctly', () => {
+    mockOutputs = [
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' },
+    ];
+    mockSend = {
+      ...mockSend,
+      enabled: true,
+      selectedOutputIds: new Set(['a']),
+    };
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--snd .mr-meta__val--btn') as HTMLButtonElement);
+    const footerBtns = Array.from(
+      container.querySelectorAll('.mr-snd__menu-footer-btn'),
+    ) as HTMLButtonElement[];
+    fireEvent.click(footerBtns[0]); // Select all
+    expect(setSendSelectedOutputsSpy).toHaveBeenCalledWith(['a', 'b']);
+    fireEvent.click(footerBtns[1]); // Clear
+    expect(setSendSelectedOutputsSpy).toHaveBeenCalledWith([]);
+    fireEvent.click(footerBtns[2]); // Sync slaves now
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('Outside click closes Snd menu', () => {
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--snd .mr-meta__val--btn') as HTMLButtonElement);
+    expect(container.querySelector('.mr-snd__menu')).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(container.querySelector('.mr-snd__menu')).toBeNull();
+  });
+});
+
+describe('Titlebar Clk menu — Strict Start row', () => {
+  test('Strict Start row is the last child of the Clk menu', () => {
+    mockInputs = [{ id: 'a', name: 'Korg' }];
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement);
+    const menu = container.querySelector('.mr-clk__menu')!;
+    const last = menu.lastElementChild;
+    expect(last?.classList.contains('mr-clk__menu-row--strict')).toBe(true);
+    expect(last?.getAttribute('role')).toBe('switch');
+  });
+
+  test('Strict Start row carries data-on and aria-checked when enabled', () => {
+    mockClock = { ...mockClock, strictStart: true };
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement);
+    const strictRow = container.querySelector(
+      '.mr-clk__menu-row--strict',
+    ) as HTMLElement;
+    expect(strictRow.getAttribute('aria-checked')).toBe('true');
+    expect(strictRow.getAttribute('data-on')).toBe('true');
+  });
+
+  test('clicking Strict Start row toggles strictStart and keeps Clk menu open', () => {
+    mockClock = { ...mockClock, strictStart: false };
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement);
+    const strictRow = container.querySelector(
+      '.mr-clk__menu-row--strict',
+    ) as HTMLElement;
+    fireEvent.click(strictRow);
+    expect(setStrictStartSpy).toHaveBeenCalledTimes(1);
+    expect(setStrictStartSpy).toHaveBeenCalledWith(true);
+    /* Menu stays open. */
+    expect(container.querySelector('.mr-clk__menu')).toBeTruthy();
+  });
+
+  test('Strict Start row renders even with no input devices', () => {
+    mockInputs = [];
+    const { container } = renderTitlebar();
+    fireEvent.click(container.querySelector('.mr-meta--clk .mr-meta__val--btn') as HTMLButtonElement);
+    expect(container.querySelector('.mr-clk__menu-row--strict')).toBeTruthy();
   });
 });

@@ -30,6 +30,7 @@ import type { MidiLearnWireMessage } from '../../midi/midiLearn';
 import type { ChannelId } from '../../hooks/useChannels';
 import { beatsToSessionTicks, sessionTicksToBeats } from '../../midi/sessionTicks';
 import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
+import { ClockSendPanel } from './ClockSendPanel';
 import './Inspector.css';
 
 const DEVICE_KEYS = Object.keys(DJ_DEVICES) as DeviceId[];
@@ -107,26 +108,29 @@ export function Inspector() {
   const [activeTab, setActiveTab] = useState<Tab>('Events');
 
   return (
-    <div className="mr-insp">
-      <div className="mr-insp-tabs" role="tablist">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            className="mr-insp-tab"
-            data-on={tab === activeTab ? 'true' : undefined}
-            aria-selected={tab === activeTab}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
+    <>
+      <div className="mr-insp">
+        <div className="mr-insp-tabs" role="tablist">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              className="mr-insp-tab"
+              data-on={tab === activeTab ? 'true' : undefined}
+              aria-selected={tab === activeTab}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <div className="mr-insp__body">
+          {activeTab === 'Events' ? <NotePanel /> : null}
+        </div>
       </div>
-      <div className="mr-insp__body">
-        {activeTab === 'Events' ? <NotePanel /> : null}
-      </div>
-    </div>
+      <ClockSendPanel />
+    </>
   );
 }
 

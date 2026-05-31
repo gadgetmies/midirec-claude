@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useStatusbar } from '../../hooks/useStatusbar';
 import { useTransport, type ClockSource } from '../../hooks/useTransport';
 import { useMidiClock, type ClockSourceSelection } from '../../midi/MidiClockProvider';
-import { useMidiInputs } from '../../midi/MidiRuntimeProvider';
+import { useMidiClockSend } from '../../midi/MidiClockSendProvider';
+import { useMidiInputs, useMidiOutputs } from '../../midi/MidiRuntimeProvider';
 import { QUANTIZE_GRIDS, type QuantizeGrid } from '../../midi/quantizeGrid';
 import { useToast } from '../toast/Toast';
 import {
@@ -29,7 +30,22 @@ export function Titlebar() {
   const transport = useTransport();
   const { active: midiActive } = useStatusbar();
   const { inputs } = useMidiInputs();
-  const { selection: clockSelection, setSelection: setClockSelection } = useMidiClock();
+  const { outputs } = useMidiOutputs();
+  const {
+    selection: clockSelection,
+    setSelection: setClockSelection,
+    strictStart,
+    setStrictStart,
+  } = useMidiClock();
+  const {
+    enabled: sendEnabled,
+    selectedOutputIds: sendSelectedOutputIds,
+    txPulse,
+    setEnabled: setSendEnabled,
+    toggleOutput: toggleSendOutput,
+    setSelectedOutputs: setSendSelectedOutputs,
+    sync: syncSlaves,
+  } = useMidiClockSend();
   const toast = useToast();
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const gridChipRef = useRef<HTMLButtonElement>(null);
@@ -37,6 +53,10 @@ export function Titlebar() {
   const [clkMenuOpen, setClkMenuOpen] = useState(false);
   const clkBtnRef = useRef<HTMLButtonElement>(null);
   const clkMenuRef = useRef<HTMLDivElement>(null);
+  const [sndMenuOpen, setSndMenuOpen] = useState(false);
+  const sndBtnRef = useRef<HTMLButtonElement>(null);
+  const sndMenuRef = useRef<HTMLDivElement>(null);
+  const sndLedRef = useRef<HTMLSpanElement>(null);
 
   const hasInput = inputs.length > 0;
   const recDisabled = !hasInput;
@@ -139,22 +159,57 @@ export function Titlebar() {
     setClkMenuOpen(false);
   };
 
-  const statusLed = recording ? 'rec' : playing ? 'play' : undefined;
-  const statusLabel = recording ? 'REC' : playing ? 'PLAY' : 'IDLE';
-  const statusColor = recording
-    ? 'var(--mr-rec)'
-    : playing
-      ? 'var(--mr-play)'
-      : 'var(--mr-text-2)';
+  /* Snd menu — outside-click / Escape close, matching the Clk pattern. */
+  useEffect(() => {
+    if (!sndMenuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node | null;
+      if (sndMenuRef.current?.contains(target)) return;
+      if (sndBtnRef.current?.contains(target)) return;
+      setSndMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSndMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [sndMenuOpen]);
+
+  /* TX LED pulse — apply CSS class on each txPulse advance, remove after
+     100 ms. The class swap drives an 80 ms opacity keyframe. */
+  useEffect(() => {
+    if (!sendEnabled) return;
+    const el = sndLedRef.current;
+    if (!el) return;
+    el.classList.add('is-tx-pulse');
+    const t = setTimeout(() => el.classList.remove('is-tx-pulse'), 100);
+    return () => {
+      clearTimeout(t);
+    };
+  }, [txPulse, sendEnabled]);
+
+  /* Compute Snd pill display text + color per spec. */
+  const sndState: { text: string; color: string } = (() => {
+    if (!sendEnabled) return { text: 'Off', color: 'var(--mr-text-3)' };
+    if (sendSelectedOutputIds.size === 0) return { text: 'No outs', color: 'var(--mr-rec)' };
+    if (sendSelectedOutputIds.size === 1) {
+      const id = Array.from(sendSelectedOutputIds)[0];
+      const dev = outputs.find((o) => o.id === id);
+      const name = dev?.name ?? id;
+      const truncated = name.length > 12 ? `${name.slice(0, 11)}…` : name;
+      return { text: truncated, color: 'var(--mr-text-1)' };
+    }
+    return { text: `${sendSelectedOutputIds.size} outs`, color: 'var(--mr-text-1)' };
+  })();
 
   return (
     <div className="mr-transport">
       <div className="mr-brand">
-        <div className="mr-brand__mark" />
-        <div className="mr-brand__text">
-          <span className="mr-brand__name">MIDI Recorder</span>
-          <span className="mr-brand__ver mr-mono">v0.4.2</span>
-        </div>
+        <div className="mr-brand__mark" title="MIDI Recorder v0.4.2" />
       </div>
 
       <div className="mr-tgroup">
@@ -275,6 +330,116 @@ export function Titlebar() {
                   {dev.name}
                 </button>
               ))}
+              <div
+                role="switch"
+                aria-checked={strictStart}
+                data-on={strictStart || undefined}
+                className="mr-clk__menu-row--strict mr-mono"
+                onClick={() => setStrictStart(!strictStart)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setStrictStart(!strictStart);
+                  }
+                }}
+                tabIndex={0}
+              >
+                <span className="mr-clk__menu-row__main">
+                  <span className="mr-clk__menu-row__lbl">Strict Start</span>
+                  <span className="mr-clk__menu-row__sub">rewind to 0 on incoming Start</span>
+                </span>
+                <span className="mr-switch" data-on={strictStart || undefined} aria-hidden="true" />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mr-meta mr-meta--snd">
+          <span className="mr-meta__lbl mr-meta__lbl--with-led">
+            Snd
+            <span
+              ref={sndLedRef}
+              className="mr-led"
+              data-state={sendEnabled ? 'tx' : undefined}
+              aria-hidden="true"
+            />
+          </span>
+          <button
+            ref={sndBtnRef}
+            className="mr-meta__val mr-meta__val--btn mr-meta__val--btn-snd mr-mono"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={sndMenuOpen}
+            onClick={() => setSndMenuOpen((open) => !open)}
+            title={sndState.text}
+            style={{ color: sndState.color }}
+          >
+            <span className="mr-meta__val-text">{sndState.text}</span>
+            <ChevDownIcon />
+          </button>
+          {sndMenuOpen && (
+            <div ref={sndMenuRef} className="mr-snd__menu mr-clk__menu" role="listbox">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={sendEnabled}
+                data-on={sendEnabled || undefined}
+                className="mr-clk__menu-row mr-snd__menu-row mr-snd__menu-row--toggle mr-mono"
+                onClick={() => setSendEnabled(!sendEnabled)}
+              >
+                <span className="mr-snd__menu-row__lbl">Enable send</span>
+                <span
+                  className="mr-switch"
+                  data-on={sendEnabled || undefined}
+                  aria-hidden="true"
+                />
+              </button>
+              {outputs.map((dev) => (
+                <button
+                  key={dev.id}
+                  type="button"
+                  role="option"
+                  aria-checked={sendSelectedOutputIds.has(dev.id)}
+                  aria-selected={sendSelectedOutputIds.has(dev.id)}
+                  data-on={sendSelectedOutputIds.has(dev.id) || undefined}
+                  className="mr-clk__menu-row mr-snd__menu-row mr-mono"
+                  onClick={() => toggleSendOutput(dev.id)}
+                  title={dev.name}
+                >
+                  <span className="mr-snd__menu-row__check" aria-hidden="true" />
+                  <span className="mr-snd__menu-row__name">{dev.name}</span>
+                </button>
+              ))}
+              <div className="mr-snd__menu-footer">
+                <button
+                  type="button"
+                  className="mr-snd__menu-footer-btn mr-mono"
+                  onClick={() => setSendSelectedOutputs(outputs.map((o) => o.id))}
+                  disabled={outputs.length === 0}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="mr-snd__menu-footer-btn mr-mono"
+                  onClick={() => setSendSelectedOutputs([])}
+                  disabled={outputs.length === 0}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="mr-snd__menu-footer-btn mr-mono"
+                  onClick={() => syncSlaves()}
+                  disabled={
+                    !sendEnabled ||
+                    !Array.from(sendSelectedOutputIds).some((id) =>
+                      outputs.some((o) => o.id === id),
+                    )
+                  }
+                >
+                  Sync slaves now
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -381,11 +546,6 @@ export function Titlebar() {
 
       <div className="mr-status">
         <BeatLed />
-        <span className="mr-status__sep mr-mono">·</span>
-        <span className="mr-led" data-state={statusLed} />
-        <span className="mr-status__label mr-mono" style={{ color: statusColor }}>
-          {statusLabel}
-        </span>
         <span className="mr-status__sep mr-mono">·</span>
         <span className="mr-led" {...(midiActive ? { 'data-state': 'midi' } : {})} />
         <span className="mr-status__label mr-mono">MIDI IN</span>

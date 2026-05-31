@@ -14,6 +14,7 @@ let clockState: MidiClockValue = {
   setSelection: () => {},
   setStrictStart: () => {},
   onPulse: () => () => {},
+  onStart: () => () => {},
 };
 
 vi.mock('../../midi/MidiClockProvider', () => ({
@@ -37,6 +38,7 @@ beforeEach(() => {
     setSelection: () => {},
     setStrictStart: () => {},
     onPulse: () => () => {},
+  onStart: () => () => {},
   };
 });
 

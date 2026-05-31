@@ -26,11 +26,16 @@ export interface MidiClockState {
 }
 
 export type PulseSubscriber = (timestampMs: number) => void;
+export type StartSubscriber = () => void;
 
 export interface MidiClockValue extends MidiClockState {
   setSelection: (sel: ClockSourceSelection) => void;
   setStrictStart: (b: boolean) => void;
   onPulse: (callback: PulseSubscriber) => () => void;
+  /** Fires once per accepted incoming 0xFA Start, AFTER the active-master
+      filter. Used by MidiClockSendProvider's Grid Alignment pulse counter
+      to reset on Start (per midi-clock-send spec). */
+  onStart: (callback: StartSubscriber) => () => void;
 }
 
 const DEFAULT_STATE: MidiClockState = {
@@ -81,6 +86,7 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
   const strictStartRef = useRef(state.strictStart);
   strictStartRef.current = state.strictStart;
   const pulseSubscribersRef = useRef<Set<PulseSubscriber>>(new Set());
+  const startSubscribersRef = useRef<Set<StartSubscriber>>(new Set());
 
   const inputsKey = useMemo(() => {
     if (runtimeState.status !== 'granted') return '';
@@ -200,6 +206,13 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
           if (selectionRef.current === 'internal') return;
           if (activeMasterIdRef.current !== input.id) return;
           setState((prev) => (prev.running ? prev : { ...prev, running: true }));
+          for (const cb of startSubscribersRef.current) {
+            try {
+              cb();
+            } catch (err) {
+              console.error('MidiClockProvider onStart subscriber threw:', err);
+            }
+          }
           const t = transportRef.current;
           // Recording is driven by the user's record button, not the master.
           if (t.mode === 'idle') {
@@ -274,9 +287,16 @@ export function MidiClockProvider({ children }: MidiClockProviderProps) {
     };
   }, []);
 
+  const onStart = useCallback((cb: StartSubscriber) => {
+    startSubscribersRef.current.add(cb);
+    return () => {
+      startSubscribersRef.current.delete(cb);
+    };
+  }, []);
+
   const value = useMemo<MidiClockValue>(
-    () => ({ ...state, setSelection, setStrictStart, onPulse }),
-    [state, setSelection, setStrictStart, onPulse],
+    () => ({ ...state, setSelection, setStrictStart, onPulse, onStart }),
+    [state, setSelection, setStrictStart, onPulse, onStart],
   );
 
   return <MidiClockContext.Provider value={value}>{children}</MidiClockContext.Provider>;

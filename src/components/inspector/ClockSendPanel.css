@@ -1,0 +1,361 @@
+/* MIDI Clock Send Inspector section — anchored at the bottom of the
+   .mr-inspector aside. Reuses existing tokens; no new color tokens. */
+
+.mr-insp-clock-send {
+  border-top: 1px solid var(--mr-line-1);
+  padding: 8px 12px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mr-insp-clock-send__head {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--mr-text-2);
+  font-size: var(--mr-fs-11);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.mr-insp-clock-send__chev svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0.55;
+  transition: transform 120ms ease-out;
+}
+
+.mr-insp-clock-send__chev[data-open='false'] svg {
+  transform: rotate(180deg);
+}
+
+.mr-insp-clock-send__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mr-insp-clock-send__placeholder {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+  padding: 6px 0;
+}
+
+.mr-insp-clock-send__master {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mr-insp-clock-send__cadence-src {
+  margin-left: auto;
+  font-size: var(--mr-fs-11);
+}
+
+.mr-insp-clock-send__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--mr-h-row, 24px);
+}
+
+.mr-insp-clock-send__row-lbl {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mr-insp-clock-send__row-val {
+  color: var(--mr-text-1);
+  font-size: var(--mr-fs-11);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mr-insp-clock-send__sync {
+  appearance: none;
+  background: var(--mr-bg-panel-2);
+  border: 1px solid var(--mr-cue);
+  color: var(--mr-text-1);
+  font-size: var(--mr-fs-11);
+  letter-spacing: 0.08em;
+  padding: 6px 0;
+  border-radius: var(--mr-r-1);
+  cursor: pointer;
+  transition: background var(--mr-dur-fast, 60ms) ease, color var(--mr-dur-fast, 60ms) ease;
+}
+
+.mr-insp-clock-send__sync:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--mr-bg-panel-2) 80%, var(--mr-text-1) 6%);
+}
+
+.mr-insp-clock-send__sync[data-flash='true'] {
+  background: var(--mr-cue);
+  color: var(--mr-text-on-accent);
+}
+
+.mr-insp-clock-send__sync:disabled {
+  color: var(--mr-text-4);
+  border-color: var(--mr-line-2);
+  cursor: not-allowed;
+}
+
+.mr-insp-clock-send__outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mr-insp-clock-send__output {
+  appearance: none;
+  background: var(--mr-bg-panel-2);
+  border: 0;
+  border-radius: var(--mr-r-1);
+  padding: 6px 8px;
+  color: var(--mr-text-1);
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.mr-insp-clock-send__output:hover {
+  background: var(--mr-bg-hdr-hover, color-mix(in oklab, var(--mr-bg-panel-2) 70%, var(--mr-text-1) 8%));
+}
+
+.mr-insp-clock-send__output-check {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--mr-line-2);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.mr-insp-clock-send__output[data-on='true'] .mr-insp-clock-send__output-check {
+  background: var(--mr-accent);
+  border-color: var(--mr-accent);
+}
+
+.mr-insp-clock-send__output-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-insp-clock-send__output-offline {
+  color: var(--mr-text-3);
+}
+
+.mr-insp-clock-send__footer {
+  display: flex;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.mr-insp-clock-send__footer-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-3);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--mr-r-1);
+}
+
+.mr-insp-clock-send__footer-btn:hover {
+  color: var(--mr-text-1);
+  background: var(--mr-bg-panel-2);
+}
+
+.mr-insp-clock-send__footer-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Status LED transmitting state — green accent. */
+.mr-led[data-state='tx-on'] {
+  background: var(--mr-play);
+  box-shadow: 0 0 6px var(--mr-accent-soft);
+}
+
+/* ── Grid Alignment subsection ────────────────────────────────────────── */
+
+.mr-insp-grid-align {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--mr-line-1);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.mr-insp-grid-align__head {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--mr-text-2);
+  font-size: var(--mr-fs-11);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.mr-insp-grid-align__chev svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0.55;
+  transition: transform 120ms ease-out;
+}
+
+.mr-insp-grid-align__chev[data-open='false'] svg {
+  transform: rotate(180deg);
+}
+
+.mr-insp-grid-align__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mr-insp-grid-align__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mr-insp-grid-align__row-lbl {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 60px;
+}
+
+.mr-insp-grid-align__seg {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--mr-bg-panel-2);
+  border-radius: var(--mr-r-1);
+  padding: 2px;
+}
+
+.mr-insp-grid-align__seg-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-3);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: var(--mr-r-1);
+}
+
+.mr-insp-grid-align__seg-btn[data-on='true'] {
+  background: var(--mr-accent-soft);
+  color: var(--mr-accent);
+}
+
+.mr-insp-grid-align__stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mr-insp-grid-align__step-btn {
+  appearance: none;
+  background: var(--mr-bg-panel-2);
+  border: 1px solid var(--mr-line-2);
+  border-radius: var(--mr-r-1);
+  color: var(--mr-text-1);
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.mr-insp-grid-align__step-input {
+  width: 40px;
+  height: 20px;
+  text-align: center;
+}
+
+.mr-insp-grid-align__step-suffix {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+}
+
+.mr-insp-grid-align__steppers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mr-insp-grid-align__stepper-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mr-insp-grid-align__stepper-lbl {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 26px;
+}
+
+.mr-insp-grid-align__fire {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--mr-line-2);
+  border-radius: var(--mr-r-1);
+  color: var(--mr-text-3);
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  padding: 4px 8px;
+  cursor: pointer;
+  margin-top: 4px;
+  align-self: flex-start;
+  transition: background 60ms ease, color 60ms ease;
+}
+
+.mr-insp-grid-align__fire:hover:not(:disabled) {
+  color: var(--mr-text-1);
+}
+
+.mr-insp-grid-align__fire[data-flash='true'] {
+  background: var(--mr-accent-soft);
+  color: var(--mr-accent);
+}
+
+.mr-insp-grid-align__fire:disabled {
+  color: var(--mr-text-4);
+  cursor: not-allowed;
+}

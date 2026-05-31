@@ -16,11 +16,10 @@
 .mr-brand {
   display: flex;
   align-items: center;
-  gap: var(--mr-sp-4);
-  padding-right: var(--mr-sp-5);
+  justify-content: center;
+  padding: 0 var(--mr-sp-3);
   border-right: var(--mr-bw-1) solid var(--mr-line-1);
   height: 100%;
-  min-width: 132px;
 }
 
 .mr-brand__mark {
@@ -42,24 +41,6 @@
     transparent 1px 3px
   );
   border-radius: 1px;
-}
-
-.mr-brand__text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  line-height: 1;
-}
-
-.mr-brand__name {
-  font-size: var(--mr-fs-12);
-  font-weight: var(--mr-fw-semibold);
-  letter-spacing: 0.02em;
-}
-
-.mr-brand__ver {
-  font-size: var(--mr-fs-10);
-  color: var(--mr-text-3);
 }
 
 .mr-tgroup {
@@ -192,7 +173,10 @@
 
 .mr-meta-row {
   display: flex;
-  align-items: center;
+  /* Stretch instead of center so every cell occupies the full row height;
+     labels then align on a shared baseline at the top regardless of which
+     cells include LEDs, buttons, or chevrons. */
+  align-items: stretch;
   gap: var(--mr-sp-3);
   height: 100%;
   padding: 0 var(--mr-sp-3);
@@ -202,8 +186,13 @@
 .mr-meta {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  /* Fixed gap + content-aligned label position keeps the label row
+     vertically consistent across cells that differ in value-row content
+     (Bar/BPM/Sig are spans; Clk/Snd are buttons; Snd also has an LED). */
+  justify-content: center;
+  gap: 2px;
   align-items: flex-start;
+  min-width: 0;
 }
 
 .mr-meta__lbl {
@@ -212,12 +201,31 @@
   letter-spacing: var(--mr-tracking-cap);
   color: var(--mr-text-3);
   line-height: 1;
+  /* Pin the label row to a fixed height so labels across all .mr-meta cells
+     share a vertical baseline regardless of whether their value row contains
+     plain text, an inline-flex button with a chevron, or a button + LED. */
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Snd cell variant: the SND label gains a TX activity LED rendered inline
+   to its right; the LED inherits .mr-led's 8x8 sizing. */
+.mr-meta__lbl--with-led {
+  gap: 4px;
 }
 
 .mr-meta__val {
   font-size: var(--mr-fs-13);
   color: var(--mr-text-1);
   line-height: 1;
+  /* Fix-height + inline-flex centering so plain-span values and inline-flex
+     button values (Clk/Snd) report identical row heights to the column
+     centering above. Without this, button rows compute ~1px taller than
+     plain spans and push their labels off the shared baseline. */
+  height: var(--mr-fs-13);
+  display: inline-flex;
+  align-items: center;
 }
 
 .mr-spacer {
@@ -356,12 +364,33 @@
   display: inline-flex;
   align-items: center;
   gap: var(--mr-sp-2);
+  /* Prevent labels like "IAC Driver …" from wrapping out of the cell. */
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Inner text span gets the actual truncation — keeps the chevron pinned
+   to the right of the visible name rather than getting pushed offscreen. */
+.mr-meta__val-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Snd cell gets a hard width cap so a long output name can't push the
+   Sig cell off-row. The 12-char JS truncation in <Titlebar.tsx> bounds
+   text length; this is the visual safety net. */
+.mr-meta--snd .mr-meta__val--btn-snd {
+  max-width: 110px;
 }
 
 .mr-meta__val--btn svg {
   width: 8px;
   height: 8px;
   opacity: 0.55;
+  flex-shrink: 0;
 }
 
 .mr-meta__val--btn:hover,
@@ -415,6 +444,136 @@
   color: var(--mr-accent);
 }
 
+/* Strict Start toggle row inside the Clk menu. Separated visually from
+   the device-selection rows above by a top divider, with a sublabel and
+   a right-aligned mini-rocker rendered via the existing .mr-switch.
+   Intentionally not on `.mr-clk__menu-row` — this row is structurally
+   distinct (role="switch", multi-line content). */
+.mr-clk__menu-row--strict {
+  border-top: 1px solid var(--mr-line-1);
+  margin-top: 2px;
+  padding: 8px;
+  border-radius: var(--mr-r-1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  cursor: pointer;
+  white-space: normal;
+}
+
+.mr-clk__menu-row--strict:hover,
+.mr-clk__menu-row--strict:focus {
+  background: var(--mr-bg-panel-2);
+  outline: none;
+}
+
+.mr-clk__menu-row--strict .mr-clk__menu-row__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mr-clk__menu-row--strict .mr-clk__menu-row__lbl {
+  color: var(--mr-text-1);
+  font-size: var(--mr-fs-11);
+}
+
+.mr-clk__menu-row--strict .mr-clk__menu-row__sub {
+  color: var(--mr-text-3);
+  font-size: var(--mr-fs-11);
+}
+
+/* Snd meta cell — mirrors the Clk meta layout. The relative positioning
+   anchors the absolutely-positioned `.mr-snd__menu`; the rest of the cell
+   inherits column layout from `.mr-meta`. */
+.mr-meta--snd {
+  position: relative;
+}
+
+.mr-snd__menu {
+  /* Reuses .mr-clk__menu's box; placed via that class. */
+  min-width: 180px;
+}
+
+.mr-snd__menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Enable-send row variant — pushes the rocker switch to the right so the
+   layout is [label] —— [switch], matching the Strict-Start row pattern in
+   the Clk menu. */
+.mr-snd__menu-row--toggle {
+  justify-content: space-between;
+}
+
+.mr-snd__menu-row__check {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--mr-line-2);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.mr-snd__menu-row[data-on='true'] .mr-snd__menu-row__check {
+  background: var(--mr-accent);
+  border-color: var(--mr-accent);
+}
+
+.mr-snd__menu-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.mr-snd__menu-footer {
+  display: flex;
+  gap: 4px;
+  padding: 4px 4px 0 4px;
+  border-top: 1px solid var(--mr-line-1);
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.mr-snd__menu-footer-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: var(--mr-fs-11);
+  color: var(--mr-text-3);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--mr-r-1);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.mr-snd__menu-footer-btn:hover {
+  color: var(--mr-text-1);
+  background: var(--mr-bg-panel-2);
+}
+
+.mr-snd__menu-footer-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* TX LED — pulses on each txPulse advance via the .is-tx-pulse class. */
+.mr-led[data-state='tx'] {
+  background: var(--mr-cue);
+  opacity: 0.4;
+  transition: opacity 60ms ease-out, box-shadow 60ms ease-out;
+}
+
+.mr-led[data-state='tx'].is-tx-pulse {
+  opacity: 1;
+  box-shadow: 0 0 6px var(--mr-cue);
+}
+
 .mr-status {
   display: inline-flex;
   align-items: center;
@@ -426,6 +585,7 @@
 
 .mr-status__label {
   font-size: var(--mr-fs-11);
+  white-space: nowrap;
 }
 
 .mr-status__sep {
