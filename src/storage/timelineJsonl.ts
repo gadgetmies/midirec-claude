@@ -11,11 +11,13 @@ import {
   PayloadVersionError,
   STORAGE_SCHEMA_VERSION,
   emptySessionPayload,
+  extractViewSlice,
   getAppVersion,
   type DeserializedSlices,
   type SerializeInput,
   type TransportAuthoringSlice,
 } from './timelinePayload';
+import { DEFAULT_PX_PER_BEAT } from '../session/timelineZoom';
 
 /* ── Line discriminators ────────────────────────────────────────────────── */
 
@@ -30,6 +32,11 @@ interface MetaLine {
 interface TransportLine {
   kind: 'transport';
   slice: TransportAuthoringSlice;
+}
+
+interface ViewLine {
+  kind: 'view';
+  pxPerBeat: number;
 }
 
 interface LoopLine {
@@ -60,6 +67,7 @@ interface DJTrackLine {
 export type TimelineJsonlLine =
   | MetaLine
   | TransportLine
+  | ViewLine
   | LoopLine
   | ChannelLine
   | RollLine
@@ -82,6 +90,14 @@ export function serializeTimelineToJsonl(input: SerializeJsonlInput): string {
     appVersion: getAppVersion(),
     name: input.name.trim(),
     savedAt: Date.now(),
+  });
+  /* `view` follows `meta` and precedes the `channel`/`roll`/`lane`/`dj.track`
+     content lines per timeline-storage spec; absence of the line is treated
+     as a default during parse. */
+  lines.push({
+    kind: 'view',
+    pxPerBeat:
+      typeof input.pxPerBeat === 'number' ? input.pxPerBeat : DEFAULT_PX_PER_BEAT,
   });
   lines.push({ kind: 'transport', slice: input.transport });
   lines.push({ kind: 'loop', region: input.loopRegion });
@@ -111,6 +127,7 @@ export function parseTimelineJsonl(text: string): ParsedTimelineJsonl {
     djActionTracks: [],
     transportAuthoring: empty.transportAuthoring,
     loopRegion: null,
+    view: {},
   };
   let name = '';
   let sawMeta = false;
@@ -144,6 +161,26 @@ export function parseTimelineJsonl(text: string): ParsedTimelineJsonl {
         }
         name = typeof parsed.name === 'string' ? parsed.name : '';
         sawMeta = true;
+        break;
+      }
+      case 'view': {
+        if (!('pxPerBeat' in parsed)) {
+          throw new PayloadShapeError(
+            `line ${idx + 1}: view.pxPerBeat is missing`,
+          );
+        }
+        const raw = (parsed as { pxPerBeat: unknown }).pxPerBeat;
+        if (typeof raw !== 'number') {
+          throw new PayloadShapeError(
+            `line ${idx + 1}: view.pxPerBeat is not a number`,
+          );
+        }
+        if (!Number.isFinite(raw)) {
+          throw new PayloadShapeError(
+            `line ${idx + 1}: view.pxPerBeat is not finite`,
+          );
+        }
+        slices.view = extractViewSlice(raw);
         break;
       }
       case 'transport': {

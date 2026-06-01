@@ -96,6 +96,7 @@ describe('serializeTimelineToJsonl', () => {
       .map((l) => (JSON.parse(l) as { kind: string }).kind);
     expect(kinds).toEqual([
       'meta',
+      'view',
       'transport',
       'loop',
       'channel',

@@ -9,6 +9,7 @@ import type { Channel, PianoRollTrack, ParamLane } from '../hooks/useChannels';
 import type { DJActionTrack } from '../hooks/useDJActionTracks';
 import type { ClockSource, QuantizeGrid } from '../hooks/useTransport';
 import type { LoopRegion } from '../hooks/useStage';
+import { DEFAULT_PX_PER_BEAT, clampPxPerBeat } from '../session/timelineZoom';
 
 export const STORAGE_SCHEMA_VERSION = 1;
 
@@ -40,6 +41,9 @@ export interface SessionPayload {
   djActionTracks: DJActionTrack[];
   transportAuthoring: TransportAuthoringSlice;
   loopRegion: LoopRegion | null;
+  /** Horizontal timeline zoom. Optional on read (legacy payloads omit it);
+      always emitted by writers under the current schema. */
+  pxPerBeat?: number;
 }
 
 export interface TimelinePayload {
@@ -57,6 +61,8 @@ export interface SerializeInput {
   djActionTracks: DJActionTrack[];
   transport: TransportAuthoringSlice;
   loopRegion: LoopRegion | null;
+  /** Optional — defaults to `DEFAULT_PX_PER_BEAT` when omitted by callers. */
+  pxPerBeat?: number;
 }
 
 export function serializeTimeline(input: SerializeInput, name: string): TimelinePayload {
@@ -83,6 +89,8 @@ export function serializeTimeline(input: SerializeInput, name: string): Timeline
         cuePointTicks: input.transport.cuePointTicks,
       },
       loopRegion: input.loopRegion,
+      pxPerBeat:
+        typeof input.pxPerBeat === 'number' ? input.pxPerBeat : DEFAULT_PX_PER_BEAT,
     },
   };
 }
@@ -112,6 +120,10 @@ export interface DeserializedSlices {
   djActionTracks: DJActionTrack[];
   transportAuthoring: TransportAuthoringSlice;
   loopRegion: LoopRegion | null;
+  /** Hydration slice for `pxPerBeat`. Present iff the payload carried a
+      finite, in-range value; absent values default to
+      `DEFAULT_PX_PER_BEAT` at the consumer (`useStage.hydrateView`). */
+  view: { pxPerBeat?: number };
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -156,7 +168,23 @@ export function deserializeTimeline(payload: unknown): DeserializedSlices {
     djActionTracks: s.djActionTracks,
     transportAuthoring: { ...ta, cuePointTicks },
     loopRegion: s.loopRegion,
+    view: extractViewSlice(s.pxPerBeat),
   };
+}
+
+/* `extractViewSlice` lives at module scope (not inside `deserializeTimeline`)
+   so the JSONL codec can reuse the same legacy-/corruption-/clamp rules. */
+export function extractViewSlice(raw: unknown): { pxPerBeat?: number } {
+  if (raw === undefined) return {};
+  if (typeof raw !== 'number') {
+    console.warn('deserializeTimeline: session.pxPerBeat is not a number — falling back to default');
+    return {};
+  }
+  if (!Number.isFinite(raw)) {
+    console.warn('deserializeTimeline: session.pxPerBeat is non-finite — falling back to default');
+    return {};
+  }
+  return { pxPerBeat: clampPxPerBeat(raw) };
 }
 
 /* Empty-session defaults used by newTimeline(). Mirrors construction defaults
@@ -183,5 +211,6 @@ export function emptySessionPayload(): SessionPayload {
     djActionTracks: [],
     transportAuthoring: emptyTransportAuthoring(),
     loopRegion: null,
+    pxPerBeat: DEFAULT_PX_PER_BEAT,
   };
 }

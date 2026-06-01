@@ -1,0 +1,12 @@
+.mr-tool-zoom {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--mr-sp-3);
+  gap: 2px;
+}
+
+.mr-tool-zoom__btn {
+  min-width: 28px;
+  margin-left: 0;
+  font-variant-numeric: tabular-nums;
+}

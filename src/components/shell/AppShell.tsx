@@ -14,7 +14,6 @@ import { Toolstrip } from '../toolstrip/Toolstrip';
 import { ExportDialog } from '../dialog/ExportDialog';
 import { isDJTrackAudible } from '../../hooks/useDJActionTracks';
 import {
-  DEFAULT_PX_PER_BEAT,
   KEYS_COLUMN_WIDTH,
   pxPerTickFromPxPerBeat,
 } from '../piano-roll/PianoRoll';
@@ -24,6 +23,10 @@ import {
   followPlayheadScrollLeft,
   horizonStripeExtentTicksForViewport,
 } from '../../session/layoutHorizon';
+import {
+  TimelineZoomGesturesContext,
+  useTimelineZoomGestures,
+} from './useTimelineZoomGestures';
 
 /* Dj-action-track row height in pixels — must match the `--mr-h-row` token
    used by ActionKeys.css so the keys column and the lane area line up. */
@@ -36,7 +39,8 @@ export function AppShell() {
   const tl = stage.selectedTimelineTrack;
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  const pxPerTick = pxPerTickFromPxPerBeat(DEFAULT_PX_PER_BEAT);
+  const pxPerBeat = stage.pxPerBeat;
+  const pxPerTick = pxPerTickFromPxPerBeat(pxPerBeat);
 
   const floorTicks = stage.sessionHorizonFloorTicks;
   const floorRef = useRef(floorTicks);
@@ -56,12 +60,12 @@ export function AppShell() {
       el.scrollLeft,
       el.clientWidth,
       KEYS_COLUMN_WIDTH,
-      DEFAULT_PX_PER_BEAT,
+      pxPerBeat,
       SCROLL_EXTENSION_MARGIN_BEATS,
     );
     const need = Math.max(floorRef.current, fromViewport);
     setLayoutHorizonTicks((h) => (h >= need ? h : need));
-  }, []);
+  }, [pxPerBeat]);
 
   useLayoutEffect(() => {
     const el = timelineRef.current;
@@ -103,7 +107,14 @@ export function AppShell() {
     viewT0Ticks: 0,
   };
 
+  const zoomGestures = useTimelineZoomGestures({
+    timelineRef,
+    layoutHorizonTicks,
+    playheadTicks: stage.playheadTicks,
+  });
+
   return (
+    <TimelineZoomGesturesContext.Provider value={zoomGestures}>
     <div className="mr-shell">
       <header className="mr-titlebar">
         <Titlebar />
@@ -128,7 +139,7 @@ export function AppShell() {
                 width: KEYS_COLUMN_WIDTH + layoutHorizonTicks * pxPerTick,
               }}
             >
-              <Ruler layoutHorizonTicks={layoutHorizonTicks} />
+              <Ruler layoutHorizonTicks={layoutHorizonTicks} pxPerBeat={pxPerBeat} />
               {stage.visibleChannels.map((channel) => {
                 const roll = stage.rolls.find((r) => r.channelId === channel.id);
                 const channelLanes = stage.lanes.filter((l) => l.channelId === channel.id);
@@ -180,7 +191,7 @@ export function AppShell() {
                     audible={isDJTrackAudible(track, stage.soloing)}
                     soloing={stage.soloing}
                     layoutHorizonTicks={layoutHorizonTicks}
-                    pxPerBeat={DEFAULT_PX_PER_BEAT}
+                    pxPerBeat={pxPerBeat}
                     rowHeight={DJ_ROW_HEIGHT}
                     playheadTicks={stage.playheadTicks}
                     onToggleCollapsed={() => stage.toggleDJTrackCollapsed(track.id)}
@@ -210,5 +221,6 @@ export function AppShell() {
       <ToastViewport />
       {stage.dialogOpen && <ExportDialog />}
     </div>
+    </TimelineZoomGesturesContext.Provider>
   );
 }

@@ -11,7 +11,6 @@ import {
 import { useStage } from '../../hooks/useStage';
 import { useTransport } from '../../hooks/useTransport';
 import {
-  DEFAULT_PX_PER_BEAT,
   KEYS_COLUMN_WIDTH,
   pxPerTickFromPxPerBeat,
 } from '../piano-roll/PianoRoll';
@@ -357,7 +356,7 @@ export function DJValueEditor({ timelineRef }: DJValueEditorProps) {
       const clip = canvasClipRef.current;
       if (!clip) return null;
       const rect = clip.getBoundingClientRect();
-      const pxPerTick = pxPerTickFromPxPerBeat(DEFAULT_PX_PER_BEAT);
+      const pxPerTick = pxPerTickFromPxPerBeat(stage.pxPerBeat);
       const scrollLeft = timelineRef.current?.scrollLeft ?? 0;
       const rawTicks = clientXToTicks({
         clientX: e.clientX,
@@ -369,7 +368,7 @@ export function DJValueEditor({ timelineRef }: DJValueEditorProps) {
       const vel = clientYToVel(e.clientY, rect.top, rect.height);
       return { rawTicks, vel };
     },
-    [timelineRef],
+    [timelineRef, stage.pxPerBeat],
   );
 
   /* Common: turn raw ticks into the snapped write tick honoring transport
@@ -624,7 +623,7 @@ export function DJValueEditor({ timelineRef }: DJValueEditorProps) {
     if (mode.kind === 'cc' || mode.kind === 'pb') {
       const tl = timelineRef.current;
       if (!tl) return null;
-      const pxPerTick = pxPerTickFromPxPerBeat(DEFAULT_PX_PER_BEAT);
+      const pxPerTick = pxPerTickFromPxPerBeat(stage.pxPerBeat);
       if (pxPerTick <= 0) return null;
       const scrollLeft = tl.scrollLeft;
       const clientWidth = tl.clientWidth;
@@ -641,7 +640,7 @@ export function DJValueEditor({ timelineRef }: DJValueEditorProps) {
       return { start: ev.tTicks, end: ev.tTicks + ev.durTicks };
     }
     return null;
-  }, [mode, stage.djActionTracks, timelineRef]);
+  }, [mode, stage.djActionTracks, stage.pxPerBeat, timelineRef]);
 
   const performBulkSmooth = useCallback(() => {
     const range = computeBulkRange();
@@ -711,7 +710,7 @@ export function DJValueEditor({ timelineRef }: DJValueEditorProps) {
     ['--action-color' as string]: rowData.actionColor,
   };
 
-  const pxPerTick = pxPerTickFromPxPerBeat(DEFAULT_PX_PER_BEAT);
+  const pxPerTick = pxPerTickFromPxPerBeat(stage.pxPerBeat);
   const gridTicks = quantizeGridToTicks(quantizeGrid, DEFAULT_MIDI_TPQ);
   /* Render the full session strip; the clip + translate handles visibility. */
   const sessionTicks = Math.max(stage.sessionHorizonFloorTicks, 1);
@@ -839,24 +838,29 @@ export function DJValueEditor({ timelineRef }: DJValueEditorProps) {
             </svg>
           </div>
         </div>
-        <div className="mr-dj-value-editor__bulk">
-          <button type="button" data-op="smooth" onClick={performBulkSmooth}>Smooth</button>
-          <button type="button" data-op="flatten" onClick={performBulkFlatten}>Flatten</button>
-          <button type="button" data-op="clear" onClick={performBulkClear}>Clear</button>
-          <div className="mr-dj-value-editor__legend">
+        <div className="mr-dj-value-editor__sidekick">
+          <div
+            className="mr-dj-value-editor__legend"
+            title={mode.kind === 'pb' ? 'Pitch-bend offset from center (14-bit)' : 'Wire value (7-bit)'}
+          >
             {mode.kind === 'pb' ? (
               <>
-                <span>−</span>
+                <span>+8191</span>
                 <span>0</span>
-                <span>+</span>
+                <span>−8192</span>
               </>
             ) : (
               <>
+                <span>127</span>
+                <span>64</span>
                 <span>0</span>
-                <span>0.5</span>
-                <span>1</span>
               </>
             )}
+          </div>
+          <div className="mr-dj-value-editor__bulk">
+            <button type="button" data-op="smooth" onClick={performBulkSmooth}>Smooth</button>
+            <button type="button" data-op="flatten" onClick={performBulkFlatten}>Flatten</button>
+            <button type="button" data-op="clear" onClick={performBulkClear}>Clear</button>
           </div>
         </div>
       </div>

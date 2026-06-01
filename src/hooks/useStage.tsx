@@ -41,6 +41,10 @@ import {
   MIN_VISIBLE_BEATS,
   deriveSessionHorizonFloorTicks,
 } from '../session/layoutHorizon';
+import {
+  DEFAULT_PX_PER_BEAT,
+  clampPxPerBeat,
+} from '../session/timelineZoom';
 import { parseDemoQueryFlags } from '../session/demoQuery';
 import {
   beatsToSessionTicks,
@@ -75,6 +79,11 @@ export interface LoopRegion {
   end: number;
 }
 
+export interface ViewHydrateSlice {
+  /** Horizontal density in pixels per beat. Undefined for older payloads. */
+  pxPerBeat?: number;
+}
+
 export interface StageState {
   channels: Channel[];
   rolls: PianoRollTrack[];
@@ -96,6 +105,11 @@ export interface StageState {
   selectedIdx: number[] | undefined;
   resolvedSelection: ResolvedSelection | null;
   loopRegion: LoopRegion | null;
+  /** Horizontal timeline density in pixels per beat — owned by `useStage`,
+      read by `AppShell`, `Ruler`, `DJValueEditor`, etc. See `timeline-zoom`. */
+  pxPerBeat: number;
+  /** Clamps to [MIN_PX_PER_BEAT, MAX_PX_PER_BEAT]; no-op when unchanged. */
+  setPxPerBeat: (next: number) => void;
   soloing: boolean;
   dialogOpen: boolean;
   openExportDialog: () => void;
@@ -144,6 +158,9 @@ export interface StageState {
   /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces
       the loop region slice from a deserialised TimelinePayload. */
   hydrateLoopRegion: (loopRegion: LoopRegion | null) => void;
+  /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces
+      the view slice (`pxPerBeat`) from a deserialised TimelinePayload. */
+  hydrateView: (slice: ViewHydrateSlice) => void;
   /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces
       the channels / rolls / lanes slice from a deserialised TimelinePayload. */
   channelsHydrate: (slice: ChannelsHydrateSlice) => void;
@@ -194,6 +211,28 @@ function useStageState(): StageState {
   const openExportDialog = useCallback(() => setDialogOpen(true), []);
   const closeExportDialog = useCallback(() => setDialogOpen(false), []);
   const [loopRegion, setLoopRegion] = useState<LoopRegion | null>(null);
+  const [pxPerBeat, setPxPerBeatState] = useState<number>(DEFAULT_PX_PER_BEAT);
+
+  const setPxPerBeat = useCallback((next: number) => {
+    setPxPerBeatState((prev) => {
+      const clamped = clampPxPerBeat(next);
+      return clamped === prev ? prev : clamped;
+    });
+  }, []);
+
+  const hydrateView = useCallback((slice: ViewHydrateSlice) => {
+    const raw = slice.pxPerBeat;
+    if (raw === undefined) {
+      setPxPerBeatState(DEFAULT_PX_PER_BEAT);
+      return;
+    }
+    if (!Number.isFinite(raw)) {
+      console.warn('useStage.hydrateView: pxPerBeat is non-finite — falling back to default');
+      setPxPerBeatState(DEFAULT_PX_PER_BEAT);
+      return;
+    }
+    setPxPerBeatState(clampPxPerBeat(raw));
+  }, []);
 
   const [djActionSelection, setDJActionSelection] = useState<DJActionSelection | null>(null);
   const [djEventSelection, setDJEventSelection] = useState<DJEventSelection | null>(null);
@@ -391,6 +430,8 @@ function useStageState(): StageState {
     selectedIdx,
     resolvedSelection,
     loopRegion,
+    pxPerBeat,
+    setPxPerBeat,
     soloing,
     dialogOpen,
     openExportDialog,
@@ -412,6 +453,7 @@ function useStageState(): StageState {
     setSelectedTimelineTrack,
     selectDJTimelineTrack,
     hydrateLoopRegion,
+    hydrateView,
     channelsHydrate: channels.hydrate,
     djActionTracksHydrate: djTracks.hydrate,
     setChannelInputSourceChannels: channels.setChannelInputSourceChannels,

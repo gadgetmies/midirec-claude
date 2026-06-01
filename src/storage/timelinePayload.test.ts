@@ -92,7 +92,15 @@ describe('serializeTimeline', () => {
     const payload = serializeTimeline(makeInput(), 'x');
     const sessionKeys = Object.keys(payload.session).sort();
     expect(sessionKeys).toEqual(
-      ['channels', 'djActionTracks', 'lanes', 'loopRegion', 'rolls', 'transportAuthoring'].sort(),
+      [
+        'channels',
+        'djActionTracks',
+        'lanes',
+        'loopRegion',
+        'pxPerBeat',
+        'rolls',
+        'transportAuthoring',
+      ].sort(),
     );
     expect(payload.session).not.toHaveProperty('mode');
     expect(payload.session).not.toHaveProperty('playing');

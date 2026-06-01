@@ -6,10 +6,12 @@ import { DEFAULT_MIDI_TPQ } from '../../midi/timelineTicks';
 import { quantizeGridToTicks, type QuantizeGrid } from '../../midi/quantizeGrid';
 import { PianoKeys } from './PianoKeys';
 import { isBlackKey, notesInMarquee, type Marquee, type Note } from './notes';
+import { DEFAULT_PX_PER_BEAT as DEFAULT_PX_PER_BEAT_FROM_ZOOM } from '../../session/timelineZoom';
 import './PianoRoll.css';
 
 export const KEYS_COLUMN_WIDTH = 56;
-export const DEFAULT_PX_PER_BEAT = 88;
+/** Back-compat re-export. Authoritative source is `src/session/timelineZoom.ts`. */
+export const DEFAULT_PX_PER_BEAT = DEFAULT_PX_PER_BEAT_FROM_ZOOM;
 export const DEFAULT_ROW_HEIGHT = 14;
 export const DRAG_THRESHOLD_PX = 3;
 

@@ -122,6 +122,7 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
       djActionTracks: s.djActionTracks,
       transport: transportAuthoringFromTransport(t),
       loopRegion: s.loopRegion,
+      pxPerBeat: s.pxPerBeat,
     };
   }, []);
 
@@ -231,6 +232,7 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
         s.djActionTracksHydrate(slices.djActionTracks);
         transportRef.current.hydrate(slices.transportAuthoring);
         s.hydrateLoopRegion(slices.loopRegion);
+        s.hydrateView(slices.view);
         lastSnapshotRef.current = JSON.stringify(payload.session);
         setCurrentName(name);
         toastRef.current.show(`Loaded ${name}`, { kind: 'ok' });
@@ -276,6 +278,7 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
     s.djActionTracksHydrate(empty.djActionTracks);
     transportRef.current.hydrate(empty.transportAuthoring);
     s.hydrateLoopRegion(empty.loopRegion);
+    s.hydrateView({ pxPerBeat: empty.pxPerBeat });
     /* Record what the editor SHOULD serialise to after hydration finishes.
        Reading from stageRef here would capture the pre-hydrate state. */
     lastSnapshotRef.current = JSON.stringify({
@@ -285,6 +288,7 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
       djActionTracks: empty.djActionTracks,
       transportAuthoring: empty.transportAuthoring,
       loopRegion: empty.loopRegion,
+      pxPerBeat: empty.pxPerBeat,
     });
     setCurrentName('');
     toastRef.current.show('New session', { kind: 'ok' });
@@ -296,6 +300,7 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
     s.djActionTracksHydrate(slices.djActionTracks);
     transportRef.current.hydrate(slices.transportAuthoring);
     s.hydrateLoopRegion(slices.loopRegion);
+    s.hydrateView(slices.view);
     lastSnapshotRef.current = JSON.stringify({
       channels: slices.channels.channels,
       rolls: slices.channels.rolls,
@@ -303,6 +308,7 @@ export function TimelineStorageProvider({ children }: { children: ReactNode }) {
       djActionTracks: slices.djActionTracks,
       transportAuthoring: slices.transportAuthoring,
       loopRegion: slices.loopRegion,
+      pxPerBeat: slices.view.pxPerBeat,
     });
   }, []);
 
