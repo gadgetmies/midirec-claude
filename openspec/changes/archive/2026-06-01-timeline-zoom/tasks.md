@@ -50,6 +50,6 @@
 ## 9. Spec compliance and validation
 
 - [x] 9.1 Run `npm test` — all suites green, including existing AppShell / Ruler / PianoRoll pixel-position tests (default 88 must be preserved). _(704 passing; the 6 pre-existing failures in `DJValueEditor.height.test.ts` reproduce on `main` and are unrelated to this change.)_
-- [ ] 9.2 Manual smoke (Visual Companion or local dev): Cmd-wheel zooms around cursor; `0` fits; reload preserves zoom; mid-playback Cmd-wheel briefly anchors then follow re-engages; ruler subdivision changes at thresholds.
+- [x] 9.2 Manual smoke (Visual Companion or local dev): Cmd-wheel zooms around cursor; `0` fits; reload preserves zoom; mid-playback Cmd-wheel briefly anchors then follow re-engages; ruler subdivision changes at thresholds. _(Confirmed in local dev: "Looks and feels good now.")_
 - [x] 9.3 Confirm no Web Audio APIs were touched (only `src/midi/metronome.ts` may use them per project memory).
 - [x] 9.4 Confirm no zoom-related UI changes the channel routing surface (channel routing remains driven by MIDI mapping; no click-to-select).
