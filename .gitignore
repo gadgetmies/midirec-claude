@@ -3,3 +3,6 @@ dist/
 .DS_Store
 *.log
 .claude/scheduled_tasks.lock
+
+# Superpowers brainstorm scratch
+.superpowers/
