@@ -39,10 +39,10 @@
 
 ## 6. Manual verification
 
-- [ ] 6.1 Start dev server; drag a piano-roll note with quantize on (`1/16`) — note snaps to 16th-note positions
-- [ ] 6.2 Toggle quantize off; drag the same note — note moves smoothly with the pointer (no grid snap)
-- [ ] 6.3 Repeat both checks on a DJ action trigger event
-- [ ] 6.4 Drag a DJ CC group — every constituent message shifts together, spacing preserved
-- [ ] 6.5 Click (no drag) a previously-unselected note/event — selection still works; Inspector populates
-- [ ] 6.6 Drag past the left edge — item clamps at `tTicks=0`, does not produce negative ticks in state
-- [ ] 6.7 Confirm Inspector start editor still works after a drag (and vice-versa)
+- [x] 6.1 Start dev server; drag a piano-roll note with quantize on (`1/16`) — note snaps to 16th-note positions
+- [x] 6.2 Toggle quantize off; drag the same note — note moves smoothly with the pointer (no grid snap)
+- [x] 6.3 Repeat both checks on a DJ action trigger event
+- [x] 6.4 Drag a DJ CC group — every constituent message shifts together, spacing preserved
+- [x] 6.5 Click (no drag) a previously-unselected note/event — selection still works; Inspector populates
+- [x] 6.6 Drag past the left edge — item clamps at `tTicks=0`, does not produce negative ticks in state
+- [x] 6.7 Confirm Inspector start editor still works after a drag (and vice-versa)
