@@ -133,13 +133,23 @@
   opacity: 0.55;
 }
 
+/* Inspector-flanking column for the editor. Splits into a Y-axis legend on
+   the left (pinned to the canvas edge so labels line up with the bar tops
+   and bottom) and the bulk-op chips on the right. */
+.mr-dj-value-editor__sidekick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  border-left: var(--mr-bw-hair) solid var(--mr-line-2);
+  background: var(--mr-bg-panel);
+  min-height: 0;
+}
+
 .mr-dj-value-editor__bulk {
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 6px 8px;
   border-left: var(--mr-bw-hair) solid var(--mr-line-2);
-  background: var(--mr-bg-panel);
 }
 
 .mr-dj-value-editor__bulk button {
@@ -159,12 +169,20 @@
   background: color-mix(in oklab, var(--mr-bg-panel-2) 70%, var(--mr-accent) 30%);
 }
 
+/* Y-axis legend for the editor canvas. Lives in the left sub-column of
+   `.mr-dj-value-editor__sidekick` so the labels sit immediately to the
+   right of the canvas. `justify-content: space-between` pins the three
+   labels at top / middle / bottom — they line up with `vel === 1` (or
+   the PB max), the center, and `vel === 0` (or the PB min). */
 .mr-dj-value-editor__legend {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
+  align-items: flex-end;
   font-family: var(--mr-font-mono);
   font-size: 9px;
   color: var(--mr-text-3);
-  margin-top: 4px;
   letter-spacing: 0.04em;
+  padding: 0 4px;
+  min-width: 36px;
 }
