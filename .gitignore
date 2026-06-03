@@ -6,3 +6,8 @@ dist/
 
 # Superpowers brainstorm scratch
 .superpowers/
+
+# Python (spine CLI + Traktor scripts)
+.venv-traktor/
+__pycache__/
+*.pyc
