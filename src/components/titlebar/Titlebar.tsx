@@ -17,6 +17,8 @@ import {
   RewIcon,
 } from '../icons/transport';
 import { BeatLed } from './BeatLed';
+import { MapModeToggle } from '../midi-map/MapModeToggle';
+import { MapAnchor } from '../midi-map/MapBadge';
 import { formatBig, formatMs } from './format';
 import './Titlebar.css';
 
@@ -213,52 +215,60 @@ export function Titlebar() {
       </div>
 
       <div className="mr-tgroup">
-        <button
-          className="mr-tbtn"
-          type="button"
-          onClick={handleRewind}
-          title="Rewind to start"
-          aria-label="Rewind"
-        >
-          <RewIcon />
-        </button>
-        <button
-          className="mr-tbtn"
-          type="button"
-          data-on={playing || undefined}
-          onClick={handlePlay}
-          aria-label={playing ? 'Pause' : 'Play'}
-          title={playing ? 'Pause' : 'Play'}
-        >
-          {playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
-        <button
-          className="mr-tbtn"
-          type="button"
-          onClick={handleCue}
-          title="Set cue point / Stop and return to cue"
-          aria-label="Cue"
-        >
-          <span className="mr-tbtn__text mr-mono">CUE</span>
-        </button>
-        <button
-          className="mr-tbtn"
-          type="button"
-          data-rec="true"
-          data-on={recording || undefined}
-          onClick={handleRec}
-          disabled={!recording && recDisabled}
-          aria-label={recording ? 'Stop recording' : 'Record'}
-          title={
-            recording
-              ? 'Stop recording'
-              : recDisabled
-                ? recDisabledTitle
-                : 'Record'
-          }
-        >
-          <RecIcon />
-        </button>
+        <MapAnchor target="rewind">
+          <button
+            className="mr-tbtn"
+            type="button"
+            onClick={handleRewind}
+            title="Rewind to start"
+            aria-label="Rewind"
+          >
+            <RewIcon />
+          </button>
+        </MapAnchor>
+        <MapAnchor target="play">
+          <button
+            className="mr-tbtn"
+            type="button"
+            data-on={playing || undefined}
+            onClick={handlePlay}
+            aria-label={playing ? 'Pause' : 'Play'}
+            title={playing ? 'Pause' : 'Play'}
+          >
+            {playing ? <PauseIcon /> : <PlayIcon />}
+          </button>
+        </MapAnchor>
+        <MapAnchor target="cue">
+          <button
+            className="mr-tbtn"
+            type="button"
+            onClick={handleCue}
+            title="Set cue point / Stop and return to cue"
+            aria-label="Cue"
+          >
+            <span className="mr-tbtn__text mr-mono">CUE</span>
+          </button>
+        </MapAnchor>
+        <MapAnchor target="record">
+          <button
+            className="mr-tbtn"
+            type="button"
+            data-rec="true"
+            data-on={recording || undefined}
+            onClick={handleRec}
+            disabled={!recording && recDisabled}
+            aria-label={recording ? 'Stop recording' : 'Record'}
+            title={
+              recording
+                ? 'Stop recording'
+                : recDisabled
+                  ? recDisabledTitle
+                  : 'Record'
+            }
+          >
+            <RecIcon />
+          </button>
+        </MapAnchor>
         <button className="mr-tbtn" type="button" title="Skip end" aria-label="Fast forward">
           <FfwIcon />
         </button>
@@ -276,22 +286,26 @@ export function Titlebar() {
         </div>
         <div className="mr-meta">
           <span className="mr-meta__lbl">BPM</span>
-          <span className="mr-meta__val mr-mono">{bpm}</span>
+          <MapAnchor target="setBpm">
+            <span className="mr-meta__val mr-mono">{bpm}</span>
+          </MapAnchor>
         </div>
         <div className="mr-meta mr-meta--clk">
           <span className="mr-meta__lbl">Clk</span>
-          <button
-            ref={clkBtnRef}
-            className="mr-meta__val mr-meta__val--btn mr-mono"
-            type="button"
-            aria-haspopup="listbox"
-            aria-expanded={clkMenuOpen}
-            onClick={() => setClkMenuOpen((open) => !open)}
-            title="MIDI clock source"
-          >
-            {CLOCK_LABEL[clockSource]}
-            <ChevDownIcon />
-          </button>
+          <MapAnchor target="cycleClockSource">
+            <button
+              ref={clkBtnRef}
+              className="mr-meta__val mr-meta__val--btn mr-mono"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded={clkMenuOpen}
+              onClick={() => setClkMenuOpen((open) => !open)}
+              title="MIDI clock source"
+            >
+              {CLOCK_LABEL[clockSource]}
+              <ChevDownIcon />
+            </button>
+          </MapAnchor>
           {clkMenuOpen && (
             <div ref={clkMenuRef} className="mr-clk__menu" role="listbox">
               <button
@@ -363,19 +377,21 @@ export function Titlebar() {
               aria-hidden="true"
             />
           </span>
-          <button
-            ref={sndBtnRef}
-            className="mr-meta__val mr-meta__val--btn mr-meta__val--btn-snd mr-mono"
-            type="button"
-            aria-haspopup="listbox"
-            aria-expanded={sndMenuOpen}
-            onClick={() => setSndMenuOpen((open) => !open)}
-            title={sndState.text}
-            style={{ color: sndState.color }}
-          >
-            <span className="mr-meta__val-text">{sndState.text}</span>
-            <ChevDownIcon />
-          </button>
+          <MapAnchor target="toggleClockSend">
+            <button
+              ref={sndBtnRef}
+              className="mr-meta__val mr-meta__val--btn mr-meta__val--btn-snd mr-mono"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded={sndMenuOpen}
+              onClick={() => setSndMenuOpen((open) => !open)}
+              title={sndState.text}
+              style={{ color: sndState.color }}
+            >
+              <span className="mr-meta__val-text">{sndState.text}</span>
+              <ChevDownIcon />
+            </button>
+          </MapAnchor>
           {sndMenuOpen && (
             <div ref={sndMenuRef} className="mr-snd__menu mr-clk__menu" role="listbox">
               <button
@@ -450,63 +466,72 @@ export function Titlebar() {
       </div>
 
       <div className="mr-tgroup">
-        <button
-          className="mr-tbtn"
-          type="button"
-          data-on={looping || undefined}
-          onClick={transport.toggleLoop}
-          aria-pressed={looping}
-          title="Loop"
-        >
-          <LoopIcon />
-        </button>
-        <button
-          className="mr-tbtn"
-          type="button"
-          data-on={metronomeOn || undefined}
-          onClick={transport.toggleMetronome}
-          aria-pressed={metronomeOn}
-          title="Metronome"
-        >
-          <MetroIcon />
-        </button>
+        <MapAnchor target="toggleLoop">
+          <button
+            className="mr-tbtn"
+            type="button"
+            data-on={looping || undefined}
+            onClick={transport.toggleLoop}
+            aria-pressed={looping}
+            title="Loop"
+          >
+            <LoopIcon />
+          </button>
+        </MapAnchor>
+        <MapAnchor target="toggleMetronome">
+          <button
+            className="mr-tbtn"
+            type="button"
+            data-on={metronomeOn || undefined}
+            onClick={transport.toggleMetronome}
+            aria-pressed={metronomeOn}
+            title="Metronome"
+          >
+            <MetroIcon />
+          </button>
+        </MapAnchor>
       </div>
 
       <div className="mr-tgroup mr-quant" title="Quantize on record & edit">
-        <button
-          className="mr-quant__lbl mr-mono"
-          type="button"
-          data-on={quantizeOn || undefined}
-          onClick={transport.toggleQuantize}
-          aria-pressed={quantizeOn}
-          title={quantizeOn ? 'Quantize on' : 'Quantize off — bypass'}
-        >
-          Q
-        </button>
-        <button
-          className="mr-quant__lbl mr-mono"
-          type="button"
-          data-on={snapAbsoluteOn || undefined}
-          data-disabled={!quantizeOn ? 'true' : undefined}
-          onClick={
-            quantizeOn
-              ? transport.toggleSnapAbsolute
-              : (e) => {
-                  e.preventDefault();
-                }
-          }
-          aria-pressed={snapAbsoluteOn}
-          title={
-            !quantizeOn
-              ? 'Enable Quantize to use Snap Absolute'
-              : snapAbsoluteOn
-                ? 'Snap Absolute on - drag aligns items to grid'
-                : 'Snap Absolute off - drag preserves off-grid offset'
-          }
-        >
-          A
-        </button>
+        <MapAnchor target="toggleQuantize">
+          <button
+            className="mr-quant__lbl mr-mono"
+            type="button"
+            data-on={quantizeOn || undefined}
+            onClick={transport.toggleQuantize}
+            aria-pressed={quantizeOn}
+            title={quantizeOn ? 'Quantize on' : 'Quantize off — bypass'}
+          >
+            Q
+          </button>
+        </MapAnchor>
+        <MapAnchor target="toggleSnapAbsolute">
+          <button
+            className="mr-quant__lbl mr-mono"
+            type="button"
+            data-on={snapAbsoluteOn || undefined}
+            data-disabled={!quantizeOn ? 'true' : undefined}
+            onClick={
+              quantizeOn
+                ? transport.toggleSnapAbsolute
+                : (e) => {
+                    e.preventDefault();
+                  }
+            }
+            aria-pressed={snapAbsoluteOn}
+            title={
+              !quantizeOn
+                ? 'Enable Quantize to use Snap Absolute'
+                : snapAbsoluteOn
+                  ? 'Snap Absolute on - drag aligns items to grid'
+                  : 'Snap Absolute off - drag preserves off-grid offset'
+            }
+          >
+            A
+          </button>
+        </MapAnchor>
         <div className="mr-quant__value-wrap">
+          <MapAnchor target="cycleQuantizeGrid">
           <button
             ref={gridChipRef}
             className="mr-tbtn mr-quant__value mr-mono"
@@ -522,6 +547,7 @@ export function Titlebar() {
             <span>{quantizeGrid}</span>
             <ChevDownIcon />
           </button>
+          </MapAnchor>
           {gridMenuOpen && (
             <div ref={gridMenuRef} className="mr-quant__menu" role="listbox">
               {QUANTIZE_GRIDS.map((g) => (
@@ -543,6 +569,8 @@ export function Titlebar() {
       </div>
 
       <div className="mr-spacer" />
+
+      <MapModeToggle />
 
       <div className="mr-status">
         <BeatLed />

@@ -11,6 +11,7 @@ import {
 
 import type { QuantizeGrid } from '../midi/quantizeGrid';
 import { DEFAULT_MIDI_TPQ } from '../midi/timelineTicks';
+import { phraseSeekMs } from '../midi/controlMap';
 
 export type { QuantizeGrid };
 
@@ -76,6 +77,18 @@ export interface TransportActions {
   toggleSnapAbsolute(): void;
   setQuantizeGrid(grid: QuantizeGrid): void;
   seek(ms: number): void;
+  /** Set the user BPM. Only applies while `clockSource === 'internal'`; a
+      no-op while slaved to an external clock (the clock owns the tempo). Does
+      not move the playhead. */
+  setBpm(bpm: number): void;
+  /** Set the clock source directly. Reverting to `internal` restores the
+      user-set BPM (`userBpm`). */
+  setClockSource(src: ClockSource): void;
+  /** Seek the playhead forward by `bars` bars, snapped to the bar, computed
+      from the current bpm / sig. */
+  phraseForward(bars: number): void;
+  /** Seek the playhead back by `bars` bars, snapped to the bar, clamped at 0. */
+  phraseBack(bars: number): void;
   /** Only `useTimelineStorage` may call this — see app-shell spec. Replaces the
       transport-authoring subset (bpm/sig/quantize/looping/metronomeOn/clockSource).
       Does NOT touch mode/playing/recording/timecodeMs/bar/recordingStartedAt. */
@@ -104,6 +117,9 @@ type Action =
   | { type: 'toggleSnapAbsolute' }
   | { type: 'setQuantizeGrid'; grid: QuantizeGrid }
   | { type: 'seek'; ms: number }
+  | { type: 'setBpm'; bpm: number }
+  | { type: 'setClockSource'; src: ClockSource }
+  | { type: 'phraseSeek'; bars: number; direction: 1 | -1 }
   | { type: 'tick'; deltaMs: number }
   // Only `useTimelineStorage` may dispatch this — see app-shell spec.
   | { type: 'hydrate'; slice: TransportAuthoringHydrateSlice }
@@ -204,6 +220,28 @@ function reducer(state: InternalState, action: Action): InternalState {
       return state.quantizeGrid === action.grid ? state : { ...state, quantizeGrid: action.grid };
     case 'seek': {
       const ms = Math.max(0, action.ms);
+      return { ...state, timecodeMs: ms, playheadTicks: ticksFromMsAtBpm(ms, state.bpm) };
+    }
+    case 'setBpm': {
+      // The user BPM applies only on the internal clock — while slaved to an
+      // external clock the incoming clock owns the tempo, so this is a no-op.
+      if (state.clockSource !== 'internal') return state;
+      if (!Number.isFinite(action.bpm) || action.bpm <= 0) return state;
+      const bpm = Math.max(1, Math.min(999, action.bpm));
+      if (bpm === state.bpm && bpm === state.userBpm) return state;
+      return { ...state, bpm, userBpm: bpm };
+    }
+    case 'setClockSource': {
+      if (state.clockSource === action.src) return state;
+      // Reverting to internal restores the user-set BPM (mirrors
+      // `revertToInternalClock`); other sources keep the current effective BPM.
+      if (action.src === 'internal') {
+        return { ...state, clockSource: 'internal', bpm: state.userBpm };
+      }
+      return { ...state, clockSource: action.src };
+    }
+    case 'phraseSeek': {
+      const ms = phraseSeekMs(state.timecodeMs, state.bpm, state.sig, action.bars, action.direction);
       return { ...state, timecodeMs: ms, playheadTicks: ticksFromMsAtBpm(ms, state.bpm) };
     }
     case 'tick':
@@ -337,6 +375,19 @@ export function TransportProvider({ children }: { children: ReactNode }) {
     [],
   );
   const seek = useCallback((ms: number) => dispatch({ type: 'seek', ms }), []);
+  const setBpm = useCallback((bpm: number) => dispatch({ type: 'setBpm', bpm }), []);
+  const setClockSource = useCallback(
+    (src: ClockSource) => dispatch({ type: 'setClockSource', src }),
+    [],
+  );
+  const phraseForward = useCallback(
+    (bars: number) => dispatch({ type: 'phraseSeek', bars, direction: 1 }),
+    [],
+  );
+  const phraseBack = useCallback(
+    (bars: number) => dispatch({ type: 'phraseSeek', bars, direction: -1 }),
+    [],
+  );
   const hydrate = useCallback(
     (slice: TransportAuthoringHydrateSlice) => dispatch({ type: 'hydrate', slice }),
     [],
@@ -380,6 +431,10 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleSnapAbsolute,
       setQuantizeGrid,
       seek,
+      setBpm,
+      setClockSource,
+      phraseForward,
+      phraseBack,
       hydrate,
       applyExternalPulse,
       revertToInternalClock,
@@ -397,6 +452,10 @@ export function TransportProvider({ children }: { children: ReactNode }) {
       toggleSnapAbsolute,
       setQuantizeGrid,
       seek,
+      setBpm,
+      setClockSource,
+      phraseForward,
+      phraseBack,
       hydrate,
       applyExternalPulse,
       revertToInternalClock,

@@ -9,6 +9,8 @@ import { useStage } from '../hooks/useStage';
 import { beatsToSessionTicks } from './sessionTicks';
 import { useTransport } from './../hooks/useTransport';
 import { useMidiInputs, useMidiRuntime } from './MidiRuntimeProvider';
+import { useControlMapStore } from '../hooks/useControlMapStore';
+import { matchesActiveMapping, parseControlMessage } from './controlMap';
 
 type DJMatch = { trackId: DJTrackId; actionPitch: number };
 
@@ -240,6 +242,7 @@ export function useMidiRecorder(): void {
   } = useStage();
   const { state: runtimeState } = useMidiRuntime();
   const { status, inputs } = useMidiInputs();
+  const { state: controlMapState } = useControlMapStore();
 
   const deviceUnionKey = useMemo(() => collectUnionDeviceIds(channels, djActionTracks).sort().join('|'), [channels, djActionTracks]);
 
@@ -265,6 +268,11 @@ export function useMidiRecorder(): void {
     appendNote,
     appendDJActionEvent,
   };
+
+  // Read the active control map from a ref so the message handler consults the
+  // latest mappings (for consumption) without re-attaching on every change.
+  const controlMapStateRef = useRef(controlMapState);
+  controlMapStateRef.current = controlMapState;
 
   const fallbackInputId = inputs[0]?.id ?? null;
 
@@ -422,6 +430,11 @@ export function useMidiRecorder(): void {
         prev?.call(input, event);
         const data = event.data;
         if (!data || data.length < 1) return;
+        // Consumption: a message matching an active control mapping is handled
+        // by control mapping and must never land in a recorded take. Consult the
+        // single `matchesActiveMapping` predicate and skip on a match.
+        const control = parseControlMessage(portId, data);
+        if (matchesActiveMapping(control?.wire ?? null, controlMapStateRef.current)) return;
         const status0 = data[0]!;
         const nibble = status0 & 0xf0;
         const midiCh = status0 & 0x0f;

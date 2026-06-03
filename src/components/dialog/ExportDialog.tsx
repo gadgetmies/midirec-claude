@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useStage } from '../../hooks/useStage';
 import { useToast } from '../toast/Toast';
+import { useControlMapStore } from '../../hooks/useControlMapStore';
 import type {
   ChannelId,
   ParamLane,
@@ -109,6 +110,33 @@ export function ExportDialog() {
     soloing,
   } = stage;
   const { show: showToast } = useToast();
+  const controlMap = useControlMapStore();
+  const mappingImportRef = useRef(null as HTMLInputElement | null);
+
+  const handleExportMappings = useCallback(() => {
+    const json = controlMap.exportJson();
+    downloadTextBlob(json, 'midi-mappings.json', 'application/json');
+    showToast(`Exported ${controlMap.state.mappings.length} MIDI mappings`);
+  }, [controlMap, showToast]);
+
+  const handleImportMappingsFile = useCallback(
+    (file: File | null) => {
+      if (!file) return;
+      file
+        .text()
+        .then((text) => {
+          try {
+            controlMap.importJson(text);
+            showToast('MIDI mappings imported', { kind: 'ok' });
+          } catch {
+            // Invalid / version-incompatible file → reject; mappings unchanged.
+            showToast('Invalid mapping file — mappings unchanged', { kind: 'warn' });
+          }
+        })
+        .catch(() => showToast('Could not read mapping file', { kind: 'warn' }));
+    },
+    [controlMap, showToast],
+  );
 
   const [format, setFormat] = useExportFormatChoice();
   const [filename, setFilename] = useState(() => defaultFilename('mid'));
@@ -407,6 +435,39 @@ export function ExportDialog() {
               aria-label="Include CC lanes"
               onClick={() => setIncludeCC((v) => !v)}
             />
+          </div>
+
+          <div className="mr-row mr-row--top">
+            <span className="mr-row-lbl">MIDI mappings</span>
+            <div className="mr-map-io-actions">
+              <button
+                type="button"
+                className="mr-btn"
+                onClick={handleExportMappings}
+                title="Export the control mapping set as JSON"
+              >
+                Export mappings
+              </button>
+              <button
+                type="button"
+                className="mr-btn"
+                onClick={() => mappingImportRef.current?.click()}
+                title="Import a control mapping set from JSON"
+              >
+                Import mappings
+              </button>
+              <input
+                ref={mappingImportRef}
+                type="file"
+                accept="application/json,.json"
+                style={{ display: 'none' }}
+                aria-label="Import MIDI mappings file"
+                onChange={(e) => {
+                  handleImportMappingsFile(e.target.files?.[0] ?? null);
+                  e.target.value = '';
+                }}
+              />
+            </div>
           </div>
         </div>
         <div className="mr-dialog__ft">

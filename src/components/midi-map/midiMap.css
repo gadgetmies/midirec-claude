@@ -1,0 +1,198 @@
+/* MIDI map editor — overlay badges, dock panels, and advanced-config form.
+   Follows the project plain-CSS + `.mr-` prefix + `data-*` state conventions
+   and the design tokens in src/styles/tokens.css. */
+
+/* ── In-place anchor + overlay badge ─────────────────────────────────────── */
+
+.mr-map-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The badge overlays — and covers — the mappable control while map mode is
+   active, so clicking it arms the mapping (you can't operate the control). */
+.mr-map-badge {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  padding: 0 4px;
+  font-family: var(--mr-font-mono);
+  font-size: 9px;
+  line-height: 1;
+  color: var(--mr-text-1);
+  /* Mostly transparent so the control beneath (LED, value, icon state) stays
+     visible as the user sends MIDI. */
+  background: color-mix(in oklch, var(--mr-accent) 14%, transparent);
+  border: 1px solid var(--mr-accent);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mr-map-badge[data-unmapped] {
+  color: var(--mr-text-3);
+  background: color-mix(in oklch, var(--mr-line-2) 12%, transparent);
+  border-color: var(--mr-line-2);
+  border-style: dashed;
+}
+
+.mr-map-badge[data-armed] {
+  color: var(--mr-bg-app);
+  background: color-mix(in oklch, var(--mr-accent) 70%, transparent);
+  border-color: var(--mr-accent);
+}
+
+/* ── Map-mode toggle ─────────────────────────────────────────────────────── */
+/* Inherits the shared `.mr-tbtn` + `.mr-tbtn__text` styling (matches the CUE
+   button); only the active state adds the accent fill. */
+
+.mr-map-toggle[data-on] {
+  color: var(--mr-bg-app);
+  background: var(--mr-accent);
+}
+
+/* ── Dock panels (Sidebar mappings list + Inspector config) ─────────────── */
+
+.mr-map-panel,
+.mr-map-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  color: var(--mr-text-1);
+}
+
+.mr-map-panel__head,
+.mr-map-config__head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mr-text-2);
+}
+
+.mr-map-panel__empty,
+.mr-map-config__hint {
+  font-size: 11px;
+  color: var(--mr-text-3);
+  line-height: 1.4;
+}
+
+.mr-map-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mr-map-group__head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mr-text-3);
+  margin-top: 4px;
+}
+
+.mr-map-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.mr-map-row__select {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  background: var(--mr-bg-panel);
+  border: 1px solid var(--mr-line-2);
+  border-radius: 4px;
+  color: var(--mr-text-1);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mr-map-row[data-armed] .mr-map-row__select {
+  border-color: var(--mr-accent);
+}
+
+.mr-map-row__source {
+  font-size: 10px;
+  color: var(--mr-accent);
+}
+
+.mr-map-switch-row {
+  align-items: center;
+}
+
+.mr-map-row__clear {
+  width: 22px;
+  background: transparent;
+  border: 1px solid var(--mr-line-2);
+  border-radius: 4px;
+  color: var(--mr-text-3);
+  cursor: pointer;
+}
+
+.mr-map-row__clear:hover {
+  color: var(--mr-rec);
+  border-color: var(--mr-rec);
+}
+
+/* ── Advanced-config form ────────────────────────────────────────────────── */
+
+.mr-map-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.mr-map-field--check {
+  justify-content: flex-start;
+}
+
+.mr-map-field__lbl {
+  color: var(--mr-text-2);
+}
+
+.mr-map-field select,
+.mr-map-field input {
+  background: var(--mr-bg-app);
+  color: var(--mr-text-1);
+  border: 1px solid var(--mr-line-2);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.mr-map-fieldset {
+  border: 1px solid var(--mr-line-2);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mr-map-config__clear {
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--mr-line-2);
+  border-radius: 4px;
+  color: var(--mr-text-3);
+  cursor: pointer;
+}
+
+.mr-map-config__clear:hover {
+  color: var(--mr-rec);
+  border-color: var(--mr-rec);
+}

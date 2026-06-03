@@ -141,8 +141,9 @@ describe('Titlebar A chip', () => {
     const { container } = renderTitlebar();
     const quantWidget = container.querySelector('.mr-quant');
     expect(quantWidget).toBeTruthy();
-    const children = Array.from(quantWidget!.children);
-    const labels = children.filter((c) => c.classList.contains('mr-quant__lbl'));
+    // Q and A are wrapped in map-badge anchors, so query descendants (not just
+    // direct children) for the labels.
+    const labels = Array.from(quantWidget!.querySelectorAll('.mr-quant__lbl'));
     expect(labels.map((l) => l.textContent)).toEqual(['Q', 'A']);
     /* Both labels must come before the grid chip. */
     const gridChip = container.querySelector('.mr-quant__value')!;
