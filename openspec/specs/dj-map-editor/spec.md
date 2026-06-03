@@ -112,8 +112,8 @@ When the user changes the **device** or **trigger** select, the committed entry 
 #### Scenario: Changing the action overwrites label/short/pad/pressure from the template
 
 - **WHEN** the panel is open for `pitch: 56` with `id === 'hc1'` and the user picks `Hot Cue 2` from the Action select
-- **THEN** `setActionEntry` SHALL be called with an entry whose `id === 'hc2'`, `label === 'Hot Cue 2'`, `short === 'HC2'`, and `pad === true`
-- **AND** the committed entry's `pressure` field SHALL be unset (Hot Cue 2 has no pressure flag in `DEFAULT_ACTION_MAP`)
+- **THEN** `setActionEntry` SHALL be called with an entry whose `id === 'hc2'`, `label === 'Hot Cue 2'`, `short === 'HC2'`, `pad === true`, AND `pressure === true`
+- **AND** the committed entry's mode under `actionMode()` SHALL be `'pressure-bearing'` (Hot Cue 2 now carries the pressure flag in `DEFAULT_ACTION_MAP`)
 
 #### Scenario: Changing the category picks the first action in that category
 
