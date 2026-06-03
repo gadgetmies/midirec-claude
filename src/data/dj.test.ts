@@ -31,9 +31,11 @@ describe('actionMode', () => {
   });
 
   test('velocity-sensitive when pad: true and no pressure', () => {
-    /* Hot Cue 2 in the seeded action map has pad: true and no pressure. */
-    const hc2 = DEFAULT_ACTION_MAP[57];
-    expect(actionMode(hc2)).toBe('velocity-sensitive');
+    /* Synthetic fixture: a pad-only entry. The cue family in the seeded
+       DEFAULT_ACTION_MAP is now uniformly pressure-bearing, so this test
+       no longer pins to a specific seeded pitch. */
+    const padOnly = make({ pad: true });
+    expect(actionMode(padOnly)).toBe('velocity-sensitive');
   });
 
   test('trigger for play id without pad/pressure', () => {
@@ -41,9 +43,14 @@ describe('actionMode', () => {
     expect(actionMode(play)).toBe('trigger');
   });
 
-  test('fallback for cue id', () => {
+  test('pressure-bearing for cue id', () => {
     const cue = DEFAULT_ACTION_MAP[49];
-    expect(actionMode(cue)).toBe('fallback');
+    expect(actionMode(cue)).toBe('pressure-bearing');
+  });
+
+  test('pressure-bearing for HC2 (every cue-family entry is pressure-bearing)', () => {
+    const hc2 = DEFAULT_ACTION_MAP[57];
+    expect(actionMode(hc2)).toBe('pressure-bearing');
   });
 
   test('trigger for fx1_on id', () => {

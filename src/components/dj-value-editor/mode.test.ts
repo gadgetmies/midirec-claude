@@ -33,7 +33,7 @@ function makeTrack(opts: {
 const padCC: ActionMapEntry = { id: 'xfade_pos', cat: 'mixer', label: 'Crossfader', short: 'XF', device: 'mixer', pad: true };
 const padPressure: ActionMapEntry = DEFAULT_ACTION_MAP[56]!; // hc1, pad+pressure
 const trigger: ActionMapEntry = DEFAULT_ACTION_MAP[48]!; // play, trigger-style
-const fallback: ActionMapEntry = DEFAULT_ACTION_MAP[49]!; // cue, fallback
+const fallback: ActionMapEntry = DEFAULT_ACTION_MAP[73]!; // load_a, fallback (browser, no pad/pressure, not a trigger id)
 
 describe('deriveEditorMode', () => {
   test('hidden when neither selection set', () => {
@@ -132,11 +132,11 @@ describe('deriveEditorMode', () => {
   });
 
   test('fallback row produces hidden mode', () => {
-    const track = makeTrack({ actionMap: { 49: fallback } });
+    const track = makeTrack({ actionMap: { 73: fallback } });
     expect(
       deriveEditorMode({
         djActionTracks: [track],
-        djActionSelection: { trackId: 'dj1', pitch: 49 },
+        djActionSelection: { trackId: 'dj1', pitch: 73 },
         djEventSelection: null,
       }).kind,
     ).toBe('hidden');

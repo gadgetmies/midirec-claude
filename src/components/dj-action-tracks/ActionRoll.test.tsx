@@ -4,6 +4,7 @@ import { beatsToSessionTicks } from '../../midi/sessionTicks';
 import {
   DEFAULT_ACTION_MAP,
   normalizeOutputMapping,
+  type ActionMapEntry,
 } from '../../data/dj';
 import type { DJActionTrack } from '../../hooks/useDJActionTracks';
 import { ActionRoll } from './ActionRoll';
@@ -59,6 +60,18 @@ afterEach(() => {
   stageMock.setDJActionSelection.mockReset();
   stageMock.setDJEventTTicks.mockReset();
 });
+
+/* Synthetic pad-only entry used by tests that need a velocity-sensitive
+   action row. The seeded DEFAULT_ACTION_MAP no longer has any cue-family
+   entry that is velocity-only (all are pressure-bearing). */
+const velocityPad: ActionMapEntry = {
+  id: 'velPad',
+  cat: 'deck',
+  label: 'Velocity Pad',
+  short: 'VP',
+  device: 'deck1',
+  pad: true,
+};
 
 function miniTrack(over: Partial<DJActionTrack> = {}): DJActionTrack {
   return {
@@ -117,7 +130,7 @@ describe('ActionRoll', () => {
 
   test('pad row without CC output still uses velocity-sensitive note', () => {
     const { container } = renderRoll({
-      actionMap: { 57: DEFAULT_ACTION_MAP[57]! },
+      actionMap: { 57: velocityPad },
       outputMap: {},
       events: [{ pitch: 57, tTicks: 0, durTicks: beatsToSessionTicks(1), vel: 0.5 }],
     });
@@ -371,7 +384,7 @@ describe('ActionRoll drag-to-move (single events)', () => {
   test('velocity-sensitive event is draggable', () => {
     const { container } = renderRoll(
       {
-        actionMap: { 57: DEFAULT_ACTION_MAP[57]! },
+        actionMap: { 57: velocityPad },
         outputMap: {},
         events: [{ pitch: 57, tTicks: 0, durTicks: beatsToSessionTicks(1), vel: 0.5 }],
       },

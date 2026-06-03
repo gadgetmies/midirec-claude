@@ -288,7 +288,7 @@ export const DJ_DEVICES = {
 export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   // Deck 1
   48: { id: 'play',      cat: 'deck', label: 'Play / Pause', short: 'PLAY',  device: 'deck1' },
-  49: { id: 'cue',       cat: 'deck', label: 'Cue',          short: 'CUE',   device: 'deck1' },
+  49: { id: 'cue',       cat: 'deck', label: 'Cue',          short: 'CUE',   device: 'deck1', pad: true, pressure: true },
   50: { id: 'sync',      cat: 'deck', label: 'Sync',         short: 'SYNC',  device: 'deck1' },
   51: { id: 'rev',       cat: 'deck', label: 'Reverse',      short: 'REV',   device: 'deck1' },
   52: { id: 'loop_in',   cat: 'deck', label: 'Loop In',      short: 'L·IN',  device: 'deck1' },
@@ -296,9 +296,9 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   54: { id: 'loop_x2',   cat: 'deck', label: 'Loop ×2', short: 'L×2',   device: 'deck1' },
   55: { id: 'loop_half', cat: 'deck', label: 'Loop ÷2', short: 'L÷2',   device: 'deck1' },
   56: { id: 'hc1',       cat: 'deck', label: 'Hot Cue 1',    short: 'HC1',   device: 'deck1', pad: true, pressure: true },
-  57: { id: 'hc2',       cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck1', pad: true },
-  58: { id: 'hc3',       cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck1', pad: true },
-  59: { id: 'hc4',       cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck1', pad: true },
+  57: { id: 'hc2',       cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck1', pad: true, pressure: true },
+  58: { id: 'hc3',       cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck1', pad: true, pressure: true },
+  59: { id: 'hc4',       cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck1', pad: true, pressure: true },
   // FX 1
   60: { id: 'fx1_on',    cat: 'fx',        label: 'FX 1 On',      short: 'ON',    device: 'fx1' },
   61: { id: 'fx1_beat',  cat: 'fx',        label: 'FX 1 Beats',   short: 'BEATS', device: 'fx1' },
@@ -308,11 +308,11 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   64: { id: 'fx2_beat',  cat: 'fx',        label: 'FX 2 Beats',   short: 'BEATS', device: 'fx2' },
   // Deck 2
   65: { id: 'play_b',    cat: 'deck', label: 'Play / Pause', short: 'PLAY',  device: 'deck2' },
-  66: { id: 'cue_b',     cat: 'deck', label: 'Cue',          short: 'CUE',   device: 'deck2' },
+  66: { id: 'cue_b',     cat: 'deck', label: 'Cue',          short: 'CUE',   device: 'deck2', pad: true, pressure: true },
   67: { id: 'sync_b',    cat: 'deck', label: 'Sync',         short: 'SYNC',  device: 'deck2' },
   68: { id: 'loop_in_b', cat: 'deck', label: 'Loop In',      short: 'L·IN',  device: 'deck2' },
   69: { id: 'hc1_b',     cat: 'deck', label: 'Hot Cue 1',    short: 'HC1',   device: 'deck2', pad: true, pressure: true },
-  70: { id: 'hc2_b',     cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2', pad: true },
+  70: { id: 'hc2_b',     cat: 'deck', label: 'Hot Cue 2',    short: 'HC2',   device: 'deck2', pad: true, pressure: true },
   // Mixer
   73: { id: 'load_a',    cat: 'browser', label: 'Load Deck 1',  short: 'LD·1', device: 'mixer' },
   74: { id: 'load_b',    cat: 'browser', label: 'Load Deck 2',  short: 'LD·2', device: 'mixer' },
@@ -320,8 +320,8 @@ export const DEFAULT_ACTION_MAP: Record<number, ActionMapEntry> = {
   75: { id: 'tap',       cat: 'global', label: 'Tap Tempo',    short: 'TAP',   device: 'global' },
   76: { id: 'beat_jump', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck1' },
   77: { id: 'beat_jump_b', cat: 'deck', label: 'Beat Jump',    short: 'BJ',    device: 'deck2' },
-  78: { id: 'hc3_b',     cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck2', pad: true },
-  79: { id: 'hc4_b',     cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck2', pad: true },
+  78: { id: 'hc3_b',     cat: 'deck', label: 'Hot Cue 3',    short: 'HC3',   device: 'deck2', pad: true, pressure: true },
+  79: { id: 'hc4_b',     cat: 'deck', label: 'Hot Cue 4',    short: 'HC4',   device: 'deck2', pad: true, pressure: true },
   80: { id: 'xfade_pos', cat: 'mixer',     label: 'Crossfader',   short: 'XF',    device: 'mixer', pad: true },
   81: { id: 'ch1_vol',   cat: 'mixer',     label: 'Ch 1 Volume',  short: '2V',    device: 'mixer', pad: true },
   82: { id: 'ch2_vol',   cat: 'mixer',     label: 'Ch 2 Volume',  short: '1V',    device: 'mixer', pad: true },
